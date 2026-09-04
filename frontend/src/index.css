@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Ledger identity: ink navy for authority, paper white (cool, not cream)
+     for the page, financial-semantic accents for status. */
+  --color-ink-950: #0f1729;
+  --color-ink-900: #16213D;
+  --color-ink-800: #1f2d4d;
+  --color-ink-700: #2c3e63;
+  --color-ink-600: #3d5280;
+  --color-ink-400: #7c8db0;
+  --color-ink-200: #cdd6e6;
+  --color-ink-100: #e6ebf3;
+
+  --color-paper: #FAFAF8;
+  --color-paper-line: #E4E2DA;
+
+  --color-emerald-700: #16543C;
+  --color-emerald-600: #1F7A5C;
+  --color-emerald-100: #DCEEE5;
+
+  --color-amber-700: #8F6519;
+  --color-amber-600: #C08A2C;
+  --color-amber-100: #F5E9D2;
+
+  --color-clay-700: #8A3626;
+  --color-clay-600: #B54834;
+  --color-clay-100: #F5DFD8;
+
+  --font-display: 'Fraunces', ui-serif, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+  }
+
+  /* Financial figures always get tabular numerals so amounts align in columns,
+     the way they would in a physical ledger. */
+  .figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible keyboard focus everywhere — required for a finance app used by
+     bursars who tab through forms all day. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink-600);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* The signature element: faint horizontal ruling on data-bearing surfaces,
+     evoking ledger paper without being literal about it. */
+  .ledger-lines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 35px,
+      var(--color-paper-line) 35px,
+      var(--color-paper-line) 36px
+    );
+  }
+}
