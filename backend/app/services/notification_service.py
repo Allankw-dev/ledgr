@@ -100,6 +100,48 @@ class ReminderResult:
     errors: list[str]
 
 
+def send_message_to_guardian(
+    guardian_email: str | None,
+    guardian_phone: str | None,
+    email_subject: str,
+    email_body: str,
+    sms_text: str,
+) -> ReminderResult:
+    """Same delivery mechanics as send_reminder_to_guardian, but takes
+    already-composed content instead of building a fee-specific message —
+    what the bulk announcement feature uses to send an arbitrary school
+    notice instead of a payment reminder."""
+    email_sent = False
+    sms_sent = False
+    errors: list[str] = []
+
+    if guardian_email:
+        try:
+            send_email(guardian_email, email_subject, email_body)
+            email_sent = True
+        except NotificationConfigError:
+            pass
+        except Exception as exc:  # noqa: BLE001 — one guardian's failed send shouldn't crash the batch
+            errors.append(f"Email to {guardian_email} failed: {exc}")
+
+    if guardian_phone:
+        try:
+            send_sms(guardian_phone, sms_text)
+            sms_sent = True
+        except NotificationConfigError:
+            pass
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"SMS to {guardian_phone} failed: {exc}")
+
+    return ReminderResult(
+        guardian_email=guardian_email,
+        guardian_phone=guardian_phone,
+        email_sent=email_sent,
+        sms_sent=sms_sent,
+        errors=errors,
+    )
+
+
 def send_reminder_to_guardian(
     guardian_email: str | None,
     guardian_phone: str | None,
