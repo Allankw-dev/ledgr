@@ -112,3 +112,12 @@ export async function bulkGenerateInvoices(payload: BulkGeneratePayload): Promis
   const { data } = await apiClient.post<BulkGenerateResult>('/api/invoices/bulk-generate', payload);
   return data;
 }
+
+// --- Bursar report export ---
+export async function exportBursarReport(termId: string, format: 'xlsx' | 'csv'): Promise<Blob> {
+  const { data } = await apiClient.get('/api/reports/bursar-export', {
+    params: { term_id: termId, format },
+    responseType: 'blob',
+  });
+  return data;
+}

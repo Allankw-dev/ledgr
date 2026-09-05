@@ -13,6 +13,7 @@ import { RiskBadge } from '../components/RiskBadge';
 import { SuggestPaymentPlan } from '../components/SuggestPaymentPlan';
 import { ViewPaymentsButton } from '../components/ViewPaymentsButton';
 import { SendReminderButton } from '../components/SendReminderButton';
+import { ExportReportButton } from '../components/ExportReportButton';
 import { useTerms, useClasses, useFeeStructures } from '../hooks/useSchoolSetup';
 import { useInvoices } from '../hooks/useInvoices';
 import { useStudents } from '../hooks/useStudents';
@@ -142,8 +143,9 @@ export function InvoicesPage() {
 
         {/* Invoices list */}
         <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-ink-200">
+          <div className="px-5 py-4 border-b border-ink-200 flex items-center justify-between">
             <h2 className="font-display text-base text-ink-900 font-medium">All invoices</h2>
+            {activeTerm && <ExportReportButton termId={activeTerm.id} termName={activeTerm.name} />}
           </div>
 
           {invoicesLoading ? (
