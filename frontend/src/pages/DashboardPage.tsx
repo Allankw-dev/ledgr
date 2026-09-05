@@ -1,9 +1,12 @@
-import { Wallet, AlertCircle, Users, Receipt, ShieldAlert } from 'lucide-react';
+import { Wallet, AlertCircle, Users, Receipt, ShieldAlert, TrendingUp } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { StatCard } from '../components/ui/StatCard';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { CollectionChart } from '../components/CollectionChart';
+import { TopRiskList } from '../components/TopRiskList';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useAnomalies } from '../hooks/useAnomalies';
+import { useDashboardAnalytics } from '../hooks/useDashboardAnalytics';
 import { useAuthStore } from '../store/authStore';
 
 function formatCurrency(amount: number, currency = 'KES') {
@@ -13,6 +16,7 @@ function formatCurrency(amount: number, currency = 'KES') {
 export function DashboardPage() {
   const { invoices, students, loading, error } = useDashboardData();
   const { anomalies } = useAnomalies();
+  const { data: analytics } = useDashboardAnalytics();
   const user = useAuthStore((s) => s.user);
 
   const totalCollected = invoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
@@ -64,6 +68,25 @@ export function DashboardPage() {
             icon={<Users className="w-5 h-5" strokeWidth={1.75} />}
           />
         </div>
+
+        {analytics && (analytics.collection_by_term.length > 0 || analytics.top_risk.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+            <div className="bg-white border border-ink-200 rounded-lg p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
+                <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
+              </div>
+              <CollectionChart points={analytics.collection_by_term} />
+            </div>
+            <div className="bg-white border border-ink-200 rounded-lg p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle className="w-4 h-4 text-ink-600" strokeWidth={2} />
+                <h2 className="font-display text-base text-ink-900 font-medium">Highest-risk unpaid invoices</h2>
+              </div>
+              <TopRiskList invoices={analytics.top_risk} />
+            </div>
+          </div>
+        )}
 
         {anomalies.length > 0 && (
           <div className="bg-white border border-clay-600/30 rounded-lg overflow-hidden mb-8">
