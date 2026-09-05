@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { IdleTimeoutGuard } from './IdleTimeoutGuard';
 import type { UserRole } from '../types';
 
 interface ProtectedRouteProps {
@@ -21,5 +22,5 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to={user.role === 'PARENT' ? '/parent/dashboard' : '/dashboard'} replace />;
   }
 
-  return <>{children}</>;
+  return <IdleTimeoutGuard>{children}</IdleTimeoutGuard>;
 }
