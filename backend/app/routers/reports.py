@@ -10,8 +10,8 @@ from app.models.invoice import Invoice
 from app.models.student import Student, SchoolClass, Term
 from app.models.school import School
 from app.schemas.analytics import DashboardAnalyticsResponse, TermCollectionPoint, TopRiskInvoice
-from app.services import analytics_service
 from app.services.export_service import BursarReportRow, generate_bursar_report_csv, generate_bursar_report_xlsx
+from app.services.analytics_service import get_summary_stats, get_collection_by_term, get_top_risk_invoices
 
 router = APIRouter(prefix="/api/reports", tags=["reports"], dependencies=[Depends(get_current_user)])
 
@@ -81,16 +81,20 @@ def dashboard_analytics(
     """Two things a bursar checks daily: collection trend across terms, and
     which unpaid invoices are most likely to go bad. Both are derived from
     data that's already tracked elsewhere (invoices + the existing
-    risk_scoring service) — analytics_service does the aggregation, shared
-    with the AI assistant's tools so the numbers never drift apart."""
+    risk_scoring service) — this just aggregates it for the dashboard.
+
+    The actual queries live in analytics_service so the AI assistant's
+    tools can reuse the exact same numbers instead of recomputing them."""
     if not school_id:
         raise HTTPException(400, "SUPER_ADMIN must act within a specific school for analytics")
 
-    stats = analytics_service.get_headline_stats(db, school_id)
+    stats = get_summary_stats(db, school_id)
+
     collection_by_term = [
         TermCollectionPoint(term_id=t.term_id, term_name=t.term_name, total_billed=t.total_billed, total_paid=t.total_paid)
-        for t in analytics_service.get_collection_by_term(db, school_id)
+        for t in get_collection_by_term(db, school_id)
     ]
+
     top_risk = [
         TopRiskInvoice(
             invoice_id=r.invoice_id,
@@ -101,9 +105,8 @@ def dashboard_analytics(
             risk_score=r.risk_score,
             risk_level=r.risk_level,
         )
-        for r in analytics_service.get_top_risk_invoices(db, school_id)
+        for r in get_top_risk_invoices(db, school_id, limit=5)
     ]
-    db.commit()  # persists the risk snapshots just logged for future model training
 
     return DashboardAnalyticsResponse(
         total_collected=stats.total_collected,

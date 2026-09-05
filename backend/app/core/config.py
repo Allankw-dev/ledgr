@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     mpesa_passkey: str | None = None
     mpesa_callback_url: str | None = None  # public HTTPS URL Safaricom calls back to
 
+    # AI assistant — powers the parent chatbot and the bursar's "Ask Ledgr" assistant
+    anthropic_api_key: str | None = None
+
     # Reminders — email via SMTP, SMS via Africa's Talking
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -39,10 +42,6 @@ class Settings(BaseSettings):
     africastalking_username: str | None = None
     africastalking_api_key: str | None = None
     africastalking_sandbox: bool = True
-
-    # Phase 4 — AI bursar assistant
-    anthropic_api_key: str | None = None
-    ai_assistant_model: str = "claude-sonnet-4-6"
 
     class Config:
         env_file = ".env"

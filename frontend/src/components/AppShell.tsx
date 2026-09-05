@@ -7,7 +7,7 @@ const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
   { to: '/students', label: 'Students', icon: Users },
   { to: '/invoices', label: 'Invoices', icon: FileText },
-  { to: '/assistant', label: 'Assistant', icon: Sparkles },
+  { to: '/assistant', label: 'Ask Ledgr', icon: Sparkles },
   { to: '/guardian-requests', label: 'Parent requests', icon: UserCheck },
   { to: '/security', label: 'Security', icon: ShieldCheck },
 ];

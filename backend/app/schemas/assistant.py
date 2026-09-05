@@ -1,23 +1,18 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
 class AssistantMessage(BaseModel):
-    role: str  # "user" | "assistant"
+    role: Literal["user", "assistant"]
     content: str
 
 
-class AssistantChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=2000)
-    # Prior turns of THIS conversation, oldest first — the frontend keeps the
-    # transcript and resends it each turn; the server holds no session state.
-    history: list[AssistantMessage] = Field(default_factory=list)
+class AssistantQueryRequest(BaseModel):
+    # Full conversation so far, oldest first — the endpoint is stateless,
+    # same pattern as any direct use of the Anthropic Messages API.
+    messages: list[AssistantMessage] = Field(min_length=1, max_length=40)
 
 
-class AssistantAction(BaseModel):
-    tool: str
-    result_summary: str
-
-
-class AssistantChatResponse(BaseModel):
-    reply: str
-    actions_taken: list[AssistantAction]
+class AssistantQueryResponse(BaseModel):
+    answer: str

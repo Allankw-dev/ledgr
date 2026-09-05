@@ -1,120 +1,121 @@
-import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Send, CheckCircle2 } from 'lucide-react';
+import { useRef, useState, useEffect, type FormEvent } from 'react';
+import { Sparkles, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
-import { useAssistant } from '../hooks/useAssistant';
+import { queryAssistant, type AssistantMessage } from '../api/assistant';
 
-const SUGGESTED_PROMPTS = [
-  'How much have we collected this term?',
-  'Which invoices are highest risk right now?',
-  'What should we expect to collect next term?',
+const SUGGESTIONS = [
+  'Which students are overdue right now?',
+  'How does this term compare to last term?',
+  'Who are the highest-risk unpaid accounts?',
 ];
 
 export function AssistantPage() {
-  const { messages, sending, error, sendMessage } = useAssistant();
+  const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, sending]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || sending) return;
-    sendMessage(input);
+  async function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+
+    const nextMessages: AssistantMessage[] = [...messages, { role: 'user', content: trimmed }];
+    setMessages(nextMessages);
     setInput('');
+    setLoading(true);
+    setError(null);
+
+    try {
+      const answer = await queryAssistant(nextMessages);
+      setMessages([...nextMessages, { role: 'assistant', content: answer }]);
+    } catch {
+      setError('Could not reach the assistant. Try again in a moment.');
+      setMessages(messages); // roll back — don't leave an unanswered question in history
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    send(input);
   }
 
   return (
     <AppShell>
-      <div className="max-w-3xl mx-auto px-8 py-8 h-screen flex flex-col">
+      <div className="max-w-3xl mx-auto px-8 py-8 flex flex-col h-screen">
         <div className="mb-6 shrink-0">
-          <h1 className="font-display text-2xl text-ink-900 font-medium flex items-center gap-2.5">
-            <Sparkles className="w-5.5 h-5.5" strokeWidth={1.75} />
-            Bursar assistant
+          <h1 className="font-display text-2xl text-ink-900 font-medium flex items-center gap-2">
+            <Sparkles className="w-5 h-5" strokeWidth={1.75} />
+            Ask Ledgr
           </h1>
           <p className="text-sm text-ink-600 mt-1">
-            Ask about collections, risk, or ask it to remind a guardian about a balance.
+            Ask about students, invoices, or collection — it looks up real data, it doesn't guess.
           </p>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 -mx-2 px-2">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-4 text-center">
-              <div className="w-11 h-11 rounded-full bg-ink-100 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-ink-600" strokeWidth={1.75} />
-              </div>
-              <p className="text-sm text-ink-600 max-w-xs">
-                It can look up collection numbers, flag risky invoices, and send fee reminders when you ask.
-              </p>
-              <div className="flex flex-col gap-2 w-full max-w-sm">
-                {SUGGESTED_PROMPTS.map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => sendMessage(prompt)}
-                    className="text-left text-sm px-4 py-2.5 rounded-md border border-ink-200 text-ink-700 hover:bg-ink-100 transition-colors"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4 pb-4">
-              {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm whitespace-pre-wrap ${
-                      m.role === 'user'
-                        ? 'bg-ink-900 text-paper'
-                        : 'bg-white border border-ink-200 text-ink-900'
-                    }`}
-                  >
-                    {m.content}
-                    {m.actions && m.actions.length > 0 && (
-                      <div className="mt-2.5 pt-2.5 border-t border-ink-100 flex flex-col gap-1.5">
-                        {m.actions.map((a, j) => (
-                          <div key={j} className="flex items-start gap-1.5 text-xs text-emerald-700">
-                            <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={2} />
-                            <span>{a.result_summary}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 pb-4">
+          {messages.length === 0 && (
+            <div className="flex flex-col gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  className="text-left text-sm px-4 py-3 rounded-lg border border-ink-200 bg-white hover:bg-ink-100 text-ink-700"
+                >
+                  {s}
+                </button>
               ))}
-              {sending && (
-                <div className="flex justify-start">
-                  <div className="bg-white border border-ink-200 rounded-lg px-4 py-2.5 text-sm text-ink-400">
-                    Thinking…
-                  </div>
-                </div>
-              )}
             </div>
           )}
-        </div>
 
-        {error && (
-          <div role="alert" className="bg-clay-100 text-clay-700 rounded-md px-4 py-3 text-sm mb-3 shrink-0">
-            {error}
-          </div>
-        )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm whitespace-pre-wrap ${
+                  m.role === 'user' ? 'bg-ink-900 text-paper' : 'bg-white border border-ink-200 text-ink-900'
+                }`}
+              >
+                {m.content}
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-white border border-ink-200 rounded-lg px-4 py-2.5 text-sm text-ink-600">
+                Looking that up…
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div role="alert" className="bg-clay-100 text-clay-700 rounded-md px-4 py-3 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div ref={scrollRef} />
+        </div>
 
         <form onSubmit={handleSubmit} className="shrink-0 flex items-center gap-2 pt-2">
           <input
-            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about collections, risk, or reminders…"
-            disabled={sending}
-            className="flex-1 px-4 py-2.5 rounded-md border border-ink-200 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-ink-600 disabled:bg-ink-100"
+            placeholder="Ask about students, invoices, or collection…"
+            className="flex-1 px-4 py-2.5 rounded-md border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-ink-900/20"
+            disabled={loading}
           />
           <button
             type="submit"
-            disabled={sending || !input.trim()}
-            className="px-4 py-2.5 rounded-md bg-ink-900 text-paper disabled:bg-ink-400 disabled:cursor-not-allowed hover:bg-ink-800 transition-colors"
-            aria-label="Send message"
+            disabled={loading || !input.trim()}
+            className="p-2.5 rounded-md bg-ink-900 text-paper hover:bg-ink-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Send"
           >
             <Send className="w-4 h-4" strokeWidth={2} />
           </button>
