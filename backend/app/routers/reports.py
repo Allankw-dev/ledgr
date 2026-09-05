@@ -86,6 +86,22 @@ def dashboard_analytics(
     if not school_id:
         raise HTTPException(400, "SUPER_ADMIN must act within a specific school for analytics")
 
+    # --- Headline stats (previously computed by fetching every invoice and
+    # student to the frontend and summing there — same numbers, now a few
+    # cheap SQL aggregates instead of transferring and summing full tables) ---
+    totals_row = db.execute(
+        select(
+            func.coalesce(func.sum(Invoice.amount_paid), 0),
+            func.coalesce(func.sum(Invoice.total_amount - Invoice.amount_paid), 0),
+            func.count().filter(Invoice.status == InvoiceStatus.OVERDUE),
+        ).where(Invoice.school_id == school_id)
+    ).one()
+    total_collected, total_outstanding, overdue_count = totals_row
+
+    active_student_count = db.execute(
+        select(func.count()).select_from(Student).where(Student.school_id == school_id, Student.is_active == True)  # noqa: E712
+    ).scalar_one()
+
     # --- Collection by term ---
     term_rows = db.execute(
         select(
@@ -139,4 +155,11 @@ def dashboard_analytics(
         )
     top_risk = sorted(scored, key=lambda r: r.risk_score, reverse=True)[:5]
 
-    return DashboardAnalyticsResponse(collection_by_term=collection_by_term, top_risk=top_risk)
+    return DashboardAnalyticsResponse(
+        total_collected=total_collected,
+        total_outstanding=total_outstanding,
+        overdue_count=overdue_count,
+        active_student_count=active_student_count,
+        collection_by_term=collection_by_term,
+        top_risk=top_risk,
+    )

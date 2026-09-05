@@ -21,5 +21,9 @@ class TopRiskInvoice(BaseModel):
 
 
 class DashboardAnalyticsResponse(BaseModel):
+    total_collected: Decimal
+    total_outstanding: Decimal
+    overdue_count: int
+    active_student_count: int
     collection_by_term: list[TermCollectionPoint]
     top_risk: list[TopRiskInvoice]

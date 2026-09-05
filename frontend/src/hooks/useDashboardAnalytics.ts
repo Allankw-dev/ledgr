@@ -19,6 +19,10 @@ export interface TopRiskInvoice {
 }
 
 interface DashboardAnalytics {
+  total_collected: string;
+  total_outstanding: string;
+  overdue_count: number;
+  active_student_count: number;
   collection_by_term: TermCollectionPoint[];
   top_risk: TopRiskInvoice[];
 }

@@ -7,6 +7,7 @@ from app.core.deps import get_current_user, get_school_scope, require_roles, Cur
 from app.core.security import hash_password
 from app.core.rate_limit import limiter
 from app.schemas.student import CreateStudentRequest, StudentResponse
+from app.schemas.pagination import Page, PageMeta
 from app.schemas.guardian import LinkGuardianRequest, GuardianResponse
 from app.schemas.guardian_request import (
     StudentLookupResult,
@@ -20,17 +21,41 @@ from app.models.enums import UserRole, GuardianLinkStatus
 
 router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
 
+MAX_PAGE_SIZE = 100
 
-@router.get("", response_model=list[StudentResponse])
+
+@router.get("", response_model=Page[StudentResponse])
 def list_students(
+    page: int = 1,
+    page_size: int = 25,
     class_id: str | None = None,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
 ):
-    query = select(Student).where(Student.school_id == school_id, Student.is_active == True)  # noqa: E712
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
+
+    filters = [Student.school_id == school_id, Student.is_active == True]  # noqa: E712
     if class_id:
-        query = query.where(Student.class_id == class_id)
-    return db.execute(query.order_by(Student.full_name)).scalars().all()
+        filters.append(Student.class_id == class_id)
+
+    total = db.execute(select(func.count()).select_from(Student).where(*filters)).scalar_one()
+    items = (
+        db.execute(
+            select(Student)
+            .where(*filters)
+            .order_by(Student.full_name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        .scalars()
+        .all()
+    )
+
+    return Page(
+        items=items,
+        meta=PageMeta(page=page, page_size=page_size, total=total, has_more=(page * page_size) < total),
+    )
 
 
 @router.get("/{student_id}", response_model=StudentResponse)

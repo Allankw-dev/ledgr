@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { SelectField } from '../components/ui/SelectField';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddTermForm } from '../components/AddTermForm';
 import { AddFeeStructureForm } from '../components/AddFeeStructureForm';
 import { BulkGenerateForm } from '../components/BulkGenerateForm';
@@ -16,8 +17,7 @@ import { SendReminderButton } from '../components/SendReminderButton';
 import { ExportReportButton } from '../components/ExportReportButton';
 import { useTerms, useClasses, useFeeStructures } from '../hooks/useSchoolSetup';
 import { useInvoices } from '../hooks/useInvoices';
-import { useStudents } from '../hooks/useStudents';
-import type { Invoice } from '../types';
+import type { InvoiceListItem } from '../types';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
@@ -28,17 +28,22 @@ type ModalKind = 'term' | 'fee' | 'generate' | 'payment' | null;
 export function InvoicesPage() {
   const { terms, loading: termsLoading, refetch: refetchTerms } = useTerms();
   const { classes } = useClasses();
-  const { students } = useStudents();
   const [selectedTermId, setSelectedTermId] = useState<string>('');
   const { feeStructures, refetch: refetchFees } = useFeeStructures(selectedTermId || terms[0]?.id);
-  const { invoices, loading: invoicesLoading, error, refetch: refetchInvoices } = useInvoices();
+  const activeTermId = selectedTermId || terms[0]?.id || '';
+  const {
+    invoices,
+    meta: invoicesMeta,
+    setPage: setInvoicesPage,
+    loading: invoicesLoading,
+    error,
+    refetch: refetchInvoices,
+  } = useInvoices(activeTermId || undefined);
   const [modal, setModal] = useState<ModalKind>(null);
   const [generateResult, setGenerateResult] = useState<{ created: number; skipped: number } | null>(null);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceListItem | null>(null);
 
-  const activeTermId = selectedTermId || terms[0]?.id || '';
   const activeTerm = terms.find((t) => t.id === activeTermId);
-  const studentName = (id: string) => students.find((s) => s.id === id)?.full_name || id.slice(0, 8);
 
   function handleGenerateSuccess(result: { created: number; skipped: number }) {
     setModal(null);
@@ -46,7 +51,7 @@ export function InvoicesPage() {
     refetchInvoices();
   }
 
-  function openPaymentModal(invoice: Invoice) {
+  function openPaymentModal(invoice: InvoiceListItem) {
     setSelectedInvoice(invoice);
     setModal('payment');
   }
@@ -175,7 +180,7 @@ export function InvoicesPage() {
                     const canPay = inv.status !== 'PAID' && inv.status !== 'CANCELLED';
                     return (
                       <tr key={inv.id} className="h-9 text-ink-900">
-                        <td className="px-5">{studentName(inv.student_id)}</td>
+                        <td className="px-5">{inv.student_name}</td>
                         <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
                         <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
                         <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
@@ -207,6 +212,7 @@ export function InvoicesPage() {
               </table>
             </div>
           )}
+          {invoicesMeta && <PaginationControls meta={invoicesMeta} onPageChange={setInvoicesPage} />}
         </div>
       </div>
 
@@ -239,7 +245,7 @@ export function InvoicesPage() {
       )}
 
       {modal === 'payment' && selectedInvoice && (
-        <Modal title={`Record payment — ${studentName(selectedInvoice.student_id)}`} onClose={() => setModal(null)}>
+        <Modal title={`Record payment — ${selectedInvoice.student_name}`} onClose={() => setModal(null)}>
           <RecordPaymentForm
             studentId={selectedInvoice.student_id}
             invoiceId={selectedInvoice.id}

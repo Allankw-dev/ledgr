@@ -3,6 +3,7 @@ import { UserPlus, Users, UserCog, UserMinus } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddStudentForm } from '../components/AddStudentForm';
 import { LinkGuardianForm } from '../components/LinkGuardianForm';
 import { useStudents } from '../hooks/useStudents';
@@ -10,7 +11,7 @@ import { deactivateStudent } from '../api/school';
 import type { Student } from '../types';
 
 export function StudentsPage() {
-  const { students, loading, error, refetch } = useStudents();
+  const { students, meta, setPage, loading, error, refetch } = useStudents();
   const [showAddModal, setShowAddModal] = useState(false);
   const [guardianTarget, setGuardianTarget] = useState<Student | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Student | null>(null);
@@ -50,7 +51,7 @@ export function StudentsPage() {
           <div>
             <h1 className="font-display text-2xl text-ink-900 font-medium">Students</h1>
             <p className="text-sm text-ink-600 mt-1">
-              {loading ? 'Loading…' : `${students.length} student${students.length === 1 ? '' : 's'} enrolled`}
+              {loading ? 'Loading…' : `${meta?.total ?? students.length} student${(meta?.total ?? students.length) === 1 ? '' : 's'} enrolled`}
             </p>
           </div>
           <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
@@ -130,6 +131,7 @@ export function StudentsPage() {
               </table>
             </div>
           )}
+          {meta && <PaginationControls meta={meta} onPageChange={setPage} />}
         </div>
       </div>
 

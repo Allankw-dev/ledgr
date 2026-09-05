@@ -4,7 +4,7 @@ import { StatCard } from '../components/ui/StatCard';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { CollectionChart } from '../components/CollectionChart';
 import { TopRiskList } from '../components/TopRiskList';
-import { useDashboardData } from '../hooks/useDashboardData';
+import { useInvoices } from '../hooks/useInvoices';
 import { useAnomalies } from '../hooks/useAnomalies';
 import { useDashboardAnalytics } from '../hooks/useDashboardAnalytics';
 import { useAuthStore } from '../store/authStore';
@@ -13,18 +13,19 @@ function formatCurrency(amount: number, currency = 'KES') {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
 }
 
+const RECENT_INVOICES_PAGE_SIZE = 10;
+
 export function DashboardPage() {
-  const { invoices, students, loading, error } = useDashboardData();
+  // Only the most recent page is fetched here — the headline numbers below
+  // come from the analytics endpoint's SQL aggregates instead of summing
+  // every invoice client-side, which is what made this page slow to load
+  // as the number of students and invoices grew.
+  const { invoices, loading, error } = useInvoices(undefined, undefined, RECENT_INVOICES_PAGE_SIZE);
   const { anomalies } = useAnomalies();
   const { data: analytics } = useDashboardAnalytics();
   const user = useAuthStore((s) => s.user);
 
-  const totalCollected = invoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
-  const totalOutstanding = invoices.reduce(
-    (sum, inv) => sum + (Number(inv.total_amount) - Number(inv.amount_paid)),
-    0
-  );
-  const overdueCount = invoices.filter((inv) => inv.status === 'OVERDUE').length;
+  const recentInvoices = invoices;
 
   return (
     <AppShell>
@@ -45,26 +46,26 @@ export function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Collected this term"
-            value={loading ? '—' : formatCurrency(totalCollected)}
+            value={!analytics ? '—' : formatCurrency(Number(analytics.total_collected))}
             icon={<Wallet className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
             label="Outstanding balance"
-            value={loading ? '—' : formatCurrency(totalOutstanding)}
-            trend={!loading && totalOutstanding > 0 ? 'Needs follow-up' : undefined}
+            value={!analytics ? '—' : formatCurrency(Number(analytics.total_outstanding))}
+            trend={!!analytics && Number(analytics.total_outstanding) > 0 ? 'Needs follow-up' : undefined}
             trendDirection="down"
             icon={<Receipt className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
             label="Overdue invoices"
-            value={loading ? '—' : String(overdueCount)}
-            trend={!loading && overdueCount > 0 ? 'Review and remind' : 'All on track'}
-            trendDirection={overdueCount > 0 ? 'down' : 'up'}
+            value={!analytics ? '—' : String(analytics.overdue_count)}
+            trend={!!analytics && analytics.overdue_count > 0 ? 'Review and remind' : 'All on track'}
+            trendDirection={!!analytics && analytics.overdue_count > 0 ? 'down' : 'up'}
             icon={<AlertCircle className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
             label="Active students"
-            value={loading ? '—' : String(students.length)}
+            value={!analytics ? '—' : String(analytics.active_student_count)}
             icon={<Users className="w-5 h-5" strokeWidth={1.75} />}
           />
         </div>
@@ -129,7 +130,7 @@ export function DashboardPage() {
 
           {loading ? (
             <div className="px-5 py-12 text-center text-sm text-ink-600">Loading invoices…</div>
-          ) : invoices.length === 0 ? (
+          ) : recentInvoices.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <p className="text-sm text-ink-600">No invoices yet.</p>
               <p className="text-xs text-ink-400 mt-1">
@@ -141,7 +142,7 @@ export function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-ink-600">
-                    <th className="px-5 py-2 font-medium">Invoice</th>
+                    <th className="px-5 py-2 font-medium">Student</th>
                     <th className="px-5 py-2 font-medium">Due date</th>
                     <th className="px-5 py-2 font-medium text-right">Total</th>
                     <th className="px-5 py-2 font-medium text-right">Paid</th>
@@ -149,9 +150,9 @@ export function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.slice(0, 10).map((inv) => (
+                  {recentInvoices.map((inv) => (
                     <tr key={inv.id} className="h-9 text-ink-900">
-                      <td className="px-5 figure text-xs text-ink-600">{inv.id.slice(0, 8)}</td>
+                      <td className="px-5">{inv.student_name}</td>
                       <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
                       <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
                       <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>

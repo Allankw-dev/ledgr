@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_school_scope, require_roles
-from app.schemas.invoice import GenerateInvoiceRequest, BulkGenerateRequest, BulkGenerateResult, InvoiceResponse
+from app.schemas.invoice import GenerateInvoiceRequest, BulkGenerateRequest, BulkGenerateResult, InvoiceResponse, InvoiceListItem
+from app.schemas.pagination import Page, PageMeta
 from app.schemas.risk import RiskAssessmentResponse, RiskFactorsResponse
 from app.schemas.payment_plan import PaymentPlanResponse, InstallmentResponse
 from app.schemas.payment import PaymentResponse
 from app.schemas.guardian_request import SendReminderResponse, ReminderRecipientResult
-from app.models.student import Student, StudentGuardian
+from app.models.student import Student, SchoolClass, StudentGuardian
 from app.models.invoice import Invoice
 from app.models.payment import Payment
 from app.models.school import School, User
@@ -25,17 +26,52 @@ router = APIRouter(
     dependencies=[Depends(require_roles("SCHOOL_ADMIN", "BURSAR"))],
 )
 
+MAX_PAGE_SIZE = 100
 
-@router.get("", response_model=list[InvoiceResponse])
+
+@router.get("", response_model=Page[InvoiceListItem])
 def list_invoices(
+    page: int = 1,
+    page_size: int = 25,
     status: str | None = None,
+    term_id: str | None = None,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
 ):
-    query = select(Invoice).where(Invoice.school_id == school_id)
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
+
+    base_filters = [Invoice.school_id == school_id]
     if status:
-        query = query.where(Invoice.status == status)
-    return db.execute(query.order_by(Invoice.due_date)).scalars().all()
+        base_filters.append(Invoice.status == status)
+    if term_id:
+        base_filters.append(Invoice.term_id == term_id)
+
+    total = db.execute(select(func.count()).select_from(Invoice).where(*base_filters)).scalar_one()
+
+    rows = db.execute(
+        select(Invoice, Student, SchoolClass)
+        .join(Student, Invoice.student_id == Student.id)
+        .outerjoin(SchoolClass, Student.class_id == SchoolClass.id)
+        .where(*base_filters)
+        .order_by(Invoice.due_date)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+
+    items = [
+        InvoiceListItem(
+            **InvoiceResponse.model_validate(invoice).model_dump(),
+            student_name=student.full_name,
+            class_name=school_class.name if school_class else "—",
+        )
+        for invoice, student, school_class in rows
+    ]
+
+    return Page(
+        items=items,
+        meta=PageMeta(page=page, page_size=page_size, total=total, has_more=(page * page_size) < total),
+    )
 
 
 @router.post("", response_model=InvoiceResponse, status_code=201)

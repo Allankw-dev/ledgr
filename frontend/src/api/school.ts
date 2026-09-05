@@ -1,8 +1,10 @@
 import { apiClient } from './client';
-import type { Student, Invoice, Term, SchoolClass, FeeStructure, FeeCategory } from '../types';
+import type { Student, InvoiceListItem, Page, Term, SchoolClass, FeeStructure, FeeCategory } from '../types';
 
-export async function listStudents(classId?: string): Promise<Student[]> {
-  const { data } = await apiClient.get<Student[]>('/api/students', { params: { class_id: classId } });
+export async function listStudents(page = 1, pageSize = 25, classId?: string): Promise<Page<Student>> {
+  const { data } = await apiClient.get<Page<Student>>('/api/students', {
+    params: { page, page_size: pageSize, class_id: classId },
+  });
   return data;
 }
 
@@ -28,8 +30,10 @@ export async function getStudent(id: string): Promise<Student> {
   return data;
 }
 
-export async function listInvoices(status?: string): Promise<Invoice[]> {
-  const { data } = await apiClient.get<Invoice[]>('/api/invoices', { params: { status } });
+export async function listInvoices(page = 1, pageSize = 25, status?: string, termId?: string): Promise<Page<InvoiceListItem>> {
+  const { data } = await apiClient.get<Page<InvoiceListItem>>('/api/invoices', {
+    params: { page, page_size: pageSize, status, term_id: termId },
+  });
   return data;
 }
 

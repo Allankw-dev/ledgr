@@ -85,6 +85,23 @@ export interface Invoice {
   status: InvoiceStatus;
 }
 
+export interface InvoiceListItem extends Invoice {
+  student_name: string;
+  class_name: string;
+}
+
+export interface PageMeta {
+  page: number;
+  page_size: number;
+  total: number;
+  has_more: boolean;
+}
+
+export interface Page<T> {
+  items: T[];
+  meta: PageMeta;
+}
+
 export interface Payment {
   id: string;
   student_id: string;

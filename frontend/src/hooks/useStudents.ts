@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listStudents } from '../api/school';
-import type { Student } from '../types';
+import type { Student, PageMeta } from '../types';
+
+const PAGE_SIZE = 25;
 
 export function useStudents() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [meta, setMeta] = useState<PageMeta | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -11,18 +15,19 @@ export function useStudents() {
     setLoading(true);
     setError(null);
     try {
-      const data = await listStudents();
-      setStudents(data);
+      const data = await listStudents(page, PAGE_SIZE);
+      setStudents(data.items);
+      setMeta(data.meta);
     } catch {
       setError('Could not load students. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     refetch();
   }, [refetch]);
 
-  return { students, loading, error, refetch };
+  return { students, meta, page, setPage, loading, error, refetch };
 }

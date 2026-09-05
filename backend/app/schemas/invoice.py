@@ -33,3 +33,12 @@ class InvoiceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class InvoiceListItem(InvoiceResponse):
+    """Same as InvoiceResponse but with the student/class names already
+    joined in, so a paginated list page doesn't also need to fetch every
+    student just to display who each invoice belongs to."""
+
+    student_name: str
+    class_name: str
