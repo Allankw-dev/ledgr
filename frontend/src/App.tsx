@@ -3,6 +3,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { StudentsPage } from './pages/StudentsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
+import { AssistantPage } from './pages/AssistantPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { GuardianRequestsPage } from './pages/GuardianRequestsPage';
 import { ParentDashboardPage } from './pages/ParentDashboardPage';
@@ -47,6 +48,14 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
               <InvoicesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assistant"
+          element={
+            <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
+              <AssistantPage />
             </ProtectedRoute>
           }
         />

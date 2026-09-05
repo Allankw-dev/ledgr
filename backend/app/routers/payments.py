@@ -3,10 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_school_scope, require_roles, get_current_user, CurrentUser
+from app.models.payment import Payment
 from app.schemas.payment import RecordPaymentRequest, ReversePaymentRequest, PaymentResponse
 from app.schemas.anomaly import PaymentAnomalyResponse
 from app.services.payment_service import record_confirmed_payment, reverse_payment
 from app.services.anomaly_detection import scan_recent_anomalies
+from app.services.ml_anomaly_service import scan_school_for_ml_anomalies
 
 router = APIRouter(
     prefix="/api/payments",
@@ -56,10 +58,14 @@ def get_flagged_payments(
     db: Session = Depends(get_db),
 ):
     """Scans recent confirmed payments for this school and returns any
-    that were flagged by at least one anomaly rule, for bursar review."""
+    flagged by an explainable rule (anomaly_detection.py) or by the
+    Isolation Forest model (ml_anomaly_service.py) — two independent
+    signals, merged so a bursar sees one list either way."""
     anomalies = scan_recent_anomalies(db, school_id, days=days)
-    return [
-        PaymentAnomalyResponse(
+    by_payment_id = {a.payment_id: a for a in anomalies}
+
+    responses: dict[str, PaymentAnomalyResponse] = {
+        a.payment_id: PaymentAnomalyResponse(
             payment_id=a.payment_id,
             student_id=a.student_id,
             amount=a.amount,
@@ -68,4 +74,27 @@ def get_flagged_payments(
             severity=a.severity,
         )
         for a in anomalies
-    ]
+    }
+
+    for ml_result in scan_school_for_ml_anomalies(db, school_id, days=days):
+        if ml_result.payment_id in responses:
+            resp = responses[ml_result.payment_id]
+            resp.reasons.append(ml_result.reason)
+            resp.ml_anomaly_score = ml_result.anomaly_score
+            if len(resp.reasons) >= 2:
+                resp.severity = "high"
+        else:
+            payment = db.get(Payment, ml_result.payment_id)
+            if not payment:
+                continue
+            responses[ml_result.payment_id] = PaymentAnomalyResponse(
+                payment_id=payment.id,
+                student_id=payment.student_id,
+                amount=payment.amount,
+                paid_at=payment.paid_at,
+                reasons=[ml_result.reason],
+                severity="medium",
+                ml_anomaly_score=ml_result.anomaly_score,
+            )
+
+    return list(responses.values())

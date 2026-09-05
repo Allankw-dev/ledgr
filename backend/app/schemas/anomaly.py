@@ -11,3 +11,4 @@ class PaymentAnomalyResponse(BaseModel):
     paid_at: datetime | None
     reasons: list[str]
     severity: str
+    ml_anomaly_score: float | None = None  # set when Isolation Forest also flagged this payment

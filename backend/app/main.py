@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
-from app.routers import auth, students, invoices, payments, terms, fee_structures, parent, users, mpesa, receipts, reports
+from app.routers import auth, students, invoices, payments, terms, fee_structures, parent, users, mpesa, receipts, reports, assistant
 from app.routers.students import guardian_requests_router
 
 app = FastAPI(title="Ledgr API", version="0.1.0")
@@ -48,6 +48,7 @@ app.include_router(mpesa.router)
 app.include_router(guardian_requests_router)
 app.include_router(receipts.router)
 app.include_router(reports.router)
+app.include_router(assistant.router)
 
 
 @app.get("/health")

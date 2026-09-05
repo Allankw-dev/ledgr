@@ -1,7 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,10 +9,9 @@ from app.core.deps import get_current_user, get_school_scope, require_roles
 from app.models.invoice import Invoice
 from app.models.student import Student, SchoolClass, Term
 from app.models.school import School
-from app.models.enums import InvoiceStatus
 from app.schemas.analytics import DashboardAnalyticsResponse, TermCollectionPoint, TopRiskInvoice
+from app.services import analytics_service
 from app.services.export_service import BursarReportRow, generate_bursar_report_csv, generate_bursar_report_xlsx
-from app.services.risk_scoring import compute_risk_score
 
 router = APIRouter(prefix="/api/reports", tags=["reports"], dependencies=[Depends(get_current_user)])
 
@@ -82,84 +81,35 @@ def dashboard_analytics(
     """Two things a bursar checks daily: collection trend across terms, and
     which unpaid invoices are most likely to go bad. Both are derived from
     data that's already tracked elsewhere (invoices + the existing
-    risk_scoring service) — this just aggregates it for the dashboard."""
+    risk_scoring service) — analytics_service does the aggregation, shared
+    with the AI assistant's tools so the numbers never drift apart."""
     if not school_id:
         raise HTTPException(400, "SUPER_ADMIN must act within a specific school for analytics")
 
-    # --- Headline stats (previously computed by fetching every invoice and
-    # student to the frontend and summing there — same numbers, now a few
-    # cheap SQL aggregates instead of transferring and summing full tables) ---
-    totals_row = db.execute(
-        select(
-            func.coalesce(func.sum(Invoice.amount_paid), 0),
-            func.coalesce(func.sum(Invoice.total_amount - Invoice.amount_paid), 0),
-            func.count().filter(Invoice.status == InvoiceStatus.OVERDUE),
-        ).where(Invoice.school_id == school_id)
-    ).one()
-    total_collected, total_outstanding, overdue_count = totals_row
-
-    active_student_count = db.execute(
-        select(func.count()).select_from(Student).where(Student.school_id == school_id, Student.is_active == True)  # noqa: E712
-    ).scalar_one()
-
-    # --- Collection by term ---
-    term_rows = db.execute(
-        select(
-            Term.id,
-            Term.name,
-            func.coalesce(func.sum(Invoice.total_amount), 0),
-            func.coalesce(func.sum(Invoice.amount_paid), 0),
-        )
-        .outerjoin(Invoice, Invoice.term_id == Term.id)
-        .where(Term.school_id == school_id)
-        .group_by(Term.id, Term.name, Term.start_date)
-        .order_by(Term.start_date)
-    ).all()
-
+    stats = analytics_service.get_headline_stats(db, school_id)
     collection_by_term = [
-        TermCollectionPoint(term_id=tid, term_name=name, total_billed=billed, total_paid=paid)
-        for tid, name, billed, paid in term_rows
+        TermCollectionPoint(term_id=t.term_id, term_name=t.term_name, total_billed=t.total_billed, total_paid=t.total_paid)
+        for t in analytics_service.get_collection_by_term(db, school_id)
     ]
-
-    # --- Top-risk unpaid invoices ---
-    # Risk scoring does real per-invoice computation (queries the student's
-    # payment history), so we bound it to a candidate pool rather than
-    # scoring every unpaid invoice in the school — most-overdue-first is a
-    # cheap pre-filter that reliably contains the truly high-risk ones.
-    candidates = db.execute(
-        select(Invoice, Student, SchoolClass)
-        .join(Student, Invoice.student_id == Student.id)
-        .outerjoin(SchoolClass, Student.class_id == SchoolClass.id)
-        .where(
-            Invoice.school_id == school_id,
-            Invoice.status.notin_([InvoiceStatus.PAID, InvoiceStatus.CANCELLED]),
-            Invoice.total_amount > Invoice.amount_paid,
+    top_risk = [
+        TopRiskInvoice(
+            invoice_id=r.invoice_id,
+            student_id=r.student_id,
+            student_name=r.student_name,
+            class_name=r.class_name,
+            balance=r.balance,
+            risk_score=r.risk_score,
+            risk_level=r.risk_level,
         )
-        .order_by(Invoice.due_date)
-        .limit(30)
-    ).all()
-
-    scored = []
-    for invoice, student, school_class in candidates:
-        assessment = compute_risk_score(db, student.id, invoice.id)
-        scored.append(
-            TopRiskInvoice(
-                invoice_id=invoice.id,
-                student_id=student.id,
-                student_name=student.full_name,
-                class_name=school_class.name if school_class else "—",
-                balance=invoice.total_amount - invoice.amount_paid,
-                risk_score=assessment.score,
-                risk_level=assessment.level,
-            )
-        )
-    top_risk = sorted(scored, key=lambda r: r.risk_score, reverse=True)[:5]
+        for r in analytics_service.get_top_risk_invoices(db, school_id)
+    ]
+    db.commit()  # persists the risk snapshots just logged for future model training
 
     return DashboardAnalyticsResponse(
-        total_collected=total_collected,
-        total_outstanding=total_outstanding,
-        overdue_count=overdue_count,
-        active_student_count=active_student_count,
+        total_collected=stats.total_collected,
+        total_outstanding=stats.total_outstanding,
+        overdue_count=stats.overdue_count,
+        active_student_count=stats.active_student_count,
         collection_by_term=collection_by_term,
         top_risk=top_risk,
     )

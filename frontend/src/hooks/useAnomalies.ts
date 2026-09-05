@@ -8,6 +8,7 @@ export interface PaymentAnomaly {
   paid_at: string | null;
   reasons: string[];
   severity: 'medium' | 'high';
+  ml_anomaly_score?: number | null;
 }
 
 export function useAnomalies() {

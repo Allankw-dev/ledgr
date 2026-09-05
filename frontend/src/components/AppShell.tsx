@@ -1,12 +1,13 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
   { to: '/students', label: 'Students', icon: Users },
   { to: '/invoices', label: 'Invoices', icon: FileText },
+  { to: '/assistant', label: 'Assistant', icon: Sparkles },
   { to: '/guardian-requests', label: 'Parent requests', icon: UserCheck },
   { to: '/security', label: 'Security', icon: ShieldCheck },
 ];

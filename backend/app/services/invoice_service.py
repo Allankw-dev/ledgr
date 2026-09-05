@@ -9,6 +9,7 @@ from app.models.student import Student
 from app.models.invoice import FeeStructure, Invoice, InvoiceItem
 from app.models.payment import Payment
 from app.models.enums import InvoiceStatus, PaymentStatus
+from app.services import ml_data_service
 
 
 def generate_invoice_for_student(db: Session, student_id: str, term_id: str, due_date: datetime) -> Invoice:
@@ -86,6 +87,7 @@ def recalculate_invoice_status(db: Session, invoice_id: str) -> Invoice:
 
     invoice.amount_paid = amount_paid
     invoice.status = status
+    ml_data_service.log_invoice_outcome_if_resolved(db, invoice)
     db.commit()
     db.refresh(invoice)
     return invoice
