@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.database import SystemSessionLocal
 from app.core.rate_limit import limiter
 from app.models.school import School
-from app.routers import auth, students, invoices, payments, terms, fee_structures, parent, users, mpesa, receipts, reports, assistant, announcements, automation, audit_logs
+from app.routers import auth, students, invoices, payments, terms, fee_structures, parent, users, mpesa, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant
 from app.routers.students import guardian_requests_router
 from app.services.overdue_automation_service import run_overdue_reminder_sweep
 
@@ -101,6 +101,7 @@ app.include_router(assistant.router)
 app.include_router(announcements.router)
 app.include_router(automation.router)
 app.include_router(audit_logs.router)
+app.include_router(parent_assistant.router)
 
 
 @app.get("/health")
