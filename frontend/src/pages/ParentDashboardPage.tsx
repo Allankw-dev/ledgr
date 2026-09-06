@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { UserPlus } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
+import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
 import { PayWithMpesa } from '../components/PayWithMpesa';
@@ -14,6 +17,7 @@ function formatCurrency(amount: number) {
 }
 
 export function ParentDashboardPage() {
+  const navigate = useNavigate();
   const { children, loading, error, refetch } = useMyChildren();
   const user = useAuthStore((s) => s.user);
   const [phone, setPhone] = useState<string | null>(null);
@@ -42,9 +46,18 @@ export function ParentDashboardPage() {
 
   return (
     <ParentShell>
-      <h1 className="font-display text-2xl text-ink-900 font-medium mb-1">
-        Welcome{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
-      </h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display text-2xl text-ink-900 font-medium">
+          Welcome{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
+        </h1>
+        <button
+          onClick={() => navigate('/verify-child')}
+          className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-ink-900 hover:underline underline-offset-2"
+        >
+          <UserPlus className="w-4 h-4" strokeWidth={2} />
+          Link another child
+        </button>
+      </div>
       <p className="text-sm text-ink-600 mb-6">Here's the fee status for your children.</p>
 
       <div className="mb-6">
@@ -68,9 +81,12 @@ export function ParentDashboardPage() {
       ) : children.length === 0 ? (
         <div className="bg-white border border-ink-200 rounded-lg px-6 py-12 text-center">
           <p className="text-sm text-ink-900 font-medium">No children linked to your account yet</p>
-          <p className="text-xs text-ink-600 mt-1">
-            Contact your school's office to have your account linked to your child's record.
+          <p className="text-xs text-ink-600 mt-1 mb-4">
+            Enter your child's admission number to send a link request to the school office.
           </p>
+          <Button onClick={() => navigate('/verify-child')} className="inline-flex items-center gap-2">
+            <UserPlus className="w-4 h-4" /> Link a child
+          </Button>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
