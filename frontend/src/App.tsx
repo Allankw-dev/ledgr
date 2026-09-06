@@ -5,6 +5,7 @@ import { StudentsPage } from './pages/StudentsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { AssistantPage } from './pages/AssistantPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
+import { AuditLogPage } from './pages/AuditLogPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { GuardianRequestsPage } from './pages/GuardianRequestsPage';
 import { ParentDashboardPage } from './pages/ParentDashboardPage';
@@ -65,6 +66,14 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
               <AnnouncementsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit-log"
+          element={
+            <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
+              <AuditLogPage />
             </ProtectedRoute>
           }
         />
