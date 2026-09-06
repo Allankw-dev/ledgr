@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import String, Numeric, DateTime, ForeignKey, func, Enum as SAEnum, Boolean
+from sqlalchemy import String, Numeric, DateTime, ForeignKey, func, Enum as SAEnum, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -56,3 +56,17 @@ class InvoiceItem(Base):
     amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
 
     invoice: Mapped["Invoice"] = relationship(back_populates="items")
+
+
+class InvoiceReminderLog(Base):
+    """One row per automated overdue-reminder actually sent — the record
+    the escalation logic checks to decide whether an invoice is due for
+    its next tier, and the audit trail proving what was auto-sent when."""
+
+    __tablename__ = "invoice_reminder_logs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    invoice_id: Mapped[str] = mapped_column(ForeignKey("invoices.id"), nullable=False, index=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    tier: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 = first notice, 2 = follow-up, 3 = final notice
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

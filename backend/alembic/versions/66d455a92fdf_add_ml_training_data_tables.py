@@ -25,6 +25,10 @@ invoice_outcome_label = postgresql.ENUM(
 
 def upgrade() -> None:
     invoice_outcome_label.create(op.get_bind(), checkfirst=True)
+    # Without this, op.create_table below tries to CREATE TYPE again for the
+    # "outcome" column, since it doesn't know the type above already made it —
+    # fails on a real Postgres DB with "type already exists".
+    invoice_outcome_label.create_type = False
 
     op.create_table(
         "invoice_risk_snapshots",

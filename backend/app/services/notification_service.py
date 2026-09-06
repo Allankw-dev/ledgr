@@ -28,6 +28,51 @@ class NotificationConfigError(Exception):
     callers give a clear message instead of a confusing downstream failure."""
 
 
+ESCALATION_LABELS = {1: "Reminder", 2: "Second reminder", 3: "Final notice"}
+
+
+def compose_overdue_escalation(
+    tier: int,
+    student_name: str,
+    school_name: str,
+    balance: Decimal,
+    currency: str,
+    due_date: datetime,
+) -> tuple[str, str, str]:
+    """Returns (email_subject, email_body, sms_text) for an automated
+    overdue escalation. Wording gets firmer at each tier — tier 1 reads as
+    a routine reminder, tier 3 as a final notice — without ever threatening
+    a specific consequence the school hasn't actually decided on."""
+    due_str = due_date.strftime("%d %B %Y")
+    amount_str = f"{currency} {balance:,.2f}"
+    label = ESCALATION_LABELS.get(tier, "Reminder")
+
+    if tier <= 1:
+        opening = (
+            f"This is a reminder that {student_name}'s school fees balance of {amount_str} "
+            f"was due on {due_str} and remains unpaid."
+        )
+    elif tier == 2:
+        opening = (
+            f"This is a follow-up: {student_name}'s school fees balance of {amount_str} "
+            f"has now been overdue since {due_str}."
+        )
+    else:
+        opening = (
+            f"This is a final notice: {student_name}'s school fees balance of {amount_str} "
+            f"has been overdue since {due_str} and needs urgent attention."
+        )
+
+    subject = f"{label}: {student_name} — {amount_str} overdue since {due_str}"
+    body = (
+        f"Dear Parent/Guardian,\n\n{opening}\n\n"
+        f"You can pay via M-Pesa directly from your Ledgr parent portal, or contact "
+        f"the school office if you have any questions.\n\nThank you,\n{school_name}"
+    )
+    sms_text = f"{school_name}: {label} — {student_name}'s fee balance of {amount_str} overdue since {due_str}. Pay via M-Pesa on your Ledgr portal."
+    return subject, body, sms_text
+
+
 def compose_reminder(
     student_name: str,
     school_name: str,

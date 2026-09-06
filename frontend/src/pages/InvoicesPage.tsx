@@ -15,6 +15,7 @@ import { SuggestPaymentPlan } from '../components/SuggestPaymentPlan';
 import { ViewPaymentsButton } from '../components/ViewPaymentsButton';
 import { SendReminderButton } from '../components/SendReminderButton';
 import { ExportReportButton } from '../components/ExportReportButton';
+import { AutomationCard } from '../components/AutomationCard';
 import { useTerms, useClasses, useFeeStructures } from '../hooks/useSchoolSetup';
 import { useInvoices } from '../hooks/useInvoices';
 import type { InvoiceListItem } from '../types';
@@ -145,6 +146,10 @@ export function InvoicesPage() {
             )}
           </div>
         )}
+
+        <div className="mb-6">
+          <AutomationCard />
+        </div>
 
         {/* Invoices list */}
         <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
