@@ -38,12 +38,19 @@ export interface ParentPaymentView {
   paid_at: string | null;
 }
 
+export interface ParentInvoiceItemView {
+  name: string;
+  category: string;
+  amount: string;
+}
+
 export interface ParentInvoiceView {
   id: string;
   total_amount: string;
   amount_paid: string;
   due_date: string;
   status: InvoiceStatus;
+  items: ParentInvoiceItemView[];
   payments: ParentPaymentView[];
 }
 

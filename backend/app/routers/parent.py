@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, CurrentUser
-from app.schemas.parent import ParentStudentView, ParentInvoiceView
+from app.schemas.parent import ParentStudentView, ParentInvoiceView, ParentInvoiceItemView, ParentPaymentView
 from app.models.student import Student, StudentGuardian
-from app.models.invoice import Invoice
+from app.models.invoice import Invoice, InvoiceItem, FeeStructure
+from app.models.payment import Payment
+from app.models.enums import PaymentStatus
 
 router = APIRouter(prefix="/api/parent", tags=["parent"], dependencies=[Depends(get_current_user)])
 
@@ -54,6 +56,37 @@ def list_my_children(
         invoices = db.execute(
             select(Invoice).where(Invoice.student_id == student.id).order_by(Invoice.due_date.desc())
         ).scalars().all()
+        invoice_ids = [inv.id for inv in invoices]
+
+        # Batch-fetch items and payments for ALL this student's invoices in
+        # two queries total, not one query per invoice — a student can
+        # easily have a dozen invoices across terms.
+        items_by_invoice: dict[str, list[ParentInvoiceItemView]] = {}
+        payments_by_invoice: dict[str, list[ParentPaymentView]] = {}
+
+        if invoice_ids:
+            item_rows = db.execute(
+                select(InvoiceItem, FeeStructure)
+                .join(FeeStructure, InvoiceItem.fee_structure_id == FeeStructure.id)
+                .where(InvoiceItem.invoice_id.in_(invoice_ids))
+            ).all()
+            for item, fee_structure in item_rows:
+                items_by_invoice.setdefault(item.invoice_id, []).append(
+                    ParentInvoiceItemView(name=fee_structure.name, category=fee_structure.category.value, amount=item.amount)
+                )
+
+            # Only CONFIRMED payments — a receipt only makes sense for money
+            # actually received, matching the rule /api/payments/{id}/receipt
+            # itself already enforces (422 for anything not CONFIRMED).
+            payment_rows = db.execute(
+                select(Payment)
+                .where(Payment.invoice_id.in_(invoice_ids), Payment.status == PaymentStatus.CONFIRMED)
+                .order_by(Payment.paid_at.desc())
+            ).scalars().all()
+            for payment in payment_rows:
+                payments_by_invoice.setdefault(payment.invoice_id, []).append(
+                    ParentPaymentView(id=payment.id, amount=payment.amount, method=payment.method.value, paid_at=payment.paid_at)
+                )
 
         balance_due = sum((inv.total_amount - inv.amount_paid for inv in invoices), Decimal("0"))
 
@@ -70,6 +103,8 @@ def list_my_children(
                         amount_paid=inv.amount_paid,
                         due_date=inv.due_date,
                         status=inv.status.value,
+                        items=items_by_invoice.get(inv.id, []),
+                        payments=payments_by_invoice.get(inv.id, []),
                     )
                     for inv in invoices
                 ],

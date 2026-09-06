@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, ChevronDown, ChevronRight } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -22,6 +22,16 @@ export function ParentDashboardPage() {
   const user = useAuthStore((s) => s.user);
   const [phone, setPhone] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
+
+  function toggleInvoice(id: string) {
+    setExpandedInvoices((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     getMyProfile().then((profile) => setPhone(profile.phone)).catch(() => {});
@@ -130,6 +140,7 @@ export function ParentDashboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-ink-600">
+                          <th className="px-5 py-2 font-medium w-6"></th>
                           <th className="px-5 py-2 font-medium">Due date</th>
                           <th className="px-5 py-2 font-medium text-right">Total</th>
                           <th className="px-5 py-2 font-medium text-right">Paid</th>
@@ -138,25 +149,59 @@ export function ParentDashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {child.invoices.map((inv) => (
-                          <tr key={inv.id} className="h-9 text-ink-900">
-                            <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
-                            <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
-                            <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
-                            <td className="px-5">
-                              <StatusBadge status={inv.status} />
-                            </td>
-                            <td className="px-5">
-                              <div className="flex flex-col gap-1">
-                                {inv.payments.length === 0 ? (
-                                  <span className="text-xs text-ink-400">—</span>
-                                ) : (
-                                  inv.payments.map((p) => <DownloadReceiptLink key={p.id} paymentId={p.id} />)
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {child.invoices.map((inv) => {
+                          const isExpanded = expandedInvoices.has(inv.id);
+                          return (
+                            <Fragment key={inv.id}>
+                              <tr
+                                onClick={() => toggleInvoice(inv.id)}
+                                className="h-9 text-ink-900 cursor-pointer hover:bg-ink-100/60"
+                              >
+                                <td className="pl-5 text-ink-400">
+                                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                </td>
+                                <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
+                                <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
+                                <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
+                                <td className="px-5">
+                                  <StatusBadge status={inv.status} />
+                                </td>
+                                <td className="px-5" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex flex-col gap-1">
+                                    {inv.payments.length === 0 ? (
+                                      <span className="text-xs text-ink-400">—</span>
+                                    ) : (
+                                      inv.payments.map((p) => <DownloadReceiptLink key={p.id} paymentId={p.id} />)
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr className="bg-ink-100/40">
+                                  <td colSpan={6} className="px-5 py-3">
+                                    {inv.items.length === 0 ? (
+                                      <p className="text-xs text-ink-500">No itemized breakdown available.</p>
+                                    ) : (
+                                      <table className="w-full text-xs">
+                                        <tbody>
+                                          {inv.items.map((item, i) => (
+                                            <tr key={i} className="h-6">
+                                              <td className="text-ink-600 pl-5">{item.name}</td>
+                                              <td className="text-ink-400">{item.category}</td>
+                                              <td className="text-right figure text-ink-900 pr-5">
+                                                {formatCurrency(Number(item.amount))}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    )}
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}

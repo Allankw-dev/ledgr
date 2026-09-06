@@ -11,12 +11,19 @@ class ParentPaymentView(BaseModel):
     paid_at: datetime | None
 
 
+class ParentInvoiceItemView(BaseModel):
+    name: str
+    category: str
+    amount: Decimal
+
+
 class ParentInvoiceView(BaseModel):
     id: str
     total_amount: Decimal
     amount_paid: Decimal
     due_date: datetime
     status: str
+    items: list[ParentInvoiceItemView] = []
     payments: list[ParentPaymentView] = []
 
 
