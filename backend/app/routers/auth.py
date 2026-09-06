@@ -1,9 +1,13 @@
 from typing import Union
 from datetime import datetime, timezone
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import (
     hash_password,
@@ -18,6 +22,7 @@ from app.core.deps import get_current_user, require_roles, CurrentUser
 from app.schemas.auth import (
     RegisterSchoolRequest,
     LoginRequest,
+    GoogleAuthRequest,
     TokenResponse,
     TwoFactorRequiredResponse,
     TwoFactorSetupResponse,
@@ -141,6 +146,18 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
     return _build_token_response(admin, school.name)
 
 
+def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRequiredResponse]:
+    """Shared by password login and Google sign-in — once we know WHO the
+    user is and that they're allowed in, the rest (2FA gate, last_login_at,
+    issuing our own JWT) is identical regardless of how they proved it."""
+    if user.totp_enabled:
+        return TwoFactorRequiredResponse(challenge_token=create_2fa_challenge_token(user.id))
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    return _build_token_response(user)
+
+
 @router.post("/login", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
 @limiter.limit("10/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
@@ -148,16 +165,59 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active or not verify_password(data.password, user.password_hash):
         raise HTTPException(401, "Invalid email or password")
 
-    if user.totp_enabled:
-        # Correct password, but not done yet — hand back a short-lived
-        # challenge token instead of a real one. last_login_at is updated
-        # only once the code is verified too, in verify_login below.
-        return TwoFactorRequiredResponse(challenge_token=create_2fa_challenge_token(user.id))
+    return _complete_login(user, db)
 
-    user.last_login_at = datetime.now(timezone.utc)
+
+@router.post("/google", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
+@limiter.limit("10/minute")
+def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """Verifies the ID token Google's Sign In button hands back to the
+    frontend, then either logs in a matching existing account or — for a
+    brand-new email — self-registers a PARENT the same way register-parent
+    does. Staff accounts (BURSAR/SCHOOL_ADMIN) are never auto-created here;
+    Google can only ever be a login method for those, not a signup path,
+    same reasoning as why there's no public staff-signup endpoint at all."""
+    if not settings.google_client_id:
+        raise HTTPException(503, "Google sign-in isn't configured for this school yet.")
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            data.credential, google_requests.Request(), audience=settings.google_client_id
+        )
+    except ValueError:
+        raise HTTPException(401, "Could not verify that Google sign-in. Please try again.")
+
+    if not idinfo.get("email_verified"):
+        raise HTTPException(401, "Your Google account's email isn't verified. Please use a verified Google account.")
+
+    email = idinfo["email"]
+    user = db.query(User).filter(User.email == email).first()
+
+    if user:
+        if not user.is_active:
+            raise HTTPException(401, "This account has been deactivated. Contact your school office.")
+        return _complete_login(user, db)
+
+    # No matching account — self-register as a parent, mirroring register-parent.
+    school = db.query(School).first()
+    if not school:
+        raise HTTPException(503, "This school hasn't been set up yet. Contact the school office.")
+
+    full_name = idinfo.get("name") or email.split("@")[0]
+    new_user = User(
+        school_id=school.id,
+        email=email,
+        # Random, never issued to anyone — a Google-only account simply has
+        # no working password until/unless the person sets one separately.
+        password_hash=hash_password(secrets.token_urlsafe(32)),
+        role=UserRole.PARENT,
+        full_name=full_name,
+    )
+    db.add(new_user)
     db.commit()
+    db.refresh(new_user)
 
-    return _build_token_response(user)
+    return _complete_login(new_user, db)
 
 
 @router.post("/2fa/verify-login", response_model=TokenResponse)

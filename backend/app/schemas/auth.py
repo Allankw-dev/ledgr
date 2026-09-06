@@ -15,6 +15,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    credential: str  # the ID token JWT string Google's Sign In button returns
+
+
 class TokenResponse(BaseModel):
     token: str
     user: dict

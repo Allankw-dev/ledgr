@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
-import { login, verifyTwoFactorLogin } from '../api/auth';
+import { login, verifyTwoFactorLogin, googleAuth } from '../api/auth';
 import { useAuthStore } from '../store/authStore';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -37,6 +38,23 @@ export function LoginPage() {
       }
     } catch {
       setError('Incorrect email or password. Check your details and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGoogleCredential(credential: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const result = await googleAuth(credential);
+      if ('requires_2fa' in result) {
+        setChallengeToken(result.challenge_token);
+      } else {
+        completeLogin(result.token, result.user);
+      }
+    } catch {
+      setError('Could not sign in with Google. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -101,6 +119,16 @@ export function LoginPage() {
                   {loading ? 'Signing in…' : 'Sign in'}
                 </Button>
               </form>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="h-px bg-ink-200 flex-1" />
+                <span className="text-xs text-ink-400">or</span>
+                <div className="h-px bg-ink-200 flex-1" />
+              </div>
+
+              <div className="flex justify-center">
+                <GoogleSignInButton onCredential={handleGoogleCredential} text="signin_with" />
+              </div>
             </>
           ) : (
             <>

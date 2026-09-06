@@ -1,30 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, XCircle, Clock, School as SchoolIcon } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
 import { Button } from '../components/ui/Button';
+import { TextField } from '../components/ui/TextField';
 import { SelectField } from '../components/ui/SelectField';
 import { lookupStudent, requestLink, type StudentLookupResult } from '../api/guardianRequests';
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
-type Stage = 'loading' | 'found' | 'not-found' | 'confirming' | 'pending' | 'error';
+type Stage = 'entry' | 'loading' | 'found' | 'not-found' | 'confirming' | 'pending' | 'error';
 
 export function VerifyChildPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const admissionNumber = (location.state as { admissionNumber?: string } | null)?.admissionNumber;
+  const stateAdmissionNumber = (location.state as { admissionNumber?: string } | null)?.admissionNumber;
 
-  const [stage, setStage] = useState<Stage>('loading');
+  // Arriving with an admission number already in hand (the password-signup
+  // form collects it) goes straight to lookup. Arriving without one — e.g.
+  // fresh from Google sign-in, which has no form step to collect it —
+  // shows a small entry form instead of bouncing back to /signup.
+  const [stage, setStage] = useState<Stage>(stateAdmissionNumber ? 'loading' : 'entry');
+  const [admissionInput, setAdmissionInput] = useState(stateAdmissionNumber || '');
   const [student, setStudent] = useState<StudentLookupResult | null>(null);
   const [relationship, setRelationship] = useState<string>('mother');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!admissionNumber) {
-      navigate('/signup', { replace: true });
-      return;
-    }
+  function runLookup(admissionNumber: string) {
+    setStage('loading');
     lookupStudent(admissionNumber)
       .then((result) => {
         setStudent(result);
@@ -39,7 +42,19 @@ export function VerifyChildPage() {
           setStage('error');
         }
       });
-  }, [admissionNumber, navigate]);
+  }
+
+  useEffect(() => {
+    if (stateAdmissionNumber) {
+      runLookup(stateAdmissionNumber);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateAdmissionNumber]);
+
+  function handleEntrySubmit(e: FormEvent) {
+    e.preventDefault();
+    if (admissionInput.trim()) runLookup(admissionInput.trim());
+  }
 
   async function handleConfirm() {
     if (!student) return;
@@ -56,6 +71,28 @@ export function VerifyChildPage() {
   return (
     <ParentShell>
       <div className="max-w-md mx-auto">
+        {stage === 'entry' && (
+          <div className="bg-white border border-ink-200 rounded-lg p-6">
+            <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
+            <h1 className="font-display text-lg text-ink-900 mb-1 text-center">Link your child</h1>
+            <p className="text-sm text-ink-600 mb-5 text-center">
+              Enter your child's admission number to find their record.
+            </p>
+            <form onSubmit={handleEntrySubmit} className="flex flex-col gap-3">
+              <TextField
+                label="Child's admission number"
+                value={admissionInput}
+                onChange={(e) => setAdmissionInput(e.target.value)}
+                placeholder="e.g. GA-2026-014"
+                required
+              />
+              <Button type="submit" disabled={!admissionInput.trim()}>
+                Continue
+              </Button>
+            </form>
+          </div>
+        )}
+
         {stage === 'loading' && <p className="text-sm text-ink-600 text-center py-12">Looking that up…</p>}
 
         {stage === 'error' && (
@@ -75,7 +112,7 @@ export function VerifyChildPage() {
               Double-check the admission number and try again, or contact the school office if you're not
               sure what it is.
             </p>
-            <Button onClick={() => navigate('/signup', { replace: true })}>Try a different number</Button>
+            <Button onClick={() => setStage('entry')}>Try a different number</Button>
           </div>
         )}
 
@@ -109,7 +146,7 @@ export function VerifyChildPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => navigate('/signup', { replace: true })}
+                  onClick={() => setStage('entry')}
                   disabled={stage === 'confirming'}
                 >
                   This isn't my child

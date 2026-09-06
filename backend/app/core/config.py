@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # AI assistant — powers the parent chatbot and the bursar's "Ask Ledgr" assistant
     anthropic_api_key: str | None = None
 
+    # "Sign in with Google" — the OAuth client ID Google issues; ID tokens are
+    # verified against this as the audience. No client secret needed since
+    # this flow only ever handles a frontend-obtained ID token, never a
+    # server-side authorization-code exchange.
+    google_client_id: str | None = None
+
     # Reminders — email via SMTP, SMS via Africa's Talking
     smtp_host: str | None = None
     smtp_port: int = 587

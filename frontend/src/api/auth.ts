@@ -19,6 +19,13 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return data;
 }
 
+export async function googleAuth(credential: string): Promise<LoginResponse | TwoFactorRequiredResponse> {
+  const { data } = await apiClient.post<LoginResponse | TwoFactorRequiredResponse>('/api/auth/google', {
+    credential,
+  });
+  return data;
+}
+
 export async function verifyTwoFactorLogin(challengeToken: string, code: string): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>('/api/auth/2fa/verify-login', {
     challenge_token: challengeToken,

@@ -4,8 +4,9 @@ import { BookOpen } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
-import { registerParent } from '../api/auth';
+import { registerParent, googleAuth } from '../api/auth';
 import { useAuthStore } from '../store/authStore';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 export function ParentSignUpPage() {
   const navigate = useNavigate();
@@ -55,6 +56,26 @@ export function ParentSignUpPage() {
     }
   }
 
+  async function handleGoogleCredential(credential: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const result = await googleAuth(credential);
+      if ('requires_2fa' in result) {
+        // Parent accounts can't have 2FA enabled — only SCHOOL_ADMIN/BURSAR
+        // can. Seeing this here means the email belongs to a staff account.
+        setError('This email belongs to a staff account. Please sign in from the staff login instead.');
+        return;
+      }
+      setSession(result.token, result.user);
+      navigate('/verify-child');
+    } catch {
+      setError('Could not sign up with Google. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper px-4 py-12">
       <div className="w-full max-w-sm">
@@ -70,6 +91,16 @@ export function ParentSignUpPage() {
           <p className="text-sm text-ink-600 mb-6">
             Create your account, then we'll verify your child's details.
           </p>
+
+          <div className="flex justify-center mb-5">
+            <GoogleSignInButton onCredential={handleGoogleCredential} text="signup_with" />
+          </div>
+
+          <div className="flex items-center gap-3 mb-5">
+            <div className="h-px bg-ink-200 flex-1" />
+            <span className="text-xs text-ink-400">or</span>
+            <div className="h-px bg-ink-200 flex-1" />
+          </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
             <TextField
