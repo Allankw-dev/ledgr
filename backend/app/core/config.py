@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     mpesa_shortcode: str | None = None
     mpesa_passkey: str | None = None
     mpesa_callback_url: str | None = None  # public HTTPS URL Safaricom calls back to
+    # C2B — for payments made directly to the paybill, not via our STK push.
+    # Registered ONCE with Safaricom via scripts/register_c2b_urls.py, not
+    # called by the app itself, but read here for that script to use.
+    mpesa_c2b_validation_url: str | None = None
+    mpesa_c2b_confirmation_url: str | None = None
 
     # AI assistant — powers the parent chatbot and the bursar's "Ask Ledgr" assistant
     anthropic_api_key: str | None = None
