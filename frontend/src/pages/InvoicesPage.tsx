@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, FileText, Receipt, Wallet } from 'lucide-react';
+import { Plus, FileText, Receipt, Wallet, Search } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -12,6 +12,7 @@ import { BulkGenerateForm } from '../components/BulkGenerateForm';
 import { RecordPaymentForm } from '../components/RecordPaymentForm';
 import { RiskBadge } from '../components/RiskBadge';
 import { SuggestPaymentPlan } from '../components/SuggestPaymentPlan';
+import { ReconcileMpesaPayment } from '../components/ReconcileMpesaPayment';
 import { ViewPaymentsButton } from '../components/ViewPaymentsButton';
 import { SendReminderButton } from '../components/SendReminderButton';
 import { ExportReportButton } from '../components/ExportReportButton';
@@ -24,7 +25,7 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
 }
 
-type ModalKind = 'term' | 'fee' | 'generate' | 'payment' | null;
+type ModalKind = 'term' | 'fee' | 'generate' | 'payment' | 'reconcile' | null;
 
 export function InvoicesPage() {
   const { terms, loading: termsLoading, refetch: refetchTerms } = useTerms();
@@ -66,9 +67,18 @@ export function InvoicesPage() {
   return (
     <AppShell>
       <div className="max-w-6xl mx-auto px-8 py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-2xl text-ink-900 font-medium">Invoices</h1>
-          <p className="text-sm text-ink-600 mt-1">Set up terms and fees, then generate bills for your students.</p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-display text-2xl text-ink-900 font-medium">Invoices</h1>
+            <p className="text-sm text-ink-600 mt-1">Set up terms and fees, then generate bills for your students.</p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => setModal('reconcile')}
+            className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5"
+          >
+            <Search className="w-3.5 h-3.5" /> Reconcile M-Pesa payment
+          </Button>
         </div>
 
         {error && (
@@ -256,6 +266,18 @@ export function InvoicesPage() {
             invoiceId={selectedInvoice.id}
             balanceDue={Number(selectedInvoice.total_amount) - Number(selectedInvoice.amount_paid)}
             onSuccess={handlePaymentSuccess}
+            onCancel={() => setModal(null)}
+          />
+        </Modal>
+      )}
+
+      {modal === 'reconcile' && (
+        <Modal title="Reconcile an M-Pesa payment" onClose={() => setModal(null)}>
+          <ReconcileMpesaPayment
+            invoices={invoices}
+            onMatched={() => {
+              refetchInvoices();
+            }}
             onCancel={() => setModal(null)}
           />
         </Modal>

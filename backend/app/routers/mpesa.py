@@ -5,11 +5,24 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, get_system_db
-from app.core.deps import get_current_user, get_school_scope, CurrentUser
+from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.config import settings
-from app.schemas.mpesa import StkPushRequest, StkPushResponse, MpesaCallbackPayload
+from app.core.rate_limit import limiter
+from app.schemas.mpesa import (
+    StkPushRequest,
+    StkPushResponse,
+    MpesaCallbackPayload,
+    C2BPayload,
+    MpesaTransactionLookup,
+    MatchTransactionRequest,
+)
 from app.services.mpesa_service import initiate_stk_push, normalize_phone_number, MpesaConfigError
 from app.services.payment_service import create_pending_mpesa_payment, resolve_mpesa_callback
+from app.services.mpesa_reconciliation_service import (
+    record_c2b_transaction,
+    find_unmatched_transaction,
+    match_transaction_to_invoice,
+)
 from app.models.invoice import Invoice
 from app.models.student import Student, StudentGuardian
 
@@ -136,3 +149,88 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_system_db))
     )
 
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+
+@router.post("/c2b/validation")
+async def mpesa_c2b_validation(request: Request):
+    """
+    PUBLIC — Safaricom calls this BEFORE the transaction completes, giving
+    us a chance to reject it (e.g. unknown account). We deliberately always
+    accept: rejecting a payment here bounces real money back to the payer
+    with no clean way to recover it, whereas an unmatched account reference
+    just becomes a review item in /reconciliation/lookup — a much safer
+    failure mode for school fees than an incorrectly bounced payment.
+    """
+    return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+
+@router.post("/c2b/confirmation")
+async def mpesa_c2b_confirmation(request: Request, db: Session = Depends(get_system_db)):
+    """
+    PUBLIC — Safaricom's confirmation that a C2B (direct paybill) payment
+    completed. Unlike /stk-push + /callback, this transaction was never
+    initiated by Ledgr, so there's no CheckoutRequestID or pre-created
+    PENDING payment to resolve — the raw transaction is recorded and
+    matched (or queued for manual review) from scratch. See
+    mpesa_reconciliation_service.record_c2b_transaction.
+    """
+    raw_body = await request.json()
+
+    try:
+        payload = C2BPayload.model_validate(raw_body)
+    except Exception:
+        logger.warning("Received malformed M-Pesa C2B confirmation: %s", raw_body)
+        return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+    record_c2b_transaction(db, payload)
+
+    return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+
+@router.get("/reconciliation/lookup", response_model=MpesaTransactionLookup)
+@limiter.limit("20/hour")
+def lookup_c2b_transaction(
+    request: Request,  # required by @limiter.limit — unused otherwise
+    trans_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+):
+    """
+    A bursar enters the M-Pesa code a parent read out to them over the
+    phone to find a stray paybill payment that didn't auto-match — a
+    targeted lookup by an ID they already possess, not a browsable list, so
+    it can't be used to enumerate other schools' transactions. Rate-limited
+    to make brute-forcing the (already hard-to-guess) receipt code
+    impractical.
+    """
+    txn = find_unmatched_transaction(db, trans_id)
+    return MpesaTransactionLookup(
+        id=txn.id,
+        trans_id=txn.trans_id,
+        trans_time=txn.trans_time.isoformat() if txn.trans_time else None,
+        amount=str(txn.amount),
+        bill_ref_number=txn.bill_ref_number,
+        msisdn=txn.msisdn,
+        payer_name=txn.payer_name,
+        status=txn.status.value,
+    )
+
+
+@router.post("/reconciliation/{transaction_id}/match")
+def match_c2b_transaction(
+    transaction_id: str,
+    data: MatchTransactionRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+    school_id: str = Depends(get_school_scope),
+):
+    """Attaches a stray, unmatched C2B transaction to a specific invoice in
+    the caller's own school, recording it as a confirmed payment."""
+    txn = match_transaction_to_invoice(
+        db,
+        transaction_id=transaction_id,
+        invoice_id=data.invoice_id,
+        school_id=school_id,
+        actor_user_id=user.user_id,
+    )
+    return {"status": txn.status.value, "matched_payment_id": txn.matched_payment_id}

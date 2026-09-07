@@ -29,3 +29,34 @@ class StkCallbackBody(BaseModel):
 
 class MpesaCallbackPayload(BaseModel):
     Body: StkCallbackBody
+
+
+# Shape of the payload Safaricom POSTs to our C2B validation/confirmation
+# URLs when someone pays the paybill directly (not via our STK push) —
+# documented at https://developer.safaricom.co.ke/APIs/CustomerToBusiness.
+# Deliberately permissive here too, for the same reason as MpesaCallbackPayload.
+class C2BPayload(BaseModel):
+    TransID: str
+    TransTime: str | None = None
+    TransAmount: str
+    BusinessShortCode: str | None = None
+    BillRefNumber: str | None = None
+    MSISDN: str | None = None
+    FirstName: str | None = None
+    MiddleName: str | None = None
+    LastName: str | None = None
+
+
+class MpesaTransactionLookup(BaseModel):
+    id: str
+    trans_id: str
+    trans_time: str | None
+    amount: str
+    bill_ref_number: str | None
+    msisdn: str | None
+    payer_name: str | None
+    status: str
+
+
+class MatchTransactionRequest(BaseModel):
+    invoice_id: str

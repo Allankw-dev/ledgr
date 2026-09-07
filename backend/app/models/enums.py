@@ -33,6 +33,12 @@ class PaymentStatus(str, enum.Enum):
     REVERSED = "REVERSED"
 
 
+class MpesaTransactionStatus(str, enum.Enum):
+    UNMATCHED = "UNMATCHED"  # no student found for the BillRefNumber the payer typed, or more than one
+    MATCHED = "MATCHED"      # auto-matched (exactly one student) or manually matched by a bursar
+    IGNORED = "IGNORED"      # bursar reviewed it and decided it isn't a real fee payment (e.g. wrong paybill)
+
+
 class GuardianLinkStatus(str, enum.Enum):
     PENDING = "PENDING"    # parent self-requested, awaiting bursar review
     APPROVED = "APPROVED"  # bursar confirmed — full portal access
