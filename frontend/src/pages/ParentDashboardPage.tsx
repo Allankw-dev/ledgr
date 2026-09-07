@@ -8,6 +8,8 @@ import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
 import { PayWithMpesa } from '../components/PayWithMpesa';
 import { ChatWidget } from '../components/ChatWidget';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
+import { PaymentProgressBar } from '../components/PaymentProgressBar';
+import { RecentActivityFeed } from '../components/RecentActivityFeed';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { useAuthStore } from '../store/authStore';
 import { getMyProfile } from '../api/user';
@@ -86,6 +88,12 @@ export function ParentDashboardPage() {
         </div>
       )}
 
+      {!loading && children.length > 0 && (
+        <div className="mb-6">
+          <RecentActivityFeed children={children} />
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-ink-600">Loading…</p>
       ) : children.length === 0 ? (
@@ -105,6 +113,8 @@ export function ParentDashboardPage() {
             const unpaidInvoice = child.invoices.find(
               (inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED'
             );
+            const totalDue = child.invoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+            const totalPaid = child.invoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
             return (
               <div key={child.id} className="bg-white border border-ink-200 rounded-lg overflow-hidden">
                 <div className="px-5 py-4 border-b border-ink-200 flex items-start justify-between">
@@ -121,6 +131,10 @@ export function ParentDashboardPage() {
                     </p>
                   </div>
                 </div>
+
+                {child.invoices.length > 0 && (
+                  <PaymentProgressBar totalDue={totalDue} totalPaid={totalPaid} />
+                )}
 
                 {balance > 0 && unpaidInvoice && (
                   <div className="px-5 py-3 bg-amber-100/40 border-b border-ink-200 flex items-center justify-between">
