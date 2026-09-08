@@ -5,6 +5,7 @@ import { ParentShell } from '../components/ParentShell';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { PayWithMpesa } from '../components/PayWithMpesa';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
+import { DownloadInvoicePdfLink } from '../components/DownloadInvoicePdfLink';
 import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { getMyProfile } from '../api/user';
@@ -140,6 +141,7 @@ export function ParentInvoicesPage() {
                               </td>
                               <td className="px-5" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-col gap-1.5 items-start">
+                                  <DownloadInvoicePdfLink invoiceId={inv.id} />
                                   {isUnpaid && balance > 0 && (
                                     <PayWithMpesa invoiceId={inv.id} defaultPhone={phone} onInitiated={handlePaymentInitiated} />
                                   )}

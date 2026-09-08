@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.database import SystemSessionLocal
 from app.core.rate_limit import limiter
 from app.models.school import School
-from app.routers import auth, students, invoices, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant
+from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant
 from app.routers.students import guardian_requests_router
 from app.services.overdue_automation_service import run_overdue_reminder_sweep
 
@@ -87,6 +87,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):  # noqa
 app.include_router(auth.router)
 app.include_router(students.router)
 app.include_router(invoices.router)
+app.include_router(invoice_documents.router)
 app.include_router(payments.router)
 app.include_router(terms.router)
 app.include_router(terms.classes_router)
