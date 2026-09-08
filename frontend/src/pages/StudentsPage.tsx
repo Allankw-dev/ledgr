@@ -7,17 +7,33 @@ import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddStudentForm } from '../components/AddStudentForm';
 import { LinkGuardianForm } from '../components/LinkGuardianForm';
 import { useStudents } from '../hooks/useStudents';
-import { deactivateStudent } from '../api/school';
+import { useClasses } from '../hooks/useSchoolSetup';
+import { deactivateStudent, updateStudentClass } from '../api/school';
 import type { Student } from '../types';
 
 export function StudentsPage() {
-  const { students, meta, setPage, loading, error, refetch } = useStudents();
+  const [classFilter, setClassFilter] = useState('');
+  const { students, meta, setPage, loading, error, refetch } = useStudents(classFilter || undefined);
+  const { classes } = useClasses();
   const [showAddModal, setShowAddModal] = useState(false);
   const [guardianTarget, setGuardianTarget] = useState<Student | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Student | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [linkedNotice, setLinkedNotice] = useState<string | null>(null);
+  const [classUpdatingId, setClassUpdatingId] = useState<string | null>(null);
+
+  async function handleClassChange(student: Student, classId: string) {
+    setClassUpdatingId(student.id);
+    try {
+      await updateStudentClass(student.id, classId || null);
+      refetch();
+    } catch {
+      // Leave as-is; refetch/no-op reverts the select.
+    } finally {
+      setClassUpdatingId(null);
+    }
+  }
 
   function handleAdded() {
     setShowAddModal(false);
@@ -54,10 +70,27 @@ export function StudentsPage() {
               {loading ? 'Loading…' : `${meta?.total ?? students.length} student${(meta?.total ?? students.length) === 1 ? '' : 's'} enrolled`}
             </p>
           </div>
-          <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
-            <UserPlus className="w-4 h-4" strokeWidth={2} />
-            Add student
-          </Button>
+          <div className="flex items-center gap-3">
+            <select
+              value={classFilter}
+              onChange={(e) => {
+                setClassFilter(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 rounded-md border border-ink-200 bg-white text-ink-900 text-sm focus-visible:outline-2 focus-visible:outline-ink-600"
+            >
+              <option value="">All grades</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" strokeWidth={2} />
+              Add student
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -91,6 +124,7 @@ export function StudentsPage() {
                   <tr className="text-left text-ink-600">
                     <th className="px-5 py-2 font-medium">Admission no.</th>
                     <th className="px-5 py-2 font-medium">Name</th>
+                    <th className="px-5 py-2 font-medium">Grade</th>
                     <th className="px-5 py-2 font-medium">Status</th>
                     <th className="px-5 py-2 font-medium"></th>
                   </tr>
@@ -100,6 +134,21 @@ export function StudentsPage() {
                     <tr key={s.id} className="h-9 text-ink-900">
                       <td className="px-5 figure text-ink-600">{s.admission_number}</td>
                       <td className="px-5">{s.full_name}</td>
+                      <td className="px-5">
+                        <select
+                          value={s.class_id || ''}
+                          onChange={(e) => handleClassChange(s, e.target.value)}
+                          disabled={classUpdatingId === s.id}
+                          className="px-2 py-1 rounded-md border border-ink-200 bg-white text-ink-900 text-xs focus-visible:outline-2 focus-visible:outline-ink-600 disabled:opacity-50"
+                        >
+                          <option value="">Unassigned</option>
+                          {classes.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-5">
                         <span
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${

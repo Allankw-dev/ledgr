@@ -3,13 +3,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from './ui/Button';
 import { TextField } from './ui/TextField';
+import { SelectField } from './ui/SelectField';
 import { createStudent } from '../api/school';
+import { useClasses } from '../hooks/useSchoolSetup';
 
 // Mirrors the backend's CreateStudentRequest Pydantic schema, so a mismatch
 // gets caught here in the browser before the request ever leaves the machine.
 const schema = z.object({
   admission_number: z.string().min(1, 'Admission number is required'),
   full_name: z.string().min(2, 'Enter the student\'s full name'),
+  class_id: z.string().optional(),
   date_of_birth: z.string().optional(),
 });
 
@@ -21,6 +24,7 @@ interface AddStudentFormProps {
 }
 
 export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
+  const { classes } = useClasses();
   const {
     register,
     handleSubmit,
@@ -33,6 +37,7 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
       await createStudent({
         admission_number: values.admission_number,
         full_name: values.full_name,
+        class_id: values.class_id || undefined,
         date_of_birth: values.date_of_birth ? new Date(values.date_of_birth).toISOString() : undefined,
       });
       onSuccess();
@@ -57,6 +62,13 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
         placeholder="e.g. Amani Otieno"
         error={errors.full_name?.message}
         {...register('full_name')}
+      />
+      <SelectField
+        label="Grade"
+        placeholder="Unassigned"
+        options={classes.map((c) => ({ value: c.id, label: c.name }))}
+        error={errors.class_id?.message}
+        {...register('class_id')}
       />
       <TextField
         label="Date of birth"

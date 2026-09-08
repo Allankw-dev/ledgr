@@ -100,6 +100,57 @@ def compose_reminder(
     return subject, body, sms_text
 
 
+def compose_payment_confirmation(
+    student_name: str,
+    school_name: str,
+    amount: Decimal,
+    currency: str,
+    method: str,
+    remaining_balance: Decimal,
+) -> tuple[str, str, str]:
+    """Returns (email_subject, email_body, sms_text) confirming a payment
+    just went through — sent right after M-Pesa (or any other method)
+    confirms, so a parent doesn't have to keep checking the portal to know
+    whether it worked."""
+    amount_str = f"{currency} {amount:,.2f}"
+    method_label = method.replace("_", " ").title()
+
+    subject = f"Payment received: {student_name} — {amount_str}"
+    if remaining_balance > 0:
+        balance_line = f"The remaining balance on this invoice is {currency} {remaining_balance:,.2f}."
+    else:
+        balance_line = "This invoice is now fully paid."
+
+    body = (
+        f"Dear Parent/Guardian,\n\n"
+        f"We've received a {method_label} payment of {amount_str} for {student_name} at {school_name}. "
+        f"{balance_line}\n\n"
+        f"A receipt is available in your Ledgr parent portal.\n\n"
+        f"Thank you,\n{school_name}"
+    )
+    sms_text = f"{school_name}: Received {amount_str} for {student_name} via {method_label}. {balance_line}"
+    return subject, body, sms_text
+
+
+def compose_payment_failed(student_name: str, school_name: str, amount: Decimal, currency: str) -> tuple[str, str, str]:
+    """Returns (email_subject, email_body, sms_text) for a payment attempt
+    that did not go through (e.g. an M-Pesa STK push the parent cancelled,
+    entered the wrong PIN for, or that timed out) — so they know to retry
+    rather than assuming it went through silently."""
+    amount_str = f"{currency} {amount:,.2f}"
+
+    subject = f"Payment did not go through: {student_name} — {amount_str}"
+    body = (
+        f"Dear Parent/Guardian,\n\n"
+        f"Your attempted payment of {amount_str} for {student_name} at {school_name} did not go through. "
+        f"This can happen if the M-Pesa prompt was cancelled, timed out, or the PIN entered was incorrect.\n\n"
+        f"No money has left your account. You can try again anytime from your Ledgr parent portal.\n\n"
+        f"Thank you,\n{school_name}"
+    )
+    sms_text = f"{school_name}: Your payment of {amount_str} for {student_name} did not go through. No money was deducted. Please try again on your Ledgr portal."
+    return subject, body, sms_text
+
+
 def send_email(to_email: str, subject: str, body: str) -> None:
     if not (settings.smtp_host and settings.smtp_username and settings.smtp_password and settings.smtp_from_email):
         raise NotificationConfigError("Email is not configured (missing SMTP settings)")

@@ -4,7 +4,7 @@ import type { Student, PageMeta } from '../types';
 
 const PAGE_SIZE = 25;
 
-export function useStudents() {
+export function useStudents(classId?: string) {
   const [students, setStudents] = useState<Student[]>([]);
   const [meta, setMeta] = useState<PageMeta | null>(null);
   const [page, setPage] = useState(1);
@@ -15,7 +15,7 @@ export function useStudents() {
     setLoading(true);
     setError(null);
     try {
-      const data = await listStudents(page, PAGE_SIZE);
+      const data = await listStudents(page, PAGE_SIZE, classId);
       setStudents(data.items);
       setMeta(data.meta);
     } catch {
@@ -23,7 +23,7 @@ export function useStudents() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, classId]);
 
   useEffect(() => {
     refetch();

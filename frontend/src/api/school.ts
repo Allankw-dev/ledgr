@@ -72,6 +72,11 @@ export async function createClass(name: string): Promise<SchoolClass> {
   return data;
 }
 
+export async function updateStudentClass(studentId: string, classId: string | null): Promise<Student> {
+  const { data } = await apiClient.patch<Student>(`/api/students/${studentId}/class`, { class_id: classId });
+  return data;
+}
+
 // --- Fee structures ---
 export async function listFeeStructures(termId?: string): Promise<FeeStructure[]> {
   const { data } = await apiClient.get<FeeStructure[]>('/api/fee-structures', { params: { term_id: termId } });

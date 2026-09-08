@@ -19,7 +19,6 @@ def upgrade() -> None:
     mpesa_transaction_status = sa.Enum(
         "UNMATCHED", "MATCHED", "IGNORED", name="mpesatransactionstatus"
     )
-    mpesa_transaction_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "mpesa_transactions",

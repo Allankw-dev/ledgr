@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { StudentsPage } from './pages/StudentsPage';
+import { ClassesPage } from './pages/ClassesPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { AssistantPage } from './pages/AssistantPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
@@ -43,6 +44,14 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
               <StudentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/classes"
+          element={
+            <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
+              <ClassesPage />
             </ProtectedRoute>
           }
         />

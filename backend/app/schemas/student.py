@@ -10,6 +10,10 @@ class CreateStudentRequest(BaseModel):
     date_of_birth: datetime | None = None
 
 
+class UpdateStudentClassRequest(BaseModel):
+    class_id: str | None = None  # None clears the assignment (unassigned/no grade)
+
+
 class StudentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

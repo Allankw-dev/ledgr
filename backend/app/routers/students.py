@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.security import hash_password
 from app.core.rate_limit import limiter
-from app.schemas.student import CreateStudentRequest, StudentResponse
+from app.schemas.student import CreateStudentRequest, StudentResponse, UpdateStudentClassRequest
 from app.schemas.pagination import Page, PageMeta
 from app.schemas.guardian import LinkGuardianRequest, GuardianResponse
 from app.schemas.guardian_request import (
@@ -85,6 +85,37 @@ def create_student(
 ):
     student = Student(school_id=school_id, **data.model_dump())
     db.add(student)
+    db.commit()
+    db.refresh(student)
+    return student
+
+
+@router.patch("/{student_id}/class", response_model=StudentResponse)
+def update_student_class(
+    student_id: str,
+    data: UpdateStudentClassRequest,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+):
+    """Assign or reassign which grade/class a student belongs to — e.g. moving
+    them up a grade at the start of a new year, or fixing a wrong grade set
+    at enrollment. Setting class_id to null unassigns them (they'll only be
+    reachable by whole-school announcements, not a grade-scoped one)."""
+    student = db.execute(
+        select(Student).where(Student.id == student_id, Student.school_id == school_id)
+    ).scalar_one_or_none()
+    if not student:
+        raise HTTPException(404, "Student not found")
+
+    if data.class_id:
+        school_class = db.execute(
+            select(SchoolClass).where(SchoolClass.id == data.class_id, SchoolClass.school_id == school_id)
+        ).scalar_one_or_none()
+        if not school_class:
+            raise HTTPException(404, "Class not found")
+
+    student.class_id = data.class_id
     db.commit()
     db.refresh(student)
     return student

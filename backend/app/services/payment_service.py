@@ -6,9 +6,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.payment import Payment
-from app.models.enums import PaymentMethod, PaymentStatus
+from app.models.invoice import Invoice
+from app.models.student import Student, StudentGuardian
+from app.models.school import School, User
+from app.models.enums import GuardianLinkStatus, PaymentMethod, PaymentStatus
 from app.services.invoice_service import recalculate_invoice_status
 from app.services.audit_service import log_audit
+from app.services.notification_service import (
+    compose_payment_confirmation,
+    compose_payment_failed,
+    send_message_to_guardian,
+)
 
 
 def record_confirmed_payment(
@@ -54,10 +62,11 @@ def record_confirmed_payment(
         metadata={"amount": str(amount), "method": method.value},
     )
     db.commit()
-    db.refresh(payment)
 
     if invoice_id:
         recalculate_invoice_status(db, invoice_id)
+
+    _notify_guardians_of_payment_result(db, payment, succeeded=True)
 
     return payment
 
@@ -90,6 +99,61 @@ def create_pending_mpesa_payment(
     db.commit()
     db.refresh(payment)
     return payment
+
+
+def _notify_guardians_of_payment_result(db: Session, payment: Payment, succeeded: bool) -> None:
+    """
+    Best-effort — a notification failure here must never break the M-Pesa
+    callback flow (Safaricom needs a clean ack regardless), so every
+    failure mode short-circuits quietly rather than raising. This is what
+    replaces the old behavior of a parent only finding out a payment
+    worked by refreshing the dashboard and watching the balance change.
+    """
+    try:
+        student = db.get(Student, payment.student_id)
+        school = db.get(School, payment.school_id)
+        if not student or not school:
+            return
+
+        guardians = db.execute(
+            select(StudentGuardian).where(
+                StudentGuardian.student_id == student.id,
+                StudentGuardian.status == GuardianLinkStatus.APPROVED,
+            )
+        ).scalars().all()
+        if not guardians:
+            return
+
+        if succeeded:
+            remaining_balance = Decimal("0")
+            if payment.invoice_id:
+                invoice = db.get(Invoice, payment.invoice_id)
+                if invoice:
+                    remaining_balance = invoice.total_amount - invoice.amount_paid
+            subject, body, sms_text = compose_payment_confirmation(
+                student_name=student.full_name,
+                school_name=school.name,
+                amount=payment.amount,
+                currency=school.currency,
+                method=payment.method.value,
+                remaining_balance=remaining_balance,
+            )
+        else:
+            subject, body, sms_text = compose_payment_failed(
+                student_name=student.full_name,
+                school_name=school.name,
+                amount=payment.amount,
+                currency=school.currency,
+            )
+
+        for link in guardians:
+            guardian = db.get(User, link.user_id)
+            if guardian:
+                send_message_to_guardian(guardian.email, guardian.phone, subject, body, sms_text)
+    except Exception:
+        # Deliberately swallowed — see docstring. The payment itself is
+        # already resolved and committed by the time this runs.
+        pass
 
 
 def resolve_mpesa_callback(
@@ -134,6 +198,7 @@ def resolve_mpesa_callback(
             metadata={"checkout_request_id": checkout_request_id, "mpesa_receipt": mpesa_receipt_number},
         )
         db.commit()
+        _notify_guardians_of_payment_result(db, payment, succeeded=True)
     else:
         payment.status = PaymentStatus.FAILED
         db.commit()
@@ -147,6 +212,7 @@ def resolve_mpesa_callback(
             metadata={"checkout_request_id": checkout_request_id, "result_code": result_code},
         )
         db.commit()
+        _notify_guardians_of_payment_result(db, payment, succeeded=False)
 
     return payment
 
