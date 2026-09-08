@@ -1,7 +1,15 @@
 import { type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { BookOpen, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+
+const navItems = [
+  { to: '/parent/dashboard', label: 'Dashboard' },
+  { to: '/parent/invoices', label: 'Invoices' },
+  { to: '/parent/receipts', label: 'Receipts' },
+  { to: '/parent/assistant', label: 'Assistant' },
+  { to: '/parent/profile', label: 'Profile' },
+];
 
 export function ParentShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -33,6 +41,23 @@ export function ParentShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </div>
+        <nav className="max-w-2xl mx-auto px-6 flex gap-1 overflow-x-auto">
+          {navItems.map(({ to, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `shrink-0 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  isActive
+                    ? 'border-white text-white'
+                    : 'border-transparent text-ink-200 hover:text-white hover:border-white/30'
+                }`
+              }
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
       </header>
       <main className="max-w-2xl mx-auto px-6 py-8">{children}</main>
     </div>

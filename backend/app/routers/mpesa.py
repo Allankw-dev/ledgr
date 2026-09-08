@@ -12,14 +12,12 @@ from app.schemas.mpesa import (
     StkPushRequest,
     StkPushResponse,
     MpesaCallbackPayload,
-    C2BPayload,
     MpesaTransactionLookup,
     MatchTransactionRequest,
 )
 from app.services.mpesa_service import initiate_stk_push, normalize_phone_number, MpesaConfigError
 from app.services.payment_service import create_pending_mpesa_payment, resolve_mpesa_callback
 from app.services.mpesa_reconciliation_service import (
-    record_c2b_transaction,
     find_unmatched_transaction,
     match_transaction_to_invoice,
 )
@@ -147,42 +145,6 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_system_db))
         result_code=callback.ResultCode,
         mpesa_receipt_number=str(mpesa_receipt) if mpesa_receipt else None,
     )
-
-    return {"ResultCode": 0, "ResultDesc": "Accepted"}
-
-
-@router.post("/c2b/validation")
-async def mpesa_c2b_validation(request: Request):
-    """
-    PUBLIC — Safaricom calls this BEFORE the transaction completes, giving
-    us a chance to reject it (e.g. unknown account). We deliberately always
-    accept: rejecting a payment here bounces real money back to the payer
-    with no clean way to recover it, whereas an unmatched account reference
-    just becomes a review item in /reconciliation/lookup — a much safer
-    failure mode for school fees than an incorrectly bounced payment.
-    """
-    return {"ResultCode": 0, "ResultDesc": "Accepted"}
-
-
-@router.post("/c2b/confirmation")
-async def mpesa_c2b_confirmation(request: Request, db: Session = Depends(get_system_db)):
-    """
-    PUBLIC — Safaricom's confirmation that a C2B (direct paybill) payment
-    completed. Unlike /stk-push + /callback, this transaction was never
-    initiated by Ledgr, so there's no CheckoutRequestID or pre-created
-    PENDING payment to resolve — the raw transaction is recorded and
-    matched (or queued for manual review) from scratch. See
-    mpesa_reconciliation_service.record_c2b_transaction.
-    """
-    raw_body = await request.json()
-
-    try:
-        payload = C2BPayload.model_validate(raw_body)
-    except Exception:
-        logger.warning("Received malformed M-Pesa C2B confirmation: %s", raw_body)
-        return {"ResultCode": 0, "ResultDesc": "Accepted"}
-
-    record_c2b_transaction(db, payload)
 
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
