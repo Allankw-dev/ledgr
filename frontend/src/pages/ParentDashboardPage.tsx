@@ -8,6 +8,7 @@ import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
 import { PayWithMpesa } from '../components/PayWithMpesa';
 import { ChatWidget } from '../components/ChatWidget';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
+import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { PaymentProgressBar } from '../components/PaymentProgressBar';
 import { RecentActivityFeed } from '../components/RecentActivityFeed';
 import { useMyChildren } from '../hooks/useMyChildren';
@@ -129,6 +130,11 @@ export function ParentDashboardPage() {
                     <p className={`figure text-xl font-medium ${balance > 0 ? 'text-clay-700' : 'text-emerald-700'}`}>
                       {formatCurrency(balance)}
                     </p>
+                    {child.invoices.length > 0 && (
+                      <div className="mt-1.5 flex justify-end">
+                        <DownloadStatementLink studentId={child.id} />
+                      </div>
+                    )}
                   </div>
                 </div>
 

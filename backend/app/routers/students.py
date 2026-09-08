@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -15,9 +15,12 @@ from app.schemas.guardian_request import (
     PendingGuardianRequest,
     GuardianReviewResponse,
 )
-from app.models.student import Student, StudentGuardian
-from app.models.school import User
-from app.models.enums import UserRole, GuardianLinkStatus
+from app.models.student import Student, StudentGuardian, Term, SchoolClass
+from app.models.invoice import Invoice
+from app.models.payment import Payment
+from app.models.school import User, School
+from app.models.enums import UserRole, GuardianLinkStatus, PaymentStatus
+from app.services.statement_service import generate_fee_statement_pdf
 
 router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
 
@@ -358,3 +361,100 @@ def reject_request(
     link.status = GuardianLinkStatus.REJECTED
     db.commit()
     return GuardianReviewResponse(status="rejected")
+
+
+@router.get("/{student_id}/statement")
+def download_fee_statement(
+    student_id: str,
+    term_id: str | None = None,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    A full fee statement PDF — every invoice and every payment for a
+    student, optionally scoped to one term. Same authorization shape as
+    receipts.download_receipt: a parent can only pull their own child's
+    statement, staff can pull any student in their school.
+    """
+    student = db.execute(
+        select(Student).where(Student.id == student_id, Student.school_id == school_id)
+    ).scalar_one_or_none()
+    if not student:
+        raise HTTPException(404, "Student not found")
+
+    if user.role == "PARENT":
+        link = db.execute(
+            select(StudentGuardian).where(
+                StudentGuardian.student_id == student_id,
+                StudentGuardian.user_id == user.user_id,
+                StudentGuardian.status == GuardianLinkStatus.APPROVED,
+            )
+        ).scalar_one_or_none()
+        if not link:
+            raise HTTPException(403, "You don't have access to this student's statement")
+    elif user.role not in ("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN"):
+        raise HTTPException(403, "Not authorized")
+
+    school = db.get(School, school_id)
+    school_class = db.get(SchoolClass, student.class_id) if student.class_id else None
+
+    term = db.get(Term, term_id) if term_id else None
+    if term_id and not term:
+        raise HTTPException(404, "Term not found")
+
+    invoice_query = select(Invoice).where(Invoice.student_id == student_id).order_by(Invoice.due_date.asc())
+    if term_id:
+        invoice_query = invoice_query.where(Invoice.term_id == term_id)
+    invoice_rows = db.execute(invoice_query).scalars().all()
+
+    all_term_ids = {inv.term_id for inv in invoice_rows} | ({term_id} if term_id else set())
+    terms_by_id = {t.id: t for t in db.execute(select(Term).where(Term.id.in_(all_term_ids))).scalars().all()} if all_term_ids else {}
+
+    invoice_ids = [inv.id for inv in invoice_rows]
+    payment_query = select(Payment).where(
+        Payment.student_id == student_id, Payment.status == PaymentStatus.CONFIRMED
+    )
+    if term:
+        # Include payments tied to an invoice in this term, or unattached
+        # payments that landed inside the term's date range.
+        in_term_dates = Payment.invoice_id.is_(None) & Payment.paid_at.between(term.start_date, term.end_date)
+        conditions = [in_term_dates]
+        if invoice_ids:
+            conditions.append(Payment.invoice_id.in_(invoice_ids))
+        payment_query = payment_query.where(or_(*conditions))
+    payment_rows = db.execute(payment_query).scalars().all()
+
+    pdf_bytes = generate_fee_statement_pdf(
+        school_name=school.name,
+        student_name=student.full_name,
+        admission_number=student.admission_number,
+        class_name=school_class.name if school_class else None,
+        currency=school.currency,
+        period_label=term.name if term else "All terms",
+        invoices=[
+            {
+                "term_name": terms_by_id.get(inv.term_id).name if terms_by_id.get(inv.term_id) else "—",
+                "due_date": inv.due_date,
+                "total_amount": inv.total_amount,
+                "amount_paid": inv.amount_paid,
+                "status": inv.status.value,
+            }
+            for inv in invoice_rows
+        ],
+        payments=[
+            {
+                "paid_at": p.paid_at,
+                "amount": p.amount,
+                "method": p.method.value,
+                "reference_code": p.reference_code,
+            }
+            for p in payment_rows
+        ],
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="statement-{student.admission_number}.pdf"'},
+    )

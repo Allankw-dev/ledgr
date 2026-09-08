@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
 
     # Phase 2 — M-Pesa Daraja
+    mpesa_base_url: str | None = None  # override for local testing, e.g. Pesa Playground — see mpesa_service.py
     mpesa_consumer_key: str | None = None
     mpesa_consumer_secret: str | None = None
     mpesa_shortcode: str | None = None

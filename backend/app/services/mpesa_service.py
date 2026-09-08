@@ -5,9 +5,12 @@ import httpx
 
 from app.core.config import settings
 
-# Daraja sandbox base URL. Swap to https://api.safaricom.co.ke for production
-# once the app is approved by Safaricom (a separate, manual review process).
-DARAJA_BASE_URL = "https://sandbox.safaricom.co.ke"
+# Daraja base URL — defaults to the real sandbox, but overridable via
+# MPESA_BASE_URL. This is what lets you point the whole M-Pesa integration
+# at a local emulator (e.g. Pesa Playground) for testing, without touching
+# any code — just set MPESA_BASE_URL=http://localhost:8001 in .env, then
+# unset it (or set it to https://api.safaricom.co.ke) for production.
+DARAJA_BASE_URL = settings.mpesa_base_url or "https://sandbox.safaricom.co.ke"
 
 
 class MpesaConfigError(Exception):

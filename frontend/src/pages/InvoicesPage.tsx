@@ -13,6 +13,7 @@ import { RecordPaymentForm } from '../components/RecordPaymentForm';
 import { RiskBadge } from '../components/RiskBadge';
 import { SuggestPaymentPlan } from '../components/SuggestPaymentPlan';
 import { ReconcileMpesaPayment } from '../components/ReconcileMpesaPayment';
+import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { ViewPaymentsButton } from '../components/ViewPaymentsButton';
 import { SendReminderButton } from '../components/SendReminderButton';
 import { ExportReportButton } from '../components/ExportReportButton';
@@ -206,6 +207,7 @@ export function InvoicesPage() {
                         <td className="px-5 text-right">
                           <div className="flex items-center justify-end gap-3">
                             <ViewPaymentsButton invoiceId={inv.id} />
+                            <DownloadStatementLink studentId={inv.student_id} />
                             {canPay && (
                               <>
                                 <SendReminderButton invoiceId={inv.id} />
