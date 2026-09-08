@@ -5,14 +5,11 @@ import { StudentsPage } from './pages/StudentsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { AssistantPage } from './pages/AssistantPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
+import { MessagesPage } from './pages/MessagesPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { GuardianRequestsPage } from './pages/GuardianRequestsPage';
 import { ParentDashboardPage } from './pages/ParentDashboardPage';
-import { ParentInvoicesPage } from './pages/ParentInvoicesPage';
-import { ParentReceiptsPage } from './pages/ParentReceiptsPage';
-import { ParentAssistantPage } from './pages/ParentAssistantPage';
-import { ParentProfilePage } from './pages/ParentProfilePage';
 import { ParentSignUpPage } from './pages/ParentSignUpPage';
 import { VerifyChildPage } from './pages/VerifyChildPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -66,6 +63,14 @@ export default function App() {
           }
         />
         <Route
+          path="/messages"
+          element={
+            <ProtectedRoute allowedRoles={['SCHOOL_ADMIN', 'BURSAR']}>
+              <MessagesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/announcements"
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
@@ -102,38 +107,6 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={['PARENT']}>
               <ParentDashboardPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/parent/invoices"
-          element={
-            <ProtectedRoute allowedRoles={['PARENT']}>
-              <ParentInvoicesPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/parent/receipts"
-          element={
-            <ProtectedRoute allowedRoles={['PARENT']}>
-              <ParentReceiptsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/parent/assistant"
-          element={
-            <ProtectedRoute allowedRoles={['PARENT']}>
-              <ParentAssistantPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/parent/profile"
-          element={
-            <ProtectedRoute allowedRoles={['PARENT']}>
-              <ParentProfilePage />
             </ProtectedRoute>
           }
         />

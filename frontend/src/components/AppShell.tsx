@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/students', label: 'Students', icon: Users },
   { to: '/invoices', label: 'Invoices', icon: FileText },
   { to: '/assistant', label: 'Ask Ledgr', icon: Sparkles },
+  { to: '/messages', label: 'Messages', icon: MessageCircle },
   { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/guardian-requests', label: 'Parent requests', icon: UserCheck },
   { to: '/audit-log', label: 'Audit log', icon: ScrollText },

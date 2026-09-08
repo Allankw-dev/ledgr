@@ -39,6 +39,11 @@ class MpesaTransactionStatus(str, enum.Enum):
     IGNORED = "IGNORED"      # bursar reviewed it and decided it isn't a real fee payment (e.g. wrong paybill)
 
 
+class MessageSenderRole(str, enum.Enum):
+    PARENT = "PARENT"
+    STAFF = "STAFF"
+
+
 class GuardianLinkStatus(str, enum.Enum):
     PENDING = "PENDING"    # parent self-requested, awaiting bursar review
     APPROVED = "APPROVED"  # bursar confirmed — full portal access

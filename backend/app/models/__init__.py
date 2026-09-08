@@ -3,3 +3,4 @@ from app.models.student import Term, SchoolClass, Student, StudentGuardian  # no
 from app.models.invoice import FeeStructure, Invoice, InvoiceItem  # noqa: F401
 from app.models.payment import Payment, AuditLog  # noqa: F401
 from app.models.mpesa_transaction import MpesaTransaction  # noqa: F401
+from app.models.message import Message  # noqa: F401
