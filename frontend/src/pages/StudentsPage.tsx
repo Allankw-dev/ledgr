@@ -118,7 +118,7 @@ export function StudentsPage() {
               </Button>
             </div>
           ) : (
-            <div className="ledger-lines">
+            <div className="ledger-lines overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-ink-600">

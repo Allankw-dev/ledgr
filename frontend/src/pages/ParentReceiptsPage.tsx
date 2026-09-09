@@ -73,7 +73,8 @@ export function ParentReceiptsPage() {
           <p className="text-sm text-ink-600">No confirmed payments yet.</p>
         </div>
       ) : (
-        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden ledger-lines">
+        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+          <div className="ledger-lines overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-ink-600">
@@ -98,6 +99,7 @@ export function ParentReceiptsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </ParentShell>

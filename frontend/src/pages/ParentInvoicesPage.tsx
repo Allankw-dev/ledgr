@@ -6,7 +6,6 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { PayWithMpesa } from '../components/PayWithMpesa';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
 import { DownloadInvoicePdfLink } from '../components/DownloadInvoicePdfLink';
-import { PaymentPlanCard } from '../components/PaymentPlanCard';
 import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { getMyProfile } from '../api/user';
@@ -105,7 +104,7 @@ export function ParentInvoicesPage() {
                 <DownloadStatementLink studentId={child.id} />
               </div>
 
-              <div className="ledger-lines">
+              <div className="ledger-lines overflow-x-auto">
                 {child.invoices.length === 0 ? (
                   <p className="px-5 py-6 text-sm text-ink-600">No invoices yet for this term.</p>
                 ) : (
@@ -160,7 +159,7 @@ export function ParentInvoicesPage() {
                                   {inv.items.length === 0 ? (
                                     <p className="text-xs text-ink-500">No itemized breakdown available.</p>
                                   ) : (
-                                    <table className="w-full text-xs mb-3">
+                                    <table className="w-full text-xs">
                                       <tbody>
                                         {inv.items.map((item, i) => (
                                           <tr key={i} className="h-6">
@@ -174,7 +173,6 @@ export function ParentInvoicesPage() {
                                       </tbody>
                                     </table>
                                   )}
-                                  {isUnpaid && balance > 0 && <PaymentPlanCard invoiceId={inv.id} />}
                                 </td>
                               </tr>
                             )}

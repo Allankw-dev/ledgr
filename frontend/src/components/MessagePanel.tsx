@@ -43,7 +43,7 @@ export function MessagePanel() {
   }
 
   return (
-    <div className="bg-white border border-ink-200 rounded-lg overflow-hidden mt-4">
+    <div className="bg-white border border-ink-200 rounded-lg overflow-hidden mt-6">
       <button onClick={() => setOpen(!open)} className="w-full px-5 py-4 flex items-center justify-between text-left">
         <span className="flex items-center gap-2 font-display text-base text-ink-900 font-medium">
           <MessageCircle className="w-4 h-4" strokeWidth={2} />

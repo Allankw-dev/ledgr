@@ -154,7 +154,7 @@ export function ParentDashboardPage() {
                   </div>
                 )}
 
-                <div className="ledger-lines">
+                <div className="ledger-lines overflow-x-auto">
                   {child.invoices.length === 0 ? (
                     <p className="px-5 py-6 text-sm text-ink-600">No invoices yet for this term.</p>
                   ) : (
@@ -232,8 +232,10 @@ export function ParentDashboardPage() {
           })}
         </div>
       )}
-      <ChatWidget />
-      <MessagePanel />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <ChatWidget />
+        <MessagePanel />
+      </div>
     </ParentShell>
   );
 }

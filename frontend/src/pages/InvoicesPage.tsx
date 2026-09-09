@@ -136,6 +136,7 @@ export function InvoicesPage() {
                 No fees set up for this term yet. Add at least one before generating invoices.
               </p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
                   {feeStructures.map((fs) => (
@@ -149,6 +150,7 @@ export function InvoicesPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
 
             {feeStructures.length > 0 && (
@@ -179,7 +181,7 @@ export function InvoicesPage() {
               <p className="text-xs text-ink-600 mt-1">Set up a term and fees above, then generate invoices.</p>
             </div>
           ) : (
-            <div className="ledger-lines">
+            <div className="ledger-lines overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-ink-600">

@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { BookOpen, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { AssistantFab } from './AssistantFab';
 
 const navItems = [
   { to: '/parent/dashboard', label: 'Dashboard' },
@@ -24,7 +23,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-paper">
       <header className="bg-ink-900 text-paper">
-        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center">
               <BookOpen className="w-4 h-4" strokeWidth={2} />
@@ -42,7 +41,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </div>
-        <nav className="max-w-2xl mx-auto px-6 flex gap-1 overflow-x-auto">
+        <nav className="max-w-3xl mx-auto px-6 flex gap-1 overflow-x-auto">
           {navItems.map(({ to, label }) => (
             <NavLink
               key={to}
@@ -60,8 +59,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </header>
-      <main className="max-w-2xl mx-auto px-6 py-8">{children}</main>
-      <AssistantFab to="/parent/assistant" />
+      <main className="max-w-3xl mx-auto px-6 py-8">{children}</main>
     </div>
   );
 }
