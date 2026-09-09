@@ -128,18 +128,18 @@ export function ParentInvoicesPage() {
                           <Fragment key={inv.id}>
                             <tr
                               onClick={() => toggleInvoice(inv.id)}
-                              className="h-9 text-ink-900 cursor-pointer hover:bg-ink-100/60"
+                              className="text-ink-900 cursor-pointer hover:bg-ink-100/60 align-top"
                             >
-                              <td className="pl-5 text-ink-400">
+                              <td className="pl-5 py-2.5 text-ink-400">
                                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                               </td>
-                              <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
-                              <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
-                              <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
-                              <td className="px-5">
+                              <td className="px-5 py-2.5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
+                              <td className="px-5 py-2.5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
+                              <td className="px-5 py-2.5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
+                              <td className="px-5 py-2.5">
                                 <StatusBadge status={inv.status} />
                               </td>
-                              <td className="px-5" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-5 py-2.5" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-col gap-1.5 items-start">
                                   <DownloadInvoicePdfLink invoiceId={inv.id} />
                                   {isUnpaid && balance > 0 && (
