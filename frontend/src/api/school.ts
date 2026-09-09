@@ -37,6 +37,16 @@ export async function listInvoices(page = 1, pageSize = 25, status?: string, ter
   return data;
 }
 
+export async function updateInvoice(invoiceId: string, dueDate: string): Promise<InvoiceListItem> {
+  const { data } = await apiClient.patch<InvoiceListItem>(`/api/invoices/${invoiceId}`, { due_date: dueDate });
+  return data;
+}
+
+export async function voidInvoice(invoiceId: string): Promise<InvoiceListItem> {
+  const { data } = await apiClient.post<InvoiceListItem>(`/api/invoices/${invoiceId}/void`);
+  return data;
+}
+
 interface RecordPaymentPayload {
   student_id: string;
   invoice_id?: string;
@@ -77,6 +87,17 @@ export async function updateStudentClass(studentId: string, classId: string | nu
   return data;
 }
 
+interface UpdateStudentPayload {
+  admission_number?: string;
+  full_name?: string;
+  date_of_birth?: string;
+}
+
+export async function updateStudent(studentId: string, payload: UpdateStudentPayload): Promise<Student> {
+  const { data } = await apiClient.patch<Student>(`/api/students/${studentId}`, payload);
+  return data;
+}
+
 // --- Fee structures ---
 export async function listFeeStructures(termId?: string): Promise<FeeStructure[]> {
   const { data } = await apiClient.get<FeeStructure[]>('/api/fee-structures', { params: { term_id: termId } });
@@ -94,6 +115,23 @@ interface CreateFeeStructurePayload {
 export async function createFeeStructure(payload: CreateFeeStructurePayload): Promise<FeeStructure> {
   const { data } = await apiClient.post<FeeStructure>('/api/fee-structures', payload);
   return data;
+}
+
+interface UpdateFeeStructurePayload {
+  class_id?: string | null;
+  category?: FeeCategory;
+  name?: string;
+  amount?: string;
+  is_mandatory?: boolean;
+}
+
+export async function updateFeeStructure(id: string, payload: UpdateFeeStructurePayload): Promise<FeeStructure> {
+  const { data } = await apiClient.patch<FeeStructure>(`/api/fee-structures/${id}`, payload);
+  return data;
+}
+
+export async function deleteFeeStructure(id: string): Promise<void> {
+  await apiClient.delete(`/api/fee-structures/${id}`);
 }
 
 // --- Bulk invoice generation ---

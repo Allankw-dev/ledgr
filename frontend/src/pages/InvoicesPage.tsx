@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, FileText, Receipt, Wallet, Search } from 'lucide-react';
+import { Plus, FileText, Receipt, Wallet, Search, Pencil, Trash2, Ban } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -8,6 +8,8 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddTermForm } from '../components/AddTermForm';
 import { AddFeeStructureForm } from '../components/AddFeeStructureForm';
+import { EditFeeStructureForm } from '../components/EditFeeStructureForm';
+import { EditInvoiceDueDateForm } from '../components/EditInvoiceDueDateForm';
 import { BulkGenerateForm } from '../components/BulkGenerateForm';
 import { RecordPaymentForm } from '../components/RecordPaymentForm';
 import { RiskBadge } from '../components/RiskBadge';
@@ -21,13 +23,14 @@ import { ExportReportButton } from '../components/ExportReportButton';
 import { AutomationCard } from '../components/AutomationCard';
 import { useTerms, useClasses, useFeeStructures } from '../hooks/useSchoolSetup';
 import { useInvoices } from '../hooks/useInvoices';
-import type { InvoiceListItem } from '../types';
+import { deleteFeeStructure, voidInvoice } from '../api/school';
+import type { InvoiceListItem, FeeStructure } from '../types';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
 }
 
-type ModalKind = 'term' | 'fee' | 'generate' | 'payment' | 'reconcile' | null;
+type ModalKind = 'term' | 'fee' | 'edit-fee' | 'edit-due-date' | 'generate' | 'payment' | 'reconcile' | null;
 
 export function InvoicesPage() {
   const { terms, loading: termsLoading, refetch: refetchTerms } = useTerms();
@@ -46,6 +49,40 @@ export function InvoicesPage() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [generateResult, setGenerateResult] = useState<{ created: number; skipped: number } | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceListItem | null>(null);
+  const [editingFee, setEditingFee] = useState<FeeStructure | null>(null);
+  const [feeActionError, setFeeActionError] = useState<string | null>(null);
+  const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
+  const [voidingId, setVoidingId] = useState<string | null>(null);
+
+  async function handleDeleteFeeStructure(fs: FeeStructure) {
+    if (!window.confirm(`Delete "${fs.name}"? This can't be undone.`)) return;
+    setFeeActionError(null);
+    try {
+      await deleteFeeStructure(fs.id);
+      refetchFees();
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Could not delete this fee.';
+      setFeeActionError(message);
+    }
+  }
+
+  async function handleVoidInvoice(inv: InvoiceListItem) {
+    if (!window.confirm(`Void this invoice for ${inv.student_name}? This can't be undone.`)) return;
+    setInvoiceActionError(null);
+    setVoidingId(inv.id);
+    try {
+      await voidInvoice(inv.id);
+      refetchInvoices();
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Could not void this invoice.';
+      setInvoiceActionError(message);
+    } finally {
+      setVoidingId(null);
+    }
+  }
 
   const activeTerm = terms.find((t) => t.id === activeTermId);
 
@@ -131,6 +168,12 @@ export function InvoicesPage() {
               </Button>
             </div>
 
+            {feeActionError && (
+              <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2 mb-3">
+                {feeActionError}
+              </p>
+            )}
+
             {feeStructures.length === 0 ? (
               <p className="text-sm text-ink-600">
                 No fees set up for this term yet. Add at least one before generating invoices.
@@ -146,6 +189,24 @@ export function InvoicesPage() {
                         {classes.find((c) => c.id === fs.class_id)?.name || 'All classes'}
                       </td>
                       <td className="py-1.5 figure text-right">{formatCurrency(Number(fs.amount))}</td>
+                      <td className="py-1.5 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => { setEditingFee(fs); setModal('edit-fee'); }}
+                            className="text-ink-400 hover:text-ink-900"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteFeeStructure(fs)}
+                            className="text-ink-400 hover:text-clay-700"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -204,7 +265,7 @@ export function InvoicesPage() {
                         <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
                         <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
                         <td className="px-5">
-                          <StatusBadge status={inv.status} />
+                          <StatusBadge status={inv.status} hasActivePaymentPlan={inv.has_active_payment_plan} />
                         </td>
                         <td className="px-5">{canPay && <RiskBadge invoiceId={inv.id} />}</td>
                         <td className="px-5 text-right">
@@ -212,6 +273,23 @@ export function InvoicesPage() {
                             <ViewPaymentsButton invoiceId={inv.id} />
                             <DownloadInvoicePdfLink invoiceId={inv.id} />
                             <DownloadStatementLink studentId={inv.student_id} />
+                            <button
+                              onClick={() => { setSelectedInvoice(inv); setModal('edit-due-date'); }}
+                              className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
+                              title="Edit due date"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            {Number(inv.amount_paid) === 0 && inv.status !== 'CANCELLED' && (
+                              <button
+                                onClick={() => handleVoidInvoice(inv)}
+                                disabled={voidingId === inv.id}
+                                className="text-xs font-medium text-clay-700 hover:underline underline-offset-2 flex items-center gap-1 disabled:opacity-50"
+                                title="Void invoice"
+                              >
+                                <Ban className="w-3.5 h-3.5" /> {voidingId === inv.id ? 'Voiding…' : 'Void'}
+                              </button>
+                            )}
                             {canPay && (
                               <>
                                 <SendReminderButton invoiceId={inv.id} />
@@ -233,6 +311,11 @@ export function InvoicesPage() {
               </table>
             </div>
           )}
+          {invoiceActionError && (
+            <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-5 py-2">
+              {invoiceActionError}
+            </p>
+          )}
           {invoicesMeta && <PaginationControls meta={invoicesMeta} onPageChange={setInvoicesPage} />}
         </div>
       </div>
@@ -249,6 +332,28 @@ export function InvoicesPage() {
             termId={activeTerm.id}
             classes={classes}
             onSuccess={() => { setModal(null); refetchFees(); }}
+            onCancel={() => setModal(null)}
+          />
+        </Modal>
+      )}
+
+      {modal === 'edit-fee' && editingFee && (
+        <Modal title={`Edit fee — ${editingFee.name}`} onClose={() => { setModal(null); setEditingFee(null); }}>
+          <EditFeeStructureForm
+            feeStructure={editingFee}
+            classes={classes}
+            onSuccess={() => { setModal(null); setEditingFee(null); refetchFees(); }}
+            onCancel={() => { setModal(null); setEditingFee(null); }}
+          />
+        </Modal>
+      )}
+
+      {modal === 'edit-due-date' && selectedInvoice && (
+        <Modal title={`Edit due date — ${selectedInvoice.student_name}`} onClose={() => setModal(null)}>
+          <EditInvoiceDueDateForm
+            invoiceId={selectedInvoice.id}
+            currentDueDate={selectedInvoice.due_date}
+            onSuccess={() => { setModal(null); refetchInvoices(); }}
             onCancel={() => setModal(null)}
           />
         </Modal>

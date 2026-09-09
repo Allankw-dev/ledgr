@@ -42,3 +42,12 @@ class InvoiceListItem(InvoiceResponse):
 
     student_name: str
     class_name: str
+    has_active_payment_plan: bool = False
+
+
+class UpdateInvoiceRequest(BaseModel):
+    # Deliberately narrow: due_date is the one field safe to correct after
+    # the fact without touching money already recorded against the invoice.
+    # Amount/items aren't editable here — void and reissue instead if those
+    # are wrong, so amount_paid can never end up out of sync with reality.
+    due_date: datetime

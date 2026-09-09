@@ -15,10 +15,13 @@ from app.core.security import (
     create_access_token,
     create_2fa_challenge_token,
     decode_2fa_challenge_token,
+    create_password_reset_token,
+    decode_password_reset_token,
 )
 from app.core.totp import generate_totp_secret, get_provisioning_uri, verify_totp_code
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user, require_roles, CurrentUser
+from app.services.notification_service import send_email, NotificationConfigError
 from app.schemas.auth import (
     RegisterSchoolRequest,
     LoginRequest,
@@ -29,6 +32,9 @@ from app.schemas.auth import (
     TwoFactorEnableRequest,
     TwoFactorDisableRequest,
     TwoFactorVerifyLoginRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    ForgotPasswordResponse,
 )
 from app.models.school import School, User
 from app.models.enums import UserRole
@@ -310,3 +316,61 @@ def get_2fa_status(db: Session = Depends(get_db), user: CurrentUser = Depends(ge
     if not db_user:
         raise HTTPException(404, "User not found")
     return {"enabled": db_user.totp_enabled}
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+@limiter.limit("5/minute")
+def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Always returns the same generic response whether or not the email
+    is registered — an attacker enumerating emails shouldn't be able to
+    tell the difference. The actual reset link is only ever sent by email,
+    never returned in the response body."""
+    user = db.query(User).filter(User.email == data.email).first()
+    if user and user.is_active:
+        token = create_password_reset_token(user.id, user.password_hash)
+        reset_link = f"{settings.frontend_url}/reset-password?token={token}"
+        try:
+            send_email(
+                user.email,
+                "Reset your Ledgr password",
+                f"Hi {user.full_name},\n\n"
+                f"Click the link below to reset your password. This link expires in 30 minutes "
+                f"and can only be used once:\n\n{reset_link}\n\n"
+                f"If you didn't request this, you can safely ignore this email.",
+            )
+        except NotificationConfigError:
+            # Email isn't configured on this deployment — fail quietly from
+            # the user's perspective (same generic response either way) but
+            # this is worth knowing about server-side.
+            pass
+    return ForgotPasswordResponse()
+
+
+@router.post("/reset-password")
+@limiter.limit("10/minute")
+def reset_password(request: Request, data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    # We need a user to check the token's password fingerprint against, but
+    # the token doesn't tell us who it's for until we decode it — and we
+    # can't decode it without a hash to compare. So decode first without
+    # verifying the fingerprint match, load that user, then verify.
+    from jose import jwt, JWTError
+
+    try:
+        unverified = jwt.decode(
+            data.token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
+    except JWTError:
+        raise HTTPException(400, "Invalid or expired reset link")
+
+    user = db.get(User, unverified.get("sub"))
+    if not user:
+        raise HTTPException(400, "Invalid or expired reset link")
+
+    try:
+        decode_password_reset_token(data.token, user.password_hash)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    user.password_hash = hash_password(data.new_password)
+    db.commit()
+    return {"reset": True}

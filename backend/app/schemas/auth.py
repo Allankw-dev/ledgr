@@ -46,3 +46,18 @@ class TwoFactorDisableRequest(BaseModel):
 class TwoFactorVerifyLoginRequest(BaseModel):
     challenge_token: str
     code: str = Field(min_length=6, max_length=6)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+class ForgotPasswordResponse(BaseModel):
+    # Deliberately generic — never reveals whether the email is registered,
+    # so this endpoint can't be used to check who has an account.
+    message: str = "If an account exists for that email, a reset link has been sent."

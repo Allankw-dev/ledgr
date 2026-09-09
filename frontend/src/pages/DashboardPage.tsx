@@ -157,7 +157,7 @@ export function DashboardPage() {
                       <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
                       <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
                       <td className="px-5">
-                        <StatusBadge status={inv.status} />
+                        <StatusBadge status={inv.status} hasActivePaymentPlan={inv.has_active_payment_plan} />
                       </td>
                     </tr>
                   ))}

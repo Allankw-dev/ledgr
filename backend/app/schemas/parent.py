@@ -25,6 +25,7 @@ class ParentInvoiceView(BaseModel):
     status: str
     items: list[ParentInvoiceItemView] = []
     payments: list[ParentPaymentView] = []
+    has_active_payment_plan: bool = False
 
 
 class ParentStudentView(BaseModel):

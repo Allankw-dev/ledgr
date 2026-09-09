@@ -24,3 +24,11 @@ class FeeStructureResponse(BaseModel):
     name: str
     amount: Decimal
     is_mandatory: bool
+
+
+class UpdateFeeStructureRequest(BaseModel):
+    class_id: str | None = None
+    category: FeeCategory | None = None
+    name: str | None = Field(default=None, min_length=2)
+    amount: Decimal | None = Field(default=None, gt=0)
+    is_mandatory: bool | None = None

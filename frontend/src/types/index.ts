@@ -52,6 +52,7 @@ export interface ParentInvoiceView {
   status: InvoiceStatus;
   items: ParentInvoiceItemView[];
   payments: ParentPaymentView[];
+  has_active_payment_plan: boolean;
 }
 
 export interface ParentStudentView {
@@ -95,6 +96,7 @@ export interface Invoice {
 export interface InvoiceListItem extends Invoice {
   student_name: string;
   class_name: string;
+  has_active_payment_plan: boolean;
 }
 
 export interface PageMeta {

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { UserPlus, Users, UserCog, UserMinus } from 'lucide-react';
+import { UserPlus, Users, UserCog, UserMinus, Pencil } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddStudentForm } from '../components/AddStudentForm';
+import { EditStudentForm } from '../components/EditStudentForm';
 import { LinkGuardianForm } from '../components/LinkGuardianForm';
 import { useStudents } from '../hooks/useStudents';
 import { useClasses } from '../hooks/useSchoolSetup';
@@ -16,6 +17,7 @@ export function StudentsPage() {
   const { students, meta, setPage, loading, error, refetch } = useStudents(classFilter || undefined);
   const { classes } = useClasses();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [guardianTarget, setGuardianTarget] = useState<Student | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Student | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -161,6 +163,12 @@ export function StudentsPage() {
                       <td className="px-5 text-right">
                         <div className="flex items-center justify-end gap-3">
                           <button
+                            onClick={() => setEditTarget(s)}
+                            className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
                             onClick={() => setGuardianTarget(s)}
                             className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
                           >
@@ -187,6 +195,16 @@ export function StudentsPage() {
       {showAddModal && (
         <Modal title="Add student" onClose={() => setShowAddModal(false)}>
           <AddStudentForm onSuccess={handleAdded} onCancel={() => setShowAddModal(false)} />
+        </Modal>
+      )}
+
+      {editTarget && (
+        <Modal title={`Edit — ${editTarget.full_name}`} onClose={() => setEditTarget(null)}>
+          <EditStudentForm
+            student={editTarget}
+            onSuccess={() => { setEditTarget(null); refetch(); }}
+            onCancel={() => setEditTarget(null)}
+          />
         </Modal>
       )}
 

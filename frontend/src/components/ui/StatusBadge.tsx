@@ -18,10 +18,17 @@ const statusLabels: Record<InvoiceStatus, string> = {
   CANCELLED: 'Cancelled',
 };
 
-export function StatusBadge({ status }: { status: InvoiceStatus }) {
+export function StatusBadge({ status, hasActivePaymentPlan }: { status: InvoiceStatus; hasActivePaymentPlan?: boolean }) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusStyles[status]}`}>
-      {statusLabels[status]}
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusStyles[status]}`}>
+        {statusLabels[status]}
+      </span>
+      {hasActivePaymentPlan && (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+          On plan
+        </span>
+      )}
     </span>
   );
 }

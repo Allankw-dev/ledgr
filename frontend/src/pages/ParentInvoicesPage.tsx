@@ -7,6 +7,7 @@ import { PayWithMpesa } from '../components/PayWithMpesa';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
 import { DownloadInvoicePdfLink } from '../components/DownloadInvoicePdfLink';
 import { DownloadStatementLink } from '../components/DownloadStatementLink';
+import { PaymentPlanCard } from '../components/PaymentPlanCard';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { getMyProfile } from '../api/user';
 import { useEffect } from 'react';
@@ -137,7 +138,7 @@ export function ParentInvoicesPage() {
                               <td className="px-5 py-2.5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
                               <td className="px-5 py-2.5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
                               <td className="px-5 py-2.5">
-                                <StatusBadge status={inv.status} />
+                                <StatusBadge status={inv.status} hasActivePaymentPlan={inv.has_active_payment_plan} />
                               </td>
                               <td className="px-5 py-2.5" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-col gap-1.5 items-start">
@@ -172,6 +173,11 @@ export function ParentInvoicesPage() {
                                         ))}
                                       </tbody>
                                     </table>
+                                  )}
+                                  {isUnpaid && balance > 0 && (
+                                    <div className="mt-3">
+                                      <PaymentPlanCard invoiceId={inv.id} />
+                                    </div>
                                   )}
                                 </td>
                               </tr>

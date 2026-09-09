@@ -21,6 +21,11 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # Base URL of the deployed frontend — used to build links inside emails
+    # (password reset, guardian invites) that need to point back at the app
+    # rather than the API. Defaults to the local Vite dev server.
+    frontend_url: str = "http://localhost:5173"
+
     # Phase 2 — M-Pesa Daraja
     mpesa_base_url: str | None = None  # override for local testing, e.g. Pesa Playground — see mpesa_service.py
     mpesa_consumer_key: str | None = None

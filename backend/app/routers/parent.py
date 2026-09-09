@@ -10,6 +10,7 @@ from app.schemas.parent import ParentStudentView, ParentInvoiceView, ParentInvoi
 from app.models.student import Student, StudentGuardian
 from app.models.invoice import Invoice, InvoiceItem, FeeStructure
 from app.models.payment import Payment
+from app.models.payment_plan import PaymentPlan, PaymentPlanStatus
 from app.models.enums import PaymentStatus
 
 router = APIRouter(prefix="/api/parent", tags=["parent"], dependencies=[Depends(get_current_user)])
@@ -90,6 +91,15 @@ def list_my_children(
 
         balance_due = sum((inv.total_amount - inv.amount_paid for inv in invoices), Decimal("0"))
 
+        active_plan_invoice_ids: set[str] = set()
+        if invoice_ids:
+            plan_rows = db.execute(
+                select(PaymentPlan.invoice_id).where(
+                    PaymentPlan.invoice_id.in_(invoice_ids), PaymentPlan.status == PaymentPlanStatus.ACTIVE
+                )
+            ).scalars().all()
+            active_plan_invoice_ids = set(plan_rows)
+
         results.append(
             ParentStudentView(
                 id=student.id,
@@ -105,6 +115,7 @@ def list_my_children(
                         status=inv.status.value,
                         items=items_by_invoice.get(inv.id, []),
                         payments=payments_by_invoice.get(inv.id, []),
+                        has_active_payment_plan=inv.id in active_plan_invoice_ids,
                     )
                     for inv in invoices
                 ],

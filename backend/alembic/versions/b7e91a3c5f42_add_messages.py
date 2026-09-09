@@ -17,9 +17,6 @@ depends_on = None
 
 def upgrade() -> None:
     message_sender_role = sa.Enum("PARENT", "STAFF", name="messagesenderrole")
-    message_sender_role.create(op.get_bind(), checkfirst=True)
-
-    sender_role_column_type = sa.Enum("PARENT", "STAFF", name="messagesenderrole", create_type=False)
 
     op.create_table(
         "messages",
@@ -28,7 +25,7 @@ def upgrade() -> None:
         sa.Column("parent_user_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("student_id", sa.String(), sa.ForeignKey("students.id"), nullable=True),
         sa.Column("sender_user_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("sender_role", sender_role_column_type, nullable=False),
+        sa.Column("sender_role", message_sender_role, nullable=False),
         sa.Column("body", sa.Text(), nullable=False),
         sa.Column("read_by_parent_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("read_by_staff_at", sa.DateTime(timezone=True), nullable=True),

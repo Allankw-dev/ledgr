@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.security import hash_password
 from app.core.rate_limit import limiter
-from app.schemas.student import CreateStudentRequest, StudentResponse, UpdateStudentClassRequest
+from app.schemas.student import CreateStudentRequest, StudentResponse, UpdateStudentClassRequest, UpdateStudentRequest
 from app.schemas.pagination import Page, PageMeta
 from app.schemas.guardian import LinkGuardianRequest, GuardianResponse
 from app.schemas.guardian_request import (
@@ -85,6 +85,31 @@ def create_student(
 ):
     student = Student(school_id=school_id, **data.model_dump())
     db.add(student)
+    db.commit()
+    db.refresh(student)
+    return student
+
+
+@router.patch("/{student_id}", response_model=StudentResponse)
+def update_student(
+    student_id: str,
+    data: UpdateStudentRequest,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+):
+    """Corrects details keyed in wrong at enrollment — name, admission
+    number, date of birth. Separate from the /class endpoint so a routine
+    grade promotion and a details correction stay two distinct actions."""
+    student = db.execute(
+        select(Student).where(Student.id == student_id, Student.school_id == school_id)
+    ).scalar_one_or_none()
+    if not student:
+        raise HTTPException(404, "Student not found")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(student, field, value)
+
     db.commit()
     db.refresh(student)
     return student

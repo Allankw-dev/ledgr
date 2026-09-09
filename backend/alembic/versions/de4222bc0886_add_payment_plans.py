@@ -17,7 +17,6 @@ depends_on = None
 
 def upgrade() -> None:
     payment_plan_status = sa.Enum("ACTIVE", "COMPLETED", "CANCELLED", name="paymentplanstatus")
-    payment_plan_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "payment_plans",

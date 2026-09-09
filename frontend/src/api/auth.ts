@@ -77,3 +77,13 @@ export async function registerSchool(payload: RegisterSchoolPayload): Promise<Lo
   const { data } = await apiClient.post<LoginResponse>('/api/auth/register-school', payload);
   return data;
 }
+
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const { data } = await apiClient.post('/api/auth/forgot-password', { email });
+  return data;
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ reset: boolean }> {
+  const { data } = await apiClient.post('/api/auth/reset-password', { token, new_password: newPassword });
+  return data;
+}
