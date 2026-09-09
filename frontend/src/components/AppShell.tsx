@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { AssistantFab } from './AssistantFab';
 
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
@@ -68,6 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="flex-1 min-w-0">{children}</main>
+      <AssistantFab to="/assistant" />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { BookOpen, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { AssistantFab } from './AssistantFab';
 
 const navItems = [
   { to: '/parent/dashboard', label: 'Dashboard' },
@@ -60,6 +61,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
       <main className="max-w-2xl mx-auto px-6 py-8">{children}</main>
+      <AssistantFab to="/parent/assistant" />
     </div>
   );
 }
