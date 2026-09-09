@@ -28,9 +28,7 @@ Never guess or estimate a figure.
 - If a tool returns no results, say so plainly — e.g. "no payment record matching that" — rather than \
 inventing a plausible-sounding answer.
 - State amounts exactly as returned, don't round.
-- You cannot make a payment, change any data, or link a new child — you can only look things up. If \
-asked to pay a fee, direct them to the "Pay with M-Pesa" button on their dashboard. If asked to link \
-another child, direct them to the "Link another child" option in the portal.
+- You cannot make a payment, change any data, link a new child, or set up a payment plan — you can only look things up and preview what a plan would look like. If asked to pay a fee, direct them to the "Pay with M-Pesa" button on their dashboard. If asked to link another child, direct them to the "Link another child" option in the portal. If they like a previewed payment plan, direct them to "Request a payment plan" on that invoice.
 - Keep answers short and warm — a parent wants a clear answer, not a financial report."""
 
 TOOLS = [
@@ -60,6 +58,36 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "get_invoice_breakdown",
+        "description": "Itemized charges (tuition, transport, lunch, etc.) for each invoice. Use for 'why is my balance so high', 'what am I actually being charged for', or 'explain this invoice' — questions that need the itemization, not just the total.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "student_name": {"type": "string", "description": "Optional — narrow to one child if the parent has more than one and named them."},
+            },
+        },
+    },
+    {
+        "name": "get_term_summary",
+        "description": "Total billed, total paid, and balance per term (not per invoice) — use for 'how much did we pay this term', 'summarize this term', or 'how does this term compare to last term'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "student_name": {"type": "string", "description": "Optional — narrow to one child if the parent has more than one and named them."},
+            },
+        },
+    },
+    {
+        "name": "suggest_payment_plan",
+        "description": "Previews a possible installment schedule for any of this parent's unpaid invoices, with a plain-language rationale for the sizing. This is a PREVIEW ONLY — it does not set anything up. Use when a parent asks about paying in installments, spreading out a balance, or a payment plan. Always tell them to use the 'Request a payment plan' option on the invoice in their portal if they want to actually accept it.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "student_name": {"type": "string", "description": "Optional — narrow to one child if the parent has more than one and named them."},
+            },
+        },
+    },
 ]
 
 
@@ -72,6 +100,12 @@ def _run_tool(db: Session, guardian_user_id: str, name: str, tool_input: dict) -
         )
     elif name == "get_invoice_details":
         result = parent_data_service.get_invoice_details(db, guardian_user_id, student_name=tool_input.get("student_name"))
+    elif name == "get_invoice_breakdown":
+        result = parent_data_service.get_invoice_breakdown(db, guardian_user_id, student_name=tool_input.get("student_name"))
+    elif name == "get_term_summary":
+        result = parent_data_service.get_term_summary(db, guardian_user_id, student_name=tool_input.get("student_name"))
+    elif name == "suggest_payment_plan":
+        result = parent_data_service.suggest_payment_plan(db, guardian_user_id, student_name=tool_input.get("student_name"))
     else:
         return json.dumps({"error": f"Unknown tool '{name}'"})
 
