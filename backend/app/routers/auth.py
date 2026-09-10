@@ -8,7 +8,7 @@ from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_system_db
 from app.core.security import (
     hash_password,
     verify_password,
@@ -47,7 +47,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.get("/setup-status")
-def get_setup_status(db: Session = Depends(get_db)):
+def get_setup_status(db: Session = Depends(get_system_db)):
     """
     Public, unauthenticated — lets the frontend check whether this Ledgr
     instance already has its one school set up, before even showing the
@@ -60,7 +60,7 @@ def get_setup_status(db: Session = Depends(get_db)):
 
 @router.post("/register-parent", response_model=TokenResponse, status_code=201)
 @limiter.limit("5/minute")
-def register_parent(request: Request, data: RegisterParentRequest, db: Session = Depends(get_db)):
+def register_parent(request: Request, data: RegisterParentRequest, db: Session = Depends(get_system_db)):
     """
     Public self-signup for a parent. Deliberately creates ONLY the account
     here — no student link yet. Linking happens as a separate, explicit
@@ -108,7 +108,7 @@ def _build_token_response(user: User, school_name: str | None = None) -> TokenRe
 
 @router.post("/register-school", response_model=TokenResponse, status_code=201)
 @limiter.limit("5/minute")
-def register_school(request: Request, data: RegisterSchoolRequest, db: Session = Depends(get_db)):
+def register_school(request: Request, data: RegisterSchoolRequest, db: Session = Depends(get_system_db)):
     """
     Onboards THE school + its first SCHOOL_ADMIN user — singular, deliberately.
     This Ledgr instance is built for one specific school, not a multi-tenant
@@ -166,7 +166,7 @@ def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRe
 
 @router.post("/login", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
 @limiter.limit("10/minute")
-def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, data: LoginRequest, db: Session = Depends(get_system_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not user.is_active or not verify_password(data.password, user.password_hash):
         raise HTTPException(401, "Invalid email or password")
@@ -176,7 +176,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/google", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
 @limiter.limit("10/minute")
-def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends(get_db)):
+def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends(get_system_db)):
     """Verifies the ID token Google's Sign In button hands back to the
     frontend, then either logs in a matching existing account or — for a
     brand-new email — self-registers a PARENT the same way register-parent
@@ -228,7 +228,7 @@ def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends
 
 @router.post("/2fa/verify-login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Session = Depends(get_db)):
+def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Session = Depends(get_system_db)):
     """Second step of login for accounts with 2FA enabled."""
     try:
         user_id = decode_2fa_challenge_token(data.challenge_token)
@@ -250,7 +250,7 @@ def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Sessio
 
 @router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 def setup_2fa(
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     """
@@ -276,7 +276,7 @@ def setup_2fa(
 @router.post("/2fa/enable")
 def enable_2fa(
     data: TwoFactorEnableRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     db_user = db.get(User, user.user_id)
@@ -294,7 +294,7 @@ def enable_2fa(
 @router.post("/2fa/disable")
 def disable_2fa(
     data: TwoFactorDisableRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     db_user = db.get(User, user.user_id)
@@ -311,7 +311,7 @@ def disable_2fa(
 
 
 @router.get("/2fa/status")
-def get_2fa_status(db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)):
+def get_2fa_status(db: Session = Depends(get_system_db), user: CurrentUser = Depends(get_current_user)):
     db_user = db.get(User, user.user_id)
     if not db_user:
         raise HTTPException(404, "User not found")
@@ -320,7 +320,7 @@ def get_2fa_status(db: Session = Depends(get_db), user: CurrentUser = Depends(ge
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 @limiter.limit("5/minute")
-def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session = Depends(get_system_db)):
     """Always returns the same generic response whether or not the email
     is registered — an attacker enumerating emails shouldn't be able to
     tell the difference. The actual reset link is only ever sent by email,
@@ -348,7 +348,7 @@ def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session =
 
 @router.post("/reset-password")
 @limiter.limit("10/minute")
-def reset_password(request: Request, data: ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(request: Request, data: ResetPasswordRequest, db: Session = Depends(get_system_db)):
     # We need a user to check the token's password fingerprint against, but
     # the token doesn't tell us who it's for until we decode it — and we
     # can't decode it without a hash to compare. So decode first without
