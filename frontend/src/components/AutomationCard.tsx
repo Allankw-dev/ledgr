@@ -48,7 +48,7 @@ export function AutomationCard() {
   if (loading) return null;
 
   return (
-    <div className="bg-white border border-ink-200 rounded-lg p-5">
+    <div className="bg-panel border border-ink-200 rounded-lg p-5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Zap className="w-4 h-4 text-ink-600 mt-0.5" strokeWidth={2} />
@@ -67,7 +67,7 @@ export function AutomationCard() {
           aria-checked={enabled}
           aria-label="Toggle automatic overdue reminders"
           className={`shrink-0 w-11 h-6 rounded-full transition-colors relative disabled:opacity-60 ${
-            enabled ? 'bg-ink-900' : 'bg-ink-200'
+            enabled ? 'bg-emerald-700' : 'bg-ink-200'
           }`}
         >
           <span

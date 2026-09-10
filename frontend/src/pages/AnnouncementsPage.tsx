@@ -55,7 +55,7 @@ export function AnnouncementsPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white border border-ink-200 rounded-lg p-6 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="bg-panel border border-ink-200 rounded-lg p-6 flex flex-col gap-4">
           <SelectField
             label="Send to"
             value={classId}
@@ -72,7 +72,7 @@ export function AnnouncementsPage() {
             required
           />
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="announcement-message" className="text-sm font-medium text-ink-800">
+            <label htmlFor="announcement-message" className="text-sm font-medium text-ink-700">
               Message
             </label>
             <textarea
@@ -82,7 +82,7 @@ export function AnnouncementsPage() {
               maxLength={2000}
               rows={6}
               placeholder="Write the notice as you'd like a parent to read it — a greeting and sign-off are added automatically for email."
-              className="px-3.5 py-2.5 rounded-md border border-ink-200 bg-white text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 resize-y"
+              className="px-3.5 py-2.5 rounded-md border border-ink-200 bg-panel text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 resize-y"
               required
             />
             <p className="text-xs text-ink-400 text-right">{message.length}/2000</p>

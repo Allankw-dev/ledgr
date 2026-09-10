@@ -75,7 +75,7 @@ export function ParentInvoicesPage() {
           <button
             onClick={() => setSearchParams({})}
             className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-              !selectedChildId ? 'bg-ink-900 text-paper border-ink-900' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
+              !selectedChildId ? 'bg-emerald-100 text-emerald-700 border-emerald-700' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
             }`}
           >
             All children
@@ -85,7 +85,7 @@ export function ParentInvoicesPage() {
               key={c.id}
               onClick={() => setSearchParams({ child: c.id })}
               className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-                selectedChildId === c.id ? 'bg-ink-900 text-paper border-ink-900' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
+                selectedChildId === c.id ? 'bg-emerald-100 text-emerald-700 border-emerald-700' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
               }`}
             >
               {c.full_name}
@@ -99,7 +99,7 @@ export function ParentInvoicesPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {visibleChildren.map((child) => (
-            <div key={child.id} className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+            <div key={child.id} className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
               <div className="px-5 py-3 border-b border-ink-200 flex items-center justify-between">
                 <h2 className="font-display text-base text-ink-900 font-medium">{child.full_name}</h2>
                 <DownloadStatementLink studentId={child.id} />

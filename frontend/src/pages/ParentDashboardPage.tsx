@@ -100,7 +100,7 @@ export function ParentDashboardPage() {
       {loading ? (
         <p className="text-sm text-ink-600">Loading…</p>
       ) : children.length === 0 ? (
-        <div className="bg-white border border-ink-200 rounded-lg px-6 py-12 text-center">
+        <div className="bg-panel border border-ink-200 rounded-lg px-6 py-12 text-center">
           <p className="text-sm text-ink-900 font-medium">No children linked to your account yet</p>
           <p className="text-xs text-ink-600 mt-1 mb-4">
             Enter your child's admission number to send a link request to the school office.
@@ -119,7 +119,7 @@ export function ParentDashboardPage() {
             const totalDue = child.invoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
             const totalPaid = child.invoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
             return (
-              <div key={child.id} className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+              <div key={child.id} className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
                 <div className="px-5 py-4 border-b border-ink-200 flex items-start justify-between">
                   <div>
                     <h2 className="font-display text-lg text-ink-900 font-medium">{child.full_name}</h2>

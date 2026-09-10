@@ -66,7 +66,7 @@ export function GuardianRequestsPage() {
           </div>
         )}
 
-        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {loading ? (
             <div className="px-5 py-16 text-center text-sm text-ink-600">Loading…</div>
           ) : requests.length === 0 ? (

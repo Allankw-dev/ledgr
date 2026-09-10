@@ -48,6 +48,7 @@ export function DashboardPage() {
             label="Collected this term"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_collected))}
             icon={<Wallet className="w-5 h-5" strokeWidth={1.75} />}
+            highlight
           />
           <StatCard
             label="Outstanding balance"
@@ -72,14 +73,14 @@ export function DashboardPage() {
 
         {analytics && (analytics.collection_by_term.length > 0 || analytics.top_risk.length > 0) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-            <div className="bg-white border border-ink-200 rounded-lg p-5">
+            <div className="bg-panel border border-ink-200 rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
                 <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
               </div>
               <CollectionChart points={analytics.collection_by_term} />
             </div>
-            <div className="bg-white border border-ink-200 rounded-lg p-5">
+            <div className="bg-panel border border-ink-200 rounded-lg p-5">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="w-4 h-4 text-ink-600" strokeWidth={2} />
                 <h2 className="font-display text-base text-ink-900 font-medium">Highest-risk unpaid invoices</h2>
@@ -90,7 +91,7 @@ export function DashboardPage() {
         )}
 
         {anomalies.length > 0 && (
-          <div className="bg-white border border-clay-600/30 rounded-lg overflow-hidden mb-8">
+          <div className="bg-panel border border-clay-600/30 rounded-lg overflow-hidden mb-8">
             <div className="px-5 py-4 border-b border-ink-200 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-clay-700" strokeWidth={2} />
               <h2 className="font-display text-base text-ink-900 font-medium">
@@ -123,7 +124,7 @@ export function DashboardPage() {
           </div>
         )}
 
-        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           <div className="px-5 py-4 border-b border-ink-200">
             <h2 className="font-display text-base text-ink-900 font-medium">Recent invoices</h2>
           </div>

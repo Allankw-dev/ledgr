@@ -90,7 +90,7 @@ export function MessagesPage() {
           <p className="text-sm text-ink-600 mt-1">Questions from parents about fees, invoices, and payments.</p>
         </div>
 
-        <div className="flex-1 min-h-0 flex border border-ink-200 rounded-lg overflow-hidden bg-white">
+        <div className="flex-1 min-h-0 flex border border-ink-200 rounded-lg overflow-hidden bg-panel">
           <div className="w-72 shrink-0 border-r border-ink-200 overflow-y-auto">
             {loadingList ? (
               <p className="text-sm text-ink-600 px-4 py-4">Loading…</p>
@@ -141,7 +141,7 @@ export function MessagesPage() {
                       <div key={m.id} className={`flex ${m.sender_role === 'STAFF' ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`max-w-[70%] rounded-lg px-3.5 py-2 text-sm whitespace-pre-wrap ${
-                            m.sender_role === 'STAFF' ? 'bg-ink-900 text-paper' : 'bg-ink-100 text-ink-900'
+                            m.sender_role === 'STAFF' ? 'bg-ink-800 text-ink-900' : 'bg-ink-100 text-ink-900'
                           }`}
                         >
                           {m.sender_role === 'PARENT' && (
@@ -168,7 +168,7 @@ export function MessagesPage() {
                   <button
                     type="submit"
                     disabled={sending || !input.trim()}
-                    className="p-2 rounded-md bg-ink-900 text-paper hover:bg-ink-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2 rounded-md bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
                     aria-label="Send"
                   >
                     <Send className="w-4 h-4" strokeWidth={2} />

@@ -25,7 +25,7 @@ export function StatusBadge({ status, hasActivePaymentPlan }: { status: InvoiceS
         {statusLabels[status]}
       </span>
       {hasActivePaymentPlan && (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
           On plan
         </span>
       )}

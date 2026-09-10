@@ -23,16 +23,18 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-paper px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-paper px-4 relative overflow-hidden">
+      <div className="glow-violet" />
+      <div className="glow-cyan" />
+      <div className="w-full max-w-sm relative z-10">
         <div className="flex items-center gap-2.5 mb-8 justify-center">
-          <div className="w-9 h-9 rounded-md bg-ink-900 flex items-center justify-center">
-            <BookOpen className="w-5 h-5 text-paper" strokeWidth={2} />
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center">
+            <BookOpen className="w-5 h-5 text-[#06110B]" strokeWidth={2} />
           </div>
           <span className="font-display text-2xl text-ink-900 font-medium">Ledgr</span>
         </div>
 
-        <div className="bg-white border border-ink-200 rounded-lg p-8 shadow-sm">
+        <div className="bg-panel border border-ink-200 rounded-lg p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)]">
           {sent ? (
             <>
               <div className="flex items-center gap-2 mb-1">

@@ -1,47 +1,86 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  /* Ledger identity: ink navy for authority, paper white (cool, not cream)
-     for the page, financial-semantic accents for status. */
-  --color-ink-950: #0f1729;
-  --color-ink-900: #16213D;
-  --color-ink-800: #1f2d4d;
-  --color-ink-700: #2c3e63;
-  --color-ink-600: #3d5280;
-  --color-ink-400: #7c8db0;
-  --color-ink-200: #cdd6e6;
-  --color-ink-100: #e6ebf3;
+  /* Confident fintech, dark: near-black base with two neon accents used on
+     purpose, not as decoration — green means "money that's good" (paid,
+     collected, positive), the violet/cyan pair is ambient light only,
+     never a status color. */
+  --color-bg: #0A0C16;
+  --color-bg-raised: #0E1120;
+  --color-panel: #141828;
+  --color-panel-line: #242A42;
 
-  --color-paper: #FAFAF8;
-  --color-paper-line: #E4E2DA;
+  --color-text: #F3F4FA;
+  --color-text-dim: #8891B0;
+  --color-text-faint: #5C6480;
 
-  --color-emerald-700: #16543C;
-  --color-emerald-600: #1F7A5C;
-  --color-emerald-100: #DCEEE5;
+  --color-green: #39FF88;
+  --color-green-dim: #1F8F52;
+  --color-green-100: rgba(57, 255, 136, 0.1);
+  --color-green-200: rgba(57, 255, 136, 0.25);
+  --color-green-glow: rgba(57, 255, 136, 0.35);
 
-  --color-amber-700: #8F6519;
-  --color-amber-600: #C08A2C;
-  --color-amber-100: #F5E9D2;
+  --color-coral: #FF5C7A;
+  --color-coral-100: rgba(255, 92, 122, 0.12);
+  --color-coral-200: rgba(255, 92, 122, 0.3);
 
-  --color-clay-700: #8A3626;
-  --color-clay-600: #B54834;
-  --color-clay-100: #F5DFD8;
+  --color-amber: #FFC24B;
+  --color-amber-100: rgba(255, 194, 75, 0.1);
+  --color-amber-200: rgba(255, 194, 75, 0.3);
 
-  --font-display: 'Fraunces', ui-serif, serif;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-violet: #8B6CFF;
+  --color-cyan: #3FD9FF;
+
+  --font-display: 'Space Grotesk', ui-sans-serif, sans-serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* --- Legacy token names, still referenced throughout the component tree,
+     remapped to their nearest role in the new dark palette. Where a name
+     was used for two conflicting roles in the old (light) theme — e.g.
+     ink-900 as both body text AND a literal dark surface — the majority
+     usage wins here and the handful of minority call sites were fixed to
+     a different token directly in their component files. */
+  --color-ink-950: #06070D;
+  --color-ink-900: #F3F4FA;   /* was: primary text on light bg → now: primary text on dark bg */
+  --color-ink-800: #1A1E30;   /* raised dark surface (hover states, secondary panels) */
+  --color-ink-700: #A8B0C8;   /* light secondary text (labels) */
+  --color-ink-600: #8891B0;   /* muted/dim text */
+  --color-ink-500: #8891B0;
+  --color-ink-400: #5C6480;   /* faint text / disabled state */
+  --color-ink-200: #242A42;   /* subtle card border */
+  --color-ink-100: #171B2E;   /* subtle raised surface (pills, hover) */
+
+  --color-paper: #0A0C16;     /* the page background itself */
+  --color-paper-line: #242A42;
+
+  --color-emerald-800: #1F8F52;
+  --color-emerald-700: #39FF88;  /* paid / success */
+  --color-emerald-600: #39FF88;
+  --color-emerald-500: #39FF88;
+  --color-emerald-100: rgba(57, 255, 136, 0.12);
+  --color-emerald-50: rgba(57, 255, 136, 0.08);
+
+  --color-amber-700: #FFC24B;    /* partial / on plan */
+  --color-amber-600: #FFC24B;
+  --color-amber-500: #FFC24B;
+  --color-amber-100: rgba(255, 194, 75, 0.12);
+
+  --color-clay-700: #FF5C7A;     /* overdue / danger */
+  --color-clay-600: #FF5C7A;
+  --color-clay-100: rgba(255, 92, 122, 0.12);
 }
 
 @layer base {
   body {
-    background-color: var(--color-paper);
-    color: var(--color-ink-900);
+    background-color: var(--color-bg);
+    color: var(--color-text);
     font-family: var(--font-sans);
   }
 
-  /* Financial figures always get tabular numerals so amounts align in columns,
-     the way they would in a physical ledger. */
+  /* Financial figures always get tabular numerals so amounts align in
+     columns, the way they would in a physical ledger. */
   .figure {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
@@ -50,7 +89,7 @@
   /* Visible keyboard focus everywhere — required for a finance app used by
      bursars who tab through forms all day. */
   :focus-visible {
-    outline: 2px solid var(--color-ink-600);
+    outline: 2px solid var(--color-green);
     outline-offset: 2px;
   }
 
@@ -64,15 +103,44 @@
 }
 
 @layer components {
-  /* The signature element: faint horizontal ruling on data-bearing surfaces,
-     evoking ledger paper without being literal about it. */
+  /* Soft ambient light washes behind hero/header areas — the "exciting
+     background" without ever touching text itself. Fixed + pointer-events
+     none so they sit behind content and never block clicks or scroll. */
+  .glow-violet {
+    position: fixed;
+    top: -220px;
+    right: -160px;
+    width: 620px;
+    height: 620px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(139, 108, 255, 0.28) 0%, rgba(139, 108, 255, 0) 70%);
+    filter: blur(10px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow-cyan {
+    position: fixed;
+    bottom: -260px;
+    left: 120px;
+    width: 560px;
+    height: 560px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(63, 217, 255, 0.16) 0%, rgba(63, 217, 255, 0) 70%);
+    filter: blur(10px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Faint structural ruling on data-bearing surfaces — same idea as before,
+     re-tuned for the dark panels instead of paper. */
   .ledger-lines {
     background-image: repeating-linear-gradient(
       to bottom,
       transparent,
       transparent 35px,
-      var(--color-paper-line) 35px,
-      var(--color-paper-line) 36px
+      var(--color-panel-line) 35px,
+      var(--color-panel-line) 36px
     );
   }
 }

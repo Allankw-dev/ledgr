@@ -43,7 +43,7 @@ export function MessagePanel() {
   }
 
   return (
-    <div className="bg-white border border-ink-200 rounded-lg overflow-hidden mt-6">
+    <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden mt-6">
       <button onClick={() => setOpen(!open)} className="w-full px-5 py-4 flex items-center justify-between text-left">
         <span className="flex items-center gap-2 font-display text-base text-ink-900 font-medium">
           <MessageCircle className="w-4 h-4" strokeWidth={2} />
@@ -66,7 +66,7 @@ export function MessagePanel() {
               <div key={m.id} className={`flex ${m.sender_role === 'PARENT' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] rounded-lg px-3.5 py-2 text-sm whitespace-pre-wrap ${
-                    m.sender_role === 'PARENT' ? 'bg-ink-900 text-paper' : 'bg-ink-100 text-ink-900'
+                    m.sender_role === 'PARENT' ? 'bg-ink-800 text-ink-900' : 'bg-ink-100 text-ink-900'
                   }`}
                 >
                   {m.sender_role === 'STAFF' && <p className="text-xs font-medium text-ink-600 mb-0.5">{m.sender_name}</p>}
@@ -90,7 +90,7 @@ export function MessagePanel() {
             <button
               type="submit"
               disabled={sending || !input.trim()}
-              className="p-2 rounded-md bg-ink-900 text-paper hover:bg-ink-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-2 rounded-md bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Send"
             >
               <Send className="w-4 h-4" strokeWidth={2} />

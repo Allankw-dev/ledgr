@@ -87,7 +87,7 @@ export function IdleTimeoutGuard({ children }: { children: ReactNode }) {
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="idle-title"
-            className="relative bg-white rounded-lg border border-ink-200 shadow-lg w-full max-w-sm p-5 text-center"
+            className="relative bg-panel rounded-lg border border-ink-200 shadow-lg w-full max-w-sm p-5 text-center"
           >
             <h2 id="idle-title" className="font-display text-lg text-ink-900 font-medium mb-2">
               Still there?
@@ -105,7 +105,7 @@ export function IdleTimeoutGuard({ children }: { children: ReactNode }) {
               </button>
               <button
                 onClick={handleStaySignedIn}
-                className="px-4 py-2 rounded-md text-sm font-medium bg-ink-900 text-paper hover:bg-ink-800"
+                className="px-4 py-2 rounded-md text-sm font-medium bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110"
               >
                 Stay signed in
               </button>

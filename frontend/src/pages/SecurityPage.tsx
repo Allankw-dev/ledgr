@@ -83,7 +83,7 @@ export function SecurityPage() {
         {stage === 'loading' && <p className="text-sm text-ink-600">Loading…</p>}
 
         {stage === 'disabled' && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6">
             <div className="flex items-start gap-3 mb-4">
               <ShieldOff className="w-5 h-5 text-ink-400 mt-0.5" strokeWidth={1.75} />
               <div>
@@ -101,12 +101,12 @@ export function SecurityPage() {
         )}
 
         {stage === 'setting-up' && setupData && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6">
             <h2 className="font-display text-base text-ink-900 font-medium mb-4">
               Scan this code with your authenticator app
             </h2>
 
-            <div className="flex justify-center bg-white p-4 border border-ink-200 rounded-lg mb-4 w-fit mx-auto">
+            <div className="flex justify-center bg-panel p-4 border border-ink-200 rounded-lg mb-4 w-fit mx-auto">
               <QRCodeSVG value={setupData.provisioning_uri} size={180} />
             </div>
 
@@ -150,7 +150,7 @@ export function SecurityPage() {
         )}
 
         {stage === 'enabled' && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6">
             <div className="flex items-start gap-3 mb-4">
               <ShieldCheck className="w-5 h-5 text-emerald-700 mt-0.5" strokeWidth={1.75} />
               <div>

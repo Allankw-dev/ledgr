@@ -72,7 +72,7 @@ export function VerifyChildPage() {
     <ParentShell>
       <div className="max-w-md mx-auto">
         {stage === 'entry' && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6">
             <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
             <h1 className="font-display text-lg text-ink-900 mb-1 text-center">Link your child</h1>
             <p className="text-sm text-ink-600 mb-5 text-center">
@@ -96,7 +96,7 @@ export function VerifyChildPage() {
         {stage === 'loading' && <p className="text-sm text-ink-600 text-center py-12">Looking that up…</p>}
 
         {stage === 'error' && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6 text-center">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6 text-center">
             <p className="text-sm text-clay-700 mb-4">{error}</p>
             <Button variant="secondary" onClick={() => window.location.reload()}>
               Try again
@@ -105,7 +105,7 @@ export function VerifyChildPage() {
         )}
 
         {stage === 'not-found' && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6 text-center">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6 text-center">
             <XCircle className="w-8 h-8 text-clay-600 mx-auto mb-3" strokeWidth={1.5} />
             <h1 className="font-display text-lg text-ink-900 mb-2">We couldn't verify that number</h1>
             <p className="text-sm text-ink-600 mb-6">
@@ -117,7 +117,7 @@ export function VerifyChildPage() {
         )}
 
         {(stage === 'found' || stage === 'confirming') && student && (
-          <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+          <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
             <div className="px-6 py-5 border-b border-ink-200 text-center">
               <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
               <h1 className="font-display text-lg text-ink-900">Is this your child?</h1>
@@ -157,7 +157,7 @@ export function VerifyChildPage() {
         )}
 
         {stage === 'pending' && (
-          <div className="bg-white border border-ink-200 rounded-lg p-6 text-center">
+          <div className="bg-panel border border-ink-200 rounded-lg p-6 text-center">
             <Clock className="w-8 h-8 text-amber-600 mx-auto mb-3" strokeWidth={1.5} />
             <h1 className="font-display text-lg text-ink-900 mb-2">Sent for confirmation</h1>
             <p className="text-sm text-ink-600 mb-6">

@@ -6,8 +6,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<string, string> = {
-  primary: 'bg-ink-900 text-paper hover:bg-ink-800 disabled:bg-ink-400',
-  secondary: 'bg-white text-ink-900 border border-ink-200 hover:bg-ink-100',
+  primary: 'bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] shadow-[0_8px_24px_-6px_rgba(57,255,136,0.4)] hover:brightness-110 disabled:opacity-50 disabled:shadow-none',
+  secondary: 'bg-panel text-ink-900 border border-ink-200 hover:bg-ink-100',
   ghost: 'text-ink-700 hover:bg-ink-100',
   danger: 'bg-clay-600 text-white hover:bg-clay-700',
 };

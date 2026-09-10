@@ -50,14 +50,14 @@ export function RecentActivityFeed({ children, limit = 6 }: { children: ParentSt
 
   if (activity.length === 0) {
     return (
-      <div className="bg-white border border-ink-200 rounded-lg px-6 py-8 text-center">
+      <div className="bg-panel border border-ink-200 rounded-lg px-6 py-8 text-center">
         <p className="text-sm text-ink-600">No activity yet — payments will show up here once confirmed.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+    <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
       <div className="px-5 py-4 border-b border-ink-200">
         <h2 className="font-display text-base text-ink-900 font-medium">Recent activity</h2>
       </div>

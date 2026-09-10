@@ -47,7 +47,7 @@ export function ParentReceiptsPage() {
           <button
             onClick={() => setSelectedChildId(null)}
             className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-              !selectedChildId ? 'bg-ink-900 text-paper border-ink-900' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
+              !selectedChildId ? 'bg-emerald-100 text-emerald-700 border-emerald-700' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
             }`}
           >
             All children
@@ -57,7 +57,7 @@ export function ParentReceiptsPage() {
               key={c.id}
               onClick={() => setSelectedChildId(c.id)}
               className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-                selectedChildId === c.id ? 'bg-ink-900 text-paper border-ink-900' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
+                selectedChildId === c.id ? 'bg-emerald-100 text-emerald-700 border-emerald-700' : 'border-ink-200 text-ink-600 hover:bg-ink-100'
               }`}
             >
               {c.full_name}
@@ -69,11 +69,11 @@ export function ParentReceiptsPage() {
       {loading ? (
         <p className="text-sm text-ink-600">Loading…</p>
       ) : rows.length === 0 ? (
-        <div className="bg-white border border-ink-200 rounded-lg px-6 py-12 text-center">
+        <div className="bg-panel border border-ink-200 rounded-lg px-6 py-12 text-center">
           <p className="text-sm text-ink-600">No confirmed payments yet.</p>
         </div>
       ) : (
-        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           <div className="ledger-lines overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

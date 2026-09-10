@@ -66,7 +66,7 @@ export function AssistantPage() {
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-left text-sm px-4 py-3 rounded-lg border border-ink-200 bg-white hover:bg-ink-100 text-ink-700"
+                  className="text-left text-sm px-4 py-3 rounded-lg border border-ink-200 bg-panel hover:bg-ink-100 text-ink-700"
                 >
                   {s}
                 </button>
@@ -78,7 +78,7 @@ export function AssistantPage() {
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm whitespace-pre-wrap ${
-                  m.role === 'user' ? 'bg-ink-900 text-paper' : 'bg-white border border-ink-200 text-ink-900'
+                  m.role === 'user' ? 'bg-ink-800 text-ink-900' : 'bg-panel border border-ink-200 text-ink-900'
                 }`}
               >
                 {m.content}
@@ -88,7 +88,7 @@ export function AssistantPage() {
 
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white border border-ink-200 rounded-lg px-4 py-2.5 text-sm text-ink-600">
+              <div className="bg-panel border border-ink-200 rounded-lg px-4 py-2.5 text-sm text-ink-600">
                 Looking that up…
               </div>
             </div>
@@ -114,7 +114,7 @@ export function AssistantPage() {
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="p-2.5 rounded-md bg-ink-900 text-paper hover:bg-ink-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-2.5 rounded-md bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Send"
           >
             <Send className="w-4 h-4" strokeWidth={2} />

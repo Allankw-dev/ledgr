@@ -134,7 +134,7 @@ export function InvoicesPage() {
         )}
 
         {/* Term setup */}
-        <div className="bg-white border border-ink-200 rounded-lg p-5 mb-6">
+        <div className="bg-panel border border-ink-200 rounded-lg p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-base text-ink-900 font-medium">Term</h2>
             <Button variant="secondary" onClick={() => setModal('term')} className="flex items-center gap-1.5 text-xs px-3 py-1.5">
@@ -160,7 +160,7 @@ export function InvoicesPage() {
 
         {/* Fee structures for the active term */}
         {activeTerm && (
-          <div className="bg-white border border-ink-200 rounded-lg p-5 mb-6">
+          <div className="bg-panel border border-ink-200 rounded-lg p-5 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-base text-ink-900 font-medium">Fees for {activeTerm.name}</h2>
               <Button variant="secondary" onClick={() => setModal('fee')} className="flex items-center gap-1.5 text-xs px-3 py-1.5">
@@ -227,7 +227,7 @@ export function InvoicesPage() {
         </div>
 
         {/* Invoices list */}
-        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           <div className="px-5 py-4 border-b border-ink-200 flex items-center justify-between">
             <h2 className="font-display text-base text-ink-900 font-medium">All invoices</h2>
             {activeTerm && <ExportReportButton termId={activeTerm.id} termName={activeTerm.name} />}

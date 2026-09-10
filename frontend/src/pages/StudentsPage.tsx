@@ -79,7 +79,7 @@ export function StudentsPage() {
                 setClassFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 rounded-md border border-ink-200 bg-white text-ink-900 text-sm focus-visible:outline-2 focus-visible:outline-ink-600"
+              className="px-3 py-2 rounded-md border border-ink-200 bg-panel text-ink-900 text-sm focus-visible:outline-2 focus-visible:outline-ink-600"
             >
               <option value="">All grades</option>
               {classes.map((c) => (
@@ -107,7 +107,7 @@ export function StudentsPage() {
           </div>
         )}
 
-        <div className="bg-white border border-ink-200 rounded-lg overflow-hidden">
+        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {loading ? (
             <div className="px-5 py-16 text-center text-sm text-ink-600">Loading students…</div>
           ) : students.length === 0 ? (
@@ -141,7 +141,7 @@ export function StudentsPage() {
                           value={s.class_id || ''}
                           onChange={(e) => handleClassChange(s, e.target.value)}
                           disabled={classUpdatingId === s.id}
-                          className="px-2 py-1 rounded-md border border-ink-200 bg-white text-ink-900 text-xs focus-visible:outline-2 focus-visible:outline-ink-600 disabled:opacity-50"
+                          className="px-2 py-1 rounded-md border border-ink-200 bg-panel text-ink-900 text-xs focus-visible:outline-2 focus-visible:outline-ink-600 disabled:opacity-50"
                         >
                           <option value="">Unassigned</option>
                           {classes.map((c) => (

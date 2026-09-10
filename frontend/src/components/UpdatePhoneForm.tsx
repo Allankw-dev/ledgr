@@ -35,7 +35,7 @@ export function UpdatePhoneForm({ currentPhone, onUpdated }: UpdatePhoneFormProp
 
   if (!editing) {
     return (
-      <div className="flex items-center justify-between bg-white border border-ink-200 rounded-lg px-5 py-3.5">
+      <div className="flex items-center justify-between bg-panel border border-ink-200 rounded-lg px-5 py-3.5">
         <div className="flex items-center gap-2.5 text-sm">
           <Phone className="w-4 h-4 text-ink-400" strokeWidth={1.75} />
           <span className="text-ink-900">{currentPhone || 'No phone number on file'}</span>
@@ -56,7 +56,7 @@ export function UpdatePhoneForm({ currentPhone, onUpdated }: UpdatePhoneFormProp
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-ink-200 rounded-lg p-5 flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="bg-panel border border-ink-200 rounded-lg p-5 flex flex-col gap-3">
       <TextField
         label="Phone number"
         type="tel"

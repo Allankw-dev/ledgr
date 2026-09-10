@@ -10,13 +10,13 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     const fieldId = id || label.toLowerCase().replace(/\s+/g, '-');
     return (
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={fieldId} className="text-sm font-medium text-ink-800">
+        <label htmlFor={fieldId} className="text-sm font-medium text-ink-700">
           {label}
         </label>
         <input
           ref={ref}
           id={fieldId}
-          className={`px-3.5 py-2.5 rounded-md border bg-white text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 ${
+          className={`px-3.5 py-2.5 rounded-md border bg-panel text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 ${
             error ? 'border-clay-600' : 'border-ink-200'
           } ${className}`}
           aria-invalid={!!error}

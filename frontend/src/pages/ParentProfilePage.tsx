@@ -22,14 +22,14 @@ export function ParentProfilePage() {
         <p className="text-sm text-ink-600">Loading…</p>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="bg-white border border-ink-200 rounded-lg px-5 py-4">
+          <div className="bg-panel border border-ink-200 rounded-lg px-5 py-4">
             <p className="text-xs text-ink-600 mb-1">Name</p>
             <p className="text-sm text-ink-900 font-medium mb-3">{profile?.full_name}</p>
             <p className="text-xs text-ink-600 mb-1">Email</p>
             <p className="text-sm text-ink-900 font-medium">{profile?.email}</p>
           </div>
 
-          <div className="bg-white border border-ink-200 rounded-lg px-5 py-4">
+          <div className="bg-panel border border-ink-200 rounded-lg px-5 py-4">
             <UpdatePhoneForm currentPhone={profile?.phone ?? null} onUpdated={(phone) => setProfile((p) => (p ? { ...p, phone } : p))} />
           </div>
 

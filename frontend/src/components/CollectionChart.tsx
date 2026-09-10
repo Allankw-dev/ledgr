@@ -24,21 +24,23 @@ export function CollectionChart({ points }: { points: TermCollectionPoint[] }) {
     <div className="h-64 -ml-2">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E4E2DA" />
-          <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#3D5280' }} axisLine={{ stroke: '#E4E2DA' }} tickLine={false} />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#242A42" />
+          <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#8891B0' }} axisLine={{ stroke: '#242A42' }} tickLine={false} />
           <YAxis
             tickFormatter={formatCompact}
-            tick={{ fontSize: 12, fill: '#3D5280' }}
+            tick={{ fontSize: 12, fill: '#8891B0' }}
             axisLine={false}
             tickLine={false}
             width={48}
           />
           <Tooltip
-            formatter={(value: number) => formatCurrency(value)}
-            contentStyle={{ borderRadius: 8, borderColor: '#E4E2DA', fontSize: 13 }}
+            formatter={(value) => formatCurrency(Number(value))}
+            contentStyle={{ borderRadius: 8, background: '#141828', borderColor: '#242A42', fontSize: 13 }}
+            labelStyle={{ color: '#8891B0' }}
+            itemStyle={{ color: '#F3F4FA' }}
           />
-          <Bar dataKey="billed" name="Billed" fill="#D9D6CB" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="paid" name="Paid" fill="#16213D" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="billed" name="Billed" fill="#2C3350" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="paid" name="Paid" fill="#39FF88" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

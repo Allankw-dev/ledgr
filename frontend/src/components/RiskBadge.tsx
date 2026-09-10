@@ -74,7 +74,7 @@ export function RiskBadge({ invoiceId }: { invoiceId: string }) {
       {showTooltip && (
         <div
           role="tooltip"
-          className="absolute z-10 top-full left-0 mt-1.5 w-56 bg-ink-900 text-white text-xs rounded-md px-3 py-2 shadow-lg"
+          className="absolute z-10 top-full left-0 mt-1.5 w-56 bg-ink-800 text-white text-xs rounded-md px-3 py-2 shadow-lg border border-ink-200"
         >
           {risk.explanation}
         </div>
