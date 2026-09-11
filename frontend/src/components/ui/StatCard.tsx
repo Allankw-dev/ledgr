@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, CSSProperties } from 'react';
 
 interface StatCardProps {
   label: string;
@@ -29,7 +29,12 @@ export function StatCard({ label, value, trend, trendDirection = 'neutral', icon
         <p className="text-sm text-ink-600 font-medium">{label}</p>
         <div className="text-ink-400">{icon}</div>
       </div>
-      <p className={`figure text-2xl font-medium ${highlight ? 'text-emerald-700' : 'text-ink-900'}`}>{value}</p>
+      <p
+        className={`figure text-2xl font-medium ${highlight ? 'text-emerald-700 reveal' : 'text-ink-900'}`}
+        style={highlight ? ({ '--reveal-delay': '0.15s' } as CSSProperties) : undefined}
+      >
+        {value}
+      </p>
       {trend && <p className={`text-xs font-medium mt-1.5 ${trendColor[trendDirection]}`}>{trend}</p>}
     </div>
   );

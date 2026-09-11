@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Wallet, AlertCircle, Users, Receipt, ShieldAlert, TrendingUp } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { StatCard } from '../components/ui/StatCard';
@@ -27,14 +28,33 @@ export function DashboardPage() {
 
   const recentInvoices = invoices;
 
+  // A real, honest comparison — not a fabricated "this week" delta the
+  // backend has no data for. collection_by_term is ordered chronologically,
+  // so the last two entries are the current and previous term.
+  let collectedTrend: string | undefined;
+  let collectedTrendDirection: 'up' | 'down' | 'neutral' = 'neutral';
+  if (analytics && analytics.collection_by_term.length >= 2) {
+    const terms = analytics.collection_by_term;
+    const current = Number(terms[terms.length - 1].total_paid);
+    const previous = Number(terms[terms.length - 2].total_paid);
+    if (previous > 0) {
+      const pctChange = ((current - previous) / previous) * 100;
+      const rounded = Math.round(pctChange);
+      collectedTrend = `${rounded >= 0 ? '+' : ''}${rounded}% vs last term`;
+      collectedTrendDirection = rounded >= 0 ? 'up' : 'down';
+    }
+  }
+
   return (
     <AppShell>
       <div className="max-w-6xl mx-auto px-8 py-8">
         <div className="mb-8">
-          <h1 className="font-display text-2xl text-ink-900 font-medium">
+          <h1 className="font-display text-2xl text-ink-900 font-medium reveal">
             Good day{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
           </h1>
-          <p className="text-sm text-ink-600 mt-1">Here's where your school's fee collection stands.</p>
+          <p className="text-sm text-ink-600 mt-1 reveal" style={{ '--reveal-delay': '0.08s' } as CSSProperties}>
+            Here's where your school's fee collection stands.
+          </p>
         </div>
 
         {error && (
@@ -47,6 +67,8 @@ export function DashboardPage() {
           <StatCard
             label="Collected this term"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_collected))}
+            trend={collectedTrend}
+            trendDirection={collectedTrendDirection}
             icon={<Wallet className="w-5 h-5" strokeWidth={1.75} />}
             highlight
           />

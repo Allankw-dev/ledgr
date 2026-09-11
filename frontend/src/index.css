@@ -143,4 +143,24 @@
       var(--color-panel-line) 36px
     );
   }
+
+  /* Reveal-text: a deliberate fade-up on load, used sparingly — page
+     headers and hero stats only, never on every element. Staggered via
+     --reveal-delay so a header and the number beneath it don't animate
+     in at exactly the same instant. */
+  .reveal {
+    animation: reveal-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--reveal-delay, 0s);
+  }
+
+  @keyframes reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }

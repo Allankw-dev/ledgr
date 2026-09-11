@@ -144,7 +144,7 @@ export function ParentInvoicesPage() {
                                 <div className="flex flex-col gap-1.5 items-start">
                                   <DownloadInvoicePdfLink invoiceId={inv.id} />
                                   {isUnpaid && balance > 0 && (
-                                    <PayWithMpesa invoiceId={inv.id} defaultPhone={phone} onInitiated={handlePaymentInitiated} />
+                                    <PayWithMpesa invoiceId={inv.id} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" />
                                   )}
                                   {inv.payments.length === 0 ? (
                                     isUnpaid ? null : <span className="text-xs text-ink-400">—</span>

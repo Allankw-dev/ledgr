@@ -9,9 +9,12 @@ interface PayWithMpesaProps {
   invoiceId: string;
   defaultPhone?: string | null;
   onInitiated: () => void;
+  variant?: 'primary' | 'secondary';
+  className?: string;
+  label?: string;
 }
 
-export function PayWithMpesa({ invoiceId, defaultPhone, onInitiated }: PayWithMpesaProps) {
+export function PayWithMpesa({ invoiceId, defaultPhone, onInitiated, variant = 'primary', className, label = 'Pay now' }: PayWithMpesaProps) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(defaultPhone || '');
   const [submitting, setSubmitting] = useState(false);
@@ -44,8 +47,12 @@ export function PayWithMpesa({ invoiceId, defaultPhone, onInitiated }: PayWithMp
 
   return (
     <>
-      <Button variant="secondary" onClick={() => setOpen(true)} className="text-xs px-3 py-1.5 flex items-center gap-1.5">
-        <Smartphone className="w-3.5 h-3.5" /> Pay now
+      <Button
+        variant={variant}
+        onClick={() => setOpen(true)}
+        className={className || 'text-xs px-3 py-1.5 flex items-center gap-1.5'}
+      >
+        <Smartphone className="w-3.5 h-3.5" /> {label}
       </Button>
 
       {open && (
