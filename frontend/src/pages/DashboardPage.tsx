@@ -37,7 +37,11 @@ export function DashboardPage() {
     const terms = analytics.collection_by_term;
     const current = Number(terms[terms.length - 1].total_paid);
     const previous = Number(terms[terms.length - 2].total_paid);
-    if (previous > 0) {
+    // Only compare once the current term has actually collected something.
+    // A brand-new term starts at zero by definition — that's not a "-100%"
+    // decline, it just hasn't begun yet, so showing a delta there would be
+    // a false alarm rather than a real signal.
+    if (previous > 0 && current > 0) {
       const pctChange = ((current - previous) / previous) * 100;
       const rounded = Math.round(pctChange);
       collectedTrend = `${rounded >= 0 ? '+' : ''}${rounded}% vs last term`;
