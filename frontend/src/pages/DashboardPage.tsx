@@ -49,6 +49,17 @@ export function DashboardPage() {
     }
   }
 
+  // For the "Term collection" progress panel — the current term's own
+  // billed/paid totals, so the percentage reflects this term specifically
+  // rather than the all-time total_collected figure used in the hero stat.
+  const currentTermPoint =
+    analytics && analytics.collection_by_term.length > 0
+      ? analytics.collection_by_term[analytics.collection_by_term.length - 1]
+      : null;
+  const termBilled = currentTermPoint ? Number(currentTermPoint.total_billed) : 0;
+  const termPaid = currentTermPoint ? Number(currentTermPoint.total_paid) : 0;
+  const termPaidPct = termBilled > 0 ? Math.min(100, Math.round((termPaid / termBilled) * 100)) : 0;
+
   return (
     <AppShell>
       <div className="max-w-6xl mx-auto px-8 py-8">
@@ -97,22 +108,87 @@ export function DashboardPage() {
           />
         </div>
 
-        {analytics && (analytics.collection_by_term.length > 0 || analytics.top_risk.length > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-            <div className="bg-panel border border-ink-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
-                <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4 mb-8 items-start">
+            <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
+              <div className="px-5 py-4 border-b border-ink-200 flex items-center justify-between">
+                <h2 className="font-display text-base text-ink-900 font-medium">Recent invoices</h2>
               </div>
-              <CollectionChart points={analytics.collection_by_term} />
+
+              {loading ? (
+                <div className="px-5 py-12 text-center text-sm text-ink-600">Loading invoices…</div>
+              ) : recentInvoices.length === 0 ? (
+                <div className="px-5 py-12 text-center">
+                  <p className="text-sm text-ink-600">No invoices yet.</p>
+                  <p className="text-xs text-ink-400 mt-1">
+                    Generate invoices for a term to start tracking payments.
+                  </p>
+                </div>
+              ) : (
+                <div className="ledger-lines overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-ink-600">
+                        <th className="px-5 py-2 font-medium">Student</th>
+                        <th className="px-5 py-2 font-medium">Due date</th>
+                        <th className="px-5 py-2 font-medium text-right">Total</th>
+                        <th className="px-5 py-2 font-medium text-right">Paid</th>
+                        <th className="px-5 py-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentInvoices.map((inv) => (
+                        <tr key={inv.id} className="h-9 text-ink-900">
+                          <td className="px-5">{inv.student_name}</td>
+                          <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
+                          <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
+                          <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
+                          <td className="px-5">
+                            <StatusBadge status={inv.status} hasActivePaymentPlan={inv.has_active_payment_plan} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-            <div className="bg-panel border border-ink-200 rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="w-4 h-4 text-ink-600" strokeWidth={2} />
-                <h2 className="font-display text-base text-ink-900 font-medium">Highest-risk unpaid invoices</h2>
-              </div>
-              <TopRiskList invoices={analytics.top_risk} />
+
+            <div className="flex flex-col gap-4">
+              {currentTermPoint && (
+                <div className="bg-panel border border-ink-200 rounded-lg p-5">
+                  <h2 className="font-display text-base text-ink-900 font-medium mb-4">Term collection</h2>
+                  <div className="h-1.5 w-full rounded-full bg-ink-200 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-800 to-emerald-700"
+                      style={{ width: `${termPaidPct}%`, boxShadow: '0 0 12px rgba(57,255,136,0.35)' }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-ink-600 mt-2.5">
+                    <span>{formatCurrency(termPaid)} collected</span>
+                    <span className="figure">{termPaidPct}%</span>
+                  </div>
+                </div>
+              )}
+
+              {analytics && analytics.top_risk.length > 0 && (
+                <div className="bg-panel border border-ink-200 rounded-lg p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertCircle className="w-4 h-4 text-ink-600" strokeWidth={2} />
+                    <h2 className="font-display text-base text-ink-900 font-medium">Highest-risk unpaid invoices</h2>
+                  </div>
+                  <TopRiskList invoices={analytics.top_risk} />
+                </div>
+              )}
             </div>
+          </div>
+
+        {analytics && analytics.collection_by_term.length > 0 && (
+          <div className="bg-panel border border-ink-200 rounded-lg p-5 mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
+              <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
+            </div>
+            <CollectionChart points={analytics.collection_by_term} />
           </div>
         )}
 
@@ -150,49 +226,6 @@ export function DashboardPage() {
           </div>
         )}
 
-        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-ink-200">
-            <h2 className="font-display text-base text-ink-900 font-medium">Recent invoices</h2>
-          </div>
-
-          {loading ? (
-            <div className="px-5 py-12 text-center text-sm text-ink-600">Loading invoices…</div>
-          ) : recentInvoices.length === 0 ? (
-            <div className="px-5 py-12 text-center">
-              <p className="text-sm text-ink-600">No invoices yet.</p>
-              <p className="text-xs text-ink-400 mt-1">
-                Generate invoices for a term to start tracking payments.
-              </p>
-            </div>
-          ) : (
-            <div className="ledger-lines overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-ink-600">
-                    <th className="px-5 py-2 font-medium">Student</th>
-                    <th className="px-5 py-2 font-medium">Due date</th>
-                    <th className="px-5 py-2 font-medium text-right">Total</th>
-                    <th className="px-5 py-2 font-medium text-right">Paid</th>
-                    <th className="px-5 py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentInvoices.map((inv) => (
-                    <tr key={inv.id} className="h-9 text-ink-900">
-                      <td className="px-5">{inv.student_name}</td>
-                      <td className="px-5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
-                      <td className="px-5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>
-                      <td className="px-5 figure text-right">{formatCurrency(Number(inv.amount_paid))}</td>
-                      <td className="px-5">
-                        <StatusBadge status={inv.status} hasActivePaymentPlan={inv.has_active_payment_plan} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
     </AppShell>
   );
