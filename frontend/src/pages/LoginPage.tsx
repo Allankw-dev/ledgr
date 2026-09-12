@@ -22,7 +22,7 @@ export function LoginPage() {
 
   function completeLogin(token: string, user: Parameters<typeof setSession>[1]) {
     setSession(token, user);
-    navigate(user.role === 'PARENT' ? '/parent/dashboard' : '/dashboard');
+    navigate(user.role === 'PARENT' ? '/parent/dashboard' : user.role === 'TEACHER' ? '/class-groups' : '/dashboard');
   }
 
   async function handlePasswordSubmit(e: FormEvent) {

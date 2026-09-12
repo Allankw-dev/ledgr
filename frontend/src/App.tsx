@@ -19,6 +19,9 @@ import { ParentAssistantPage } from './pages/ParentAssistantPage';
 import { ParentProfilePage } from './pages/ParentProfilePage';
 import { ParentSignUpPage } from './pages/ParentSignUpPage';
 import { VerifyChildPage } from './pages/VerifyChildPage';
+import { ClassGroupsPage } from './pages/ClassGroupsPage';
+import { ParentClassGroupPage } from './pages/ParentClassGroupPage';
+import { TeachersPage } from './pages/TeachersPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 const STAFF_ROLES = ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BURSAR'] as const;
@@ -116,6 +119,30 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
               <SecurityPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teachers"
+          element={
+            <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
+              <TeachersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/class-groups"
+          element={
+            <ProtectedRoute allowedRoles={[...STAFF_ROLES, 'TEACHER']}>
+              <ClassGroupsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/parent/class-group"
+          element={
+            <ProtectedRoute allowedRoles={['PARENT']}>
+              <ParentClassGroupPage />
             </ProtectedRoute>
           }
         />

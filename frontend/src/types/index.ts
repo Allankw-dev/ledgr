@@ -1,4 +1,4 @@
-export type UserRole = 'SUPER_ADMIN' | 'SCHOOL_ADMIN' | 'BURSAR' | 'PARENT';
+export type UserRole = 'SUPER_ADMIN' | 'SCHOOL_ADMIN' | 'BURSAR' | 'TEACHER' | 'PARENT';
 
 export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED';
 
@@ -97,6 +97,33 @@ export interface InvoiceListItem extends Invoice {
   student_name: string;
   class_name: string;
   has_active_payment_plan: boolean;
+}
+
+export interface Teacher {
+  id: string;
+  full_name: string;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+  class_ids: string[];
+  class_names: string[];
+}
+
+export interface ClassGroupSummary {
+  class_id: string;
+  class_name: string;
+  last_message_preview: string | null;
+  last_message_at: string | null;
+}
+
+export interface ClassGroupMessage {
+  id: string;
+  class_id: string;
+  sender_user_id: string;
+  sender_name: string;
+  sender_role: UserRole;
+  body: string;
+  created_at: string;
 }
 
 export interface PageMeta {

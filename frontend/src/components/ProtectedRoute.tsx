@@ -14,12 +14,18 @@ interface ProtectedRouteProps {
 // boundary. The real enforcement lives server-side: every backend endpoint
 // checks the role and, for parents, filters by the student_guardians link
 // table regardless of what the frontend does or doesn't render.
+function fallbackPathFor(role: UserRole): string {
+  if (role === 'PARENT') return '/parent/dashboard';
+  if (role === 'TEACHER') return '/class-groups';
+  return '/dashboard';
+}
+
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { token, user } = useAuthStore();
   if (!token) return <Navigate to="/login" replace />;
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === 'PARENT' ? '/parent/dashboard' : '/dashboard'} replace />;
+    return <Navigate to={fallbackPathFor(user.role)} replace />;
   }
 
   return <IdleTimeoutGuard>{children}</IdleTimeoutGuard>;

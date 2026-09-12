@@ -1,25 +1,35 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 
-const navItems = [
+const staffNavItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
   { to: '/students', label: 'Students', icon: Users },
   { to: '/classes', label: 'Grades', icon: GraduationCap },
+  { to: '/teachers', label: 'Teachers', icon: Users2 },
   { to: '/invoices', label: 'Invoices', icon: FileText },
   { to: '/assistant', label: 'Ask Ledgr', icon: Sparkles },
   { to: '/messages', label: 'Messages', icon: MessageCircle },
+  { to: '/class-groups', label: 'Class groups', icon: Users2 },
   { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/guardian-requests', label: 'Parent requests', icon: UserCheck },
   { to: '/audit-log', label: 'Audit log', icon: ScrollText },
   { to: '/security', label: 'Security', icon: ShieldCheck },
 ];
 
+// A teacher account has no fee/invoice data access at all — the only
+// thing they're here for is their grades' class groups, so the nav stays
+// deliberately narrow rather than showing a wall of pages that would just
+// 403 or bounce them straight back out.
+const teacherNavItems = [{ to: '/class-groups', label: 'Class groups', icon: Users2 }];
+
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const isTeacher = user?.role === 'TEACHER';
+  const navItems = isTeacher ? teacherNavItems : staffNavItems;
 
   function handleLogout() {
     logout();
@@ -74,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="flex-1 min-w-0 relative z-10">{children}</main>
-      <AssistantFab to="/assistant" />
+      {!isTeacher && <AssistantFab to="/assistant" />}
     </div>
   );
 }

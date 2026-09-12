@@ -8,6 +8,7 @@ const navItems = [
   { to: '/parent/dashboard', label: 'Dashboard' },
   { to: '/parent/invoices', label: 'Invoices' },
   { to: '/parent/receipts', label: 'Receipts' },
+  { to: '/parent/class-group', label: 'Class group' },
   { to: '/parent/assistant', label: 'Assistant' },
   { to: '/parent/profile', label: 'Profile' },
 ];
