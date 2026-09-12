@@ -85,6 +85,9 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoice_risk_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoice_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mpesa_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_class_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_group_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_group_read_state ENABLE ROW LEVEL SECURITY;
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It
@@ -175,6 +178,11 @@ CREATE POLICY tenant_isolation ON invoice_outcomes FOR ALL TO ledgr_app
   USING (school_id = (select current_setting('app.current_school_id', true))::text)
   WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
 
+DROP POLICY IF EXISTS tenant_isolation ON class_group_messages;
+CREATE POLICY tenant_isolation ON class_group_messages FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
 
 -- ----------------------------------------------------------------------------
 -- 4. Policies — child tables with no direct school_id column
@@ -221,6 +229,32 @@ CREATE POLICY tenant_isolation ON student_guardians FOR ALL TO ledgr_app
     SELECT 1 FROM students
     WHERE students.id = student_guardians.student_id
       AND students.school_id = (select current_setting('app.current_school_id', true))::text
+  ));
+
+DROP POLICY IF EXISTS tenant_isolation ON teacher_class_assignments;
+CREATE POLICY tenant_isolation ON teacher_class_assignments FOR ALL TO ledgr_app
+  USING (EXISTS (
+    SELECT 1 FROM school_classes
+    WHERE school_classes.id = teacher_class_assignments.class_id
+      AND school_classes.school_id = (select current_setting('app.current_school_id', true))::text
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM school_classes
+    WHERE school_classes.id = teacher_class_assignments.class_id
+      AND school_classes.school_id = (select current_setting('app.current_school_id', true))::text
+  ));
+
+DROP POLICY IF EXISTS tenant_isolation ON class_group_read_state;
+CREATE POLICY tenant_isolation ON class_group_read_state FOR ALL TO ledgr_app
+  USING (EXISTS (
+    SELECT 1 FROM school_classes
+    WHERE school_classes.id = class_group_read_state.class_id
+      AND school_classes.school_id = (select current_setting('app.current_school_id', true))::text
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM school_classes
+    WHERE school_classes.id = class_group_read_state.class_id
+      AND school_classes.school_id = (select current_setting('app.current_school_id', true))::text
   ));
 
 
