@@ -105,8 +105,8 @@ export function InvoicesPage() {
 
   return (
     <AppShell>
-      <div className="max-w-6xl mx-auto px-8 py-8">
-        <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
+        <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="font-display text-2xl text-ink-900 font-medium">Invoices</h1>
             <p className="text-sm text-ink-600 mt-1">Set up terms and fees, then generate bills for your students.</p>

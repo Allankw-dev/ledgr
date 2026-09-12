@@ -48,7 +48,7 @@ export function AssistantPage() {
 
   return (
     <AppShell>
-      <div className="max-w-3xl mx-auto px-8 py-8 flex flex-col h-screen">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8 flex flex-col h-screen">
         <div className="mb-6 shrink-0">
           <h1 className="font-display text-2xl text-ink-900 font-medium flex items-center gap-2">
             <Sparkles className="w-5 h-5" strokeWidth={1.75} />

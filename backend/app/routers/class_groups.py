@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -10,6 +13,7 @@ from app.models.enums import UserRole
 from app.models.student import SchoolClass, Student, StudentGuardian
 from app.models.teacher_class_assignment import TeacherClassAssignment
 from app.models.class_group_message import ClassGroupMessage
+from app.models.class_group_read_state import ClassGroupReadState
 
 router = APIRouter(prefix="/api/class-groups", tags=["class-groups"], dependencies=[Depends(get_current_user)])
 
@@ -51,6 +55,48 @@ def _accessible_class_ids(db: Session, user: CurrentUser, school_id: str) -> set
 def _require_class_access(db: Session, user: CurrentUser, school_id: str, class_id: str) -> None:
     if class_id not in _accessible_class_ids(db, user, school_id):
         raise HTTPException(403, "You don't have access to this class group")
+
+
+def _mark_class_group_read(db: Session, user_id: str, class_id: str) -> None:
+    """Upsert — same pattern as the 1:1 Message model's read_by_parent_at:
+    viewing the thread IS marking it read, there's no separate action."""
+    now = datetime.now(timezone.utc)
+    stmt = pg_insert(ClassGroupReadState).values(user_id=user_id, class_id=class_id, last_read_at=now)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["user_id", "class_id"],
+        set_={"last_read_at": now},
+    )
+    db.execute(stmt)
+    db.commit()
+
+
+def unread_class_group_count_for_user(db: Session, user: CurrentUser, school_id: str) -> int:
+    """Read-only — used by the notifications summary endpoint, safe to
+    poll frequently since it never marks anything as read itself."""
+    class_ids = _accessible_class_ids(db, user, school_id)
+    if not class_ids:
+        return 0
+
+    read_states = {
+        rs.class_id: rs.last_read_at
+        for rs in db.execute(
+            select(ClassGroupReadState).where(
+                ClassGroupReadState.user_id == user.user_id, ClassGroupReadState.class_id.in_(class_ids)
+            )
+        ).scalars().all()
+    }
+
+    total = 0
+    for class_id in class_ids:
+        last_read = read_states.get(class_id)
+        query = select(func.count()).select_from(ClassGroupMessage).where(
+            ClassGroupMessage.class_id == class_id,
+            ClassGroupMessage.sender_user_id != user.user_id,
+        )
+        if last_read:
+            query = query.where(ClassGroupMessage.created_at > last_read)
+        total += db.execute(query).scalar_one()
+    return total
 
 
 @router.get("", response_model=list[ClassGroupSummary])
@@ -110,6 +156,8 @@ def list_class_group_messages(
         .order_by(ClassGroupMessage.created_at.desc())
         .limit(MESSAGE_WINDOW)
     ).all()
+
+    _mark_class_group_read(db, user.user_id, class_id)
 
     return [
         ClassGroupMessageResponse(

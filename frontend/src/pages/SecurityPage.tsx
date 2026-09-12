@@ -76,7 +76,7 @@ export function SecurityPage() {
 
   return (
     <AppShell>
-      <div className="max-w-2xl mx-auto px-8 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
         <h1 className="font-display text-2xl text-ink-900 font-medium mb-1">Security</h1>
         <p className="text-sm text-ink-600 mb-8">Protect your account with two-factor authentication.</p>
 

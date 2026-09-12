@@ -100,9 +100,9 @@ export function ClassGroupChat() {
   }
 
   return (
-    <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden grid grid-cols-1 md:grid-cols-[260px_1fr]" style={{ height: '640px' }}>
+    <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden grid grid-cols-1 md:grid-cols-[260px_1fr] h-[70vh] min-h-[420px] max-h-[640px]">
       {/* Group list */}
-      <div className="border-b md:border-b-0 md:border-r border-ink-200 overflow-y-auto">
+      <div className="border-b md:border-b-0 md:border-r border-ink-200 overflow-y-auto max-h-32 md:max-h-none shrink-0 md:shrink">
         {groups.map((g) => (
           <button
             key={g.class_id}

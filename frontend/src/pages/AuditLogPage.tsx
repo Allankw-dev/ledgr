@@ -56,7 +56,7 @@ export function AuditLogPage() {
 
   return (
     <AppShell>
-      <div className="max-w-5xl mx-auto px-8 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl text-ink-900 font-medium flex items-center gap-2">

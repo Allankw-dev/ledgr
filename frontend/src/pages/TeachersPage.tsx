@@ -79,7 +79,7 @@ export function TeachersPage() {
 
   return (
     <AppShell>
-      <div className="max-w-3xl mx-auto px-8 py-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
         <div className="mb-6">
           <h1 className="font-display text-2xl text-ink-900 font-medium reveal flex items-center gap-2">
             <GraduationCap className="w-5 h-5" strokeWidth={1.75} />
