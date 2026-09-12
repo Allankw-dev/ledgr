@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_school_scope, require_roles, CurrentUser
 from app.core.security import hash_password, create_password_reset_token
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.schemas.teacher import CreateTeacherRequest, UpdateTeacherClassesRequest, TeacherResponse
 from app.models.school import User
 from app.models.enums import UserRole
@@ -48,7 +49,9 @@ def list_teachers(
 
 
 @router.post("", response_model=TeacherResponse, status_code=201)
+@limiter.limit("10/minute")
 def create_teacher(
+    request: Request,
     data: CreateTeacherRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

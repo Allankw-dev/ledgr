@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, CurrentUser
+from app.core.rate_limit import limiter
 from app.schemas.notification import NotificationSummary
 from app.models.message import Message
 from app.models.enums import MessageSenderRole
@@ -13,7 +14,9 @@ router = APIRouter(prefix="/api/parent/notifications", tags=["notifications"], d
 
 
 @router.get("", response_model=NotificationSummary)
+@limiter.limit("60/minute")
 def get_notification_summary(
+    request: Request,
     db: Session = Depends(get_db),
     school_id: str = Depends(get_school_scope),
     user: CurrentUser = Depends(get_current_user),

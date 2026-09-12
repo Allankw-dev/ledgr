@@ -1,12 +1,13 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, CurrentUser
+from app.core.rate_limit import limiter
 from app.schemas.class_group import ClassGroupSummary, ClassGroupMessageResponse, SendClassGroupMessageRequest
 from app.models.school import User
 from app.models.enums import UserRole
@@ -72,7 +73,14 @@ def _mark_class_group_read(db: Session, user_id: str, class_id: str) -> None:
 
 def unread_class_group_count_for_user(db: Session, user: CurrentUser, school_id: str) -> int:
     """Read-only — used by the notifications summary endpoint, safe to
-    poll frequently since it never marks anything as read itself."""
+    poll frequently since it never marks anything as read itself.
+
+    Two queries total regardless of how many grades the user belongs to —
+    originally this ran one COUNT query per class in a loop, which is fine
+    for a parent with one or two children but turns into real N+1 load at
+    poll-every-25-seconds scale once a school has staff or teachers who
+    are in a dozen+ groups. Fetching the (lightweight) candidate rows once
+    and counting in Python is one round-trip either way."""
     class_ids = _accessible_class_ids(db, user, school_id)
     if not class_ids:
         return 0
@@ -86,16 +94,24 @@ def unread_class_group_count_for_user(db: Session, user: CurrentUser, school_id:
         ).scalars().all()
     }
 
-    total = 0
-    for class_id in class_ids:
-        last_read = read_states.get(class_id)
-        query = select(func.count()).select_from(ClassGroupMessage).where(
-            ClassGroupMessage.class_id == class_id,
+    # Bounded to a rolling 90-day window — unread counts don't need to
+    # scan a full school year of history as classes accumulate messages,
+    # and this keeps the query cost flat over time rather than growing
+    # with the group's total lifetime message volume.
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    rows = db.execute(
+        select(ClassGroupMessage.class_id, ClassGroupMessage.created_at).where(
+            ClassGroupMessage.class_id.in_(class_ids),
             ClassGroupMessage.sender_user_id != user.user_id,
+            ClassGroupMessage.created_at >= cutoff,
         )
-        if last_read:
-            query = query.where(ClassGroupMessage.created_at > last_read)
-        total += db.execute(query).scalar_one()
+    ).all()
+
+    total = 0
+    for class_id, created_at in rows:
+        last_read = read_states.get(class_id)
+        if last_read is None or created_at > last_read:
+            total += 1
     return total
 
 
@@ -174,7 +190,9 @@ def list_class_group_messages(
 
 
 @router.post("/{class_id}/messages", response_model=ClassGroupMessageResponse, status_code=201)
+@limiter.limit("30/minute")
 def send_class_group_message(
+    request: Request,
     class_id: str,
     data: SendClassGroupMessageRequest,
     school_id: str = Depends(get_school_scope),
