@@ -45,7 +45,35 @@ def list_teachers(
     teachers = db.execute(
         select(User).where(User.school_id == school_id, User.role == UserRole.TEACHER).order_by(User.full_name)
     ).scalars().all()
-    return [_to_response(db, t) for t in teachers]
+    if not teachers:
+        return []
+
+    # One query for every teacher's assignments, not one query per
+    # teacher — the same N+1 pattern fixed in class_groups.py, here for a
+    # school's teacher roster instead of a parent's unread count.
+    teacher_ids = [t.id for t in teachers]
+    assignment_rows = db.execute(
+        select(TeacherClassAssignment.teacher_user_id, SchoolClass.id, SchoolClass.name)
+        .join(SchoolClass, TeacherClassAssignment.class_id == SchoolClass.id)
+        .where(TeacherClassAssignment.teacher_user_id.in_(teacher_ids))
+    ).all()
+
+    classes_by_teacher: dict[str, list[tuple[str, str]]] = {}
+    for teacher_id, class_id, class_name in assignment_rows:
+        classes_by_teacher.setdefault(teacher_id, []).append((class_id, class_name))
+
+    return [
+        TeacherResponse(
+            id=t.id,
+            full_name=t.full_name,
+            email=t.email,
+            is_active=t.is_active,
+            created_at=t.created_at,
+            class_ids=[cid for cid, _ in classes_by_teacher.get(t.id, [])],
+            class_names=[cname for _, cname in classes_by_teacher.get(t.id, [])],
+        )
+        for t in teachers
+    ]
 
 
 @router.post("", response_model=TeacherResponse, status_code=201)
