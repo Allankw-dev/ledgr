@@ -88,7 +88,8 @@ export function ParentSignUpPage() {
           <span className="font-display text-2xl text-ink-900 font-medium">Ledgr</span>
         </div>
 
-        <div className="bg-panel border border-ink-200 rounded-lg p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)]">
+        <div className="bg-panel border border-ink-200 rounded-3xl p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)] relative">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-ink-200" aria-hidden="true" />
           <h1 className="font-display text-xl text-ink-900 mb-1">Parent sign up</h1>
           <p className="text-sm text-ink-600 mb-6">
             Create your account, then we'll verify your child's details.
@@ -142,7 +143,8 @@ export function ParentSignUpPage() {
               </p>
             )}
 
-            <Button type="submit" disabled={loading} className="mt-2">
+            <Button type="submit" disabled={loading} className="mt-2 flex items-center justify-center gap-2">
+              {loading && <span className="orbit-spinner" />}
               {loading ? 'Creating account…' : 'Continue'}
             </Button>
           </form>

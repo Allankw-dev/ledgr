@@ -52,7 +52,8 @@ export function ResetPasswordPage() {
           <span className="font-display text-2xl text-ink-900 font-medium">Ledgr</span>
         </div>
 
-        <div className="bg-panel border border-ink-200 rounded-lg p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)]">
+        <div className="bg-panel border border-ink-200 rounded-3xl p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)] relative">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-ink-200" aria-hidden="true" />
           {!token ? (
             <p className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">
               This link is missing its reset token. Request a new one from the sign-in page.
@@ -95,7 +96,8 @@ export function ResetPasswordPage() {
                   </p>
                 )}
 
-                <Button type="submit" disabled={loading} className="mt-2">
+                <Button type="submit" disabled={loading} className="mt-2 flex items-center justify-center gap-2">
+                  {loading && <span className="orbit-spinner" />}
                   {loading ? 'Updating…' : 'Update password'}
                 </Button>
               </form>

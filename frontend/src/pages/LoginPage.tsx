@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
+import { OtpInput } from '../components/ui/OtpInput';
 import { login, verifyTwoFactorLogin, googleAuth } from '../api/auth';
 import { useAuthStore } from '../store/authStore';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
@@ -87,7 +88,8 @@ export function LoginPage() {
           <span className="font-display text-2xl text-ink-900 font-medium">Ledgr</span>
         </div>
 
-        <div className="bg-panel border border-ink-200 rounded-lg p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)]">
+        <div className="bg-panel border border-ink-200 rounded-3xl p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)] relative">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-ink-200" aria-hidden="true" />
           {!challengeToken ? (
             <>
               <h1 className="font-display text-xl text-ink-900 mb-1">Sign in</h1>
@@ -123,7 +125,8 @@ export function LoginPage() {
                   </p>
                 )}
 
-                <Button type="submit" disabled={loading} className="mt-2">
+                <Button type="submit" disabled={loading} className="mt-2 flex items-center justify-center gap-2">
+                  {loading && <span className="orbit-spinner" />}
                   {loading ? 'Signing in…' : 'Sign in'}
                 </Button>
               </form>
@@ -146,26 +149,17 @@ export function LoginPage() {
               </div>
               <p className="text-sm text-ink-600 mb-6">Enter the 6-digit code from your authenticator app.</p>
 
-              <form onSubmit={handleCodeSubmit} className="flex flex-col gap-4" noValidate>
-                <TextField
-                  label="Authentication code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  autoFocus
-                  required
-                />
+              <form onSubmit={handleCodeSubmit} className="flex flex-col gap-5" noValidate>
+                <OtpInput length={6} value={code} onChange={setCode} />
 
                 {error && (
-                  <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">
+                  <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2 text-center">
                     {error}
                   </p>
                 )}
 
-                <Button type="submit" disabled={loading || code.length !== 6} className="mt-2">
+                <Button type="submit" disabled={loading || code.length !== 6} className="mt-1 flex items-center justify-center gap-2">
+                  {loading && <span className="orbit-spinner" />}
                   {loading ? 'Verifying…' : 'Verify and sign in'}
                 </Button>
                 <button
@@ -175,7 +169,7 @@ export function LoginPage() {
                     setCode('');
                     setError(null);
                   }}
-                  className="text-sm text-ink-600 hover:underline underline-offset-2"
+                  className="text-sm text-ink-600 hover:underline underline-offset-2 text-center"
                 >
                   Back to sign in
                 </button>
