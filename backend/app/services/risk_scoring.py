@@ -61,9 +61,6 @@ def compute_risk_score(db: Session, student_id: str, invoice_id: str) -> RiskAss
     if not invoice:
         raise ValueError("Invoice not found")
 
-    now = datetime.now(timezone.utc)
-
-    # --- History component (0-40): this student's track record on PAST invoices ---
     past_invoices = db.execute(
         select(Invoice).where(
             Invoice.student_id == student_id,
@@ -71,6 +68,64 @@ def compute_risk_score(db: Session, student_id: str, invoice_id: str) -> RiskAss
         )
     ).scalars().all()
 
+    problem_payments = db.execute(
+        select(Payment).where(
+            Payment.student_id == student_id,
+            Payment.status.in_([PaymentStatus.REVERSED, PaymentStatus.FAILED]),
+        )
+    ).scalars().all()
+
+    return _score_from_data(invoice, past_invoices, len(problem_payments))
+
+
+def compute_risk_scores_batch(db: Session, invoices: list[Invoice]) -> dict[str, RiskAssessment]:
+    """
+    Same scoring as compute_risk_score, for many invoices at once without
+    paying for it per-invoice. compute_risk_score does 2 DB round-trips
+    per call — fine in isolation (e.g. the single-invoice /risk endpoint),
+    but get_top_risk_invoices used to call it in a loop over up to 30
+    candidates, meaning up to ~60 sequential round-trips on every
+    dashboard load. This does the same 2 queries ONCE, with an IN clause
+    across every candidate's student_id, then scores each invoice from
+    data already in memory.
+    """
+    if not invoices:
+        return {}
+
+    student_ids = list({inv.student_id for inv in invoices})
+
+    all_past_invoices = db.execute(
+        select(Invoice).where(Invoice.student_id.in_(student_ids))
+    ).scalars().all()
+    past_by_student: dict[str, list[Invoice]] = {}
+    for inv in all_past_invoices:
+        past_by_student.setdefault(inv.student_id, []).append(inv)
+
+    all_problem_payments = db.execute(
+        select(Payment.student_id).where(
+            Payment.student_id.in_(student_ids),
+            Payment.status.in_([PaymentStatus.REVERSED, PaymentStatus.FAILED]),
+        )
+    ).scalars().all()
+    problem_count_by_student: dict[str, int] = {}
+    for sid in all_problem_payments:
+        problem_count_by_student[sid] = problem_count_by_student.get(sid, 0) + 1
+
+    results = {}
+    for invoice in invoices:
+        # Exclude the invoice itself from its own "past invoices" history,
+        # same rule compute_risk_score applies via `Invoice.id != invoice_id`.
+        past = [inv for inv in past_by_student.get(invoice.student_id, []) if inv.id != invoice.id]
+        problem_count = problem_count_by_student.get(invoice.student_id, 0)
+        results[invoice.id] = _score_from_data(invoice, past, problem_count)
+
+    return results
+
+
+def _score_from_data(invoice: Invoice, past_invoices: list[Invoice], problem_payment_count: int) -> RiskAssessment:
+    now = datetime.now(timezone.utc)
+
+    # --- History component (0-40): this student's track record on PAST invoices ---
     if past_invoices:
         problem_count = sum(
             1
@@ -108,13 +163,7 @@ def compute_risk_score(db: Session, student_id: str, invoice_id: str) -> RiskAss
     balance_score = round(max(0.0, min(1.0, balance_ratio)) * 20, 1) if is_near_or_past_due else 0.0
 
     # --- Reversal component (0-10): history of reversed/failed M-Pesa attempts ---
-    problem_payments = db.execute(
-        select(Payment).where(
-            Payment.student_id == student_id,
-            Payment.status.in_([PaymentStatus.REVERSED, PaymentStatus.FAILED]),
-        )
-    ).scalars().all()
-    reversal_score = min(10.0, len(problem_payments) * 5.0)
+    reversal_score = min(10.0, problem_payment_count * 5.0)
 
     factors = RiskFactors(
         history_score=history_score,

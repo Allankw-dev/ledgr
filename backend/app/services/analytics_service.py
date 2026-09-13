@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.enums import InvoiceStatus
 from app.models.invoice import Invoice
 from app.models.student import SchoolClass, Student, Term
-from app.services.risk_scoring import compute_risk_score
+from app.services.risk_scoring import compute_risk_scores_batch
 
 # Risk scoring does real per-invoice computation (queries the student's
 # payment history), so callers bound it to a candidate pool rather than
@@ -104,9 +104,11 @@ def get_top_risk_invoices(db: Session, school_id: str, limit: int = 5, class_id:
         .limit(RISK_CANDIDATE_POOL)
     ).all()
 
+    scores = compute_risk_scores_batch(db, [invoice for invoice, _, _ in candidates])
+
     scored = []
     for invoice, student, school_class in candidates:
-        assessment = compute_risk_score(db, student.id, invoice.id)
+        assessment = scores[invoice.id]
         scored.append(
             RiskInvoice(
                 invoice_id=invoice.id,
