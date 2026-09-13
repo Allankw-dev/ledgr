@@ -72,9 +72,9 @@ export function VerifyChildPage() {
     <ParentShell>
       <div className="max-w-md mx-auto">
         {stage === 'entry' && (
-          <div className="bg-panel border border-ink-200 rounded-lg p-6">
+          <div className="bg-panel border border-ink-200 rounded-2xl p-7 shadow-[0_0_40px_-14px_rgba(139,108,255,0.25)]">
             <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
-            <h1 className="font-display text-lg text-ink-900 mb-1 text-center">Link your child</h1>
+            <h1 className="font-display text-xl text-ink-900 mb-1 text-center">Link your child</h1>
             <p className="text-sm text-ink-600 mb-5 text-center">
               Enter your child's admission number to find their record.
             </p>
@@ -107,7 +107,7 @@ export function VerifyChildPage() {
         {stage === 'not-found' && (
           <div className="bg-panel border border-ink-200 rounded-lg p-6 text-center">
             <XCircle className="w-8 h-8 text-clay-600 mx-auto mb-3" strokeWidth={1.5} />
-            <h1 className="font-display text-lg text-ink-900 mb-2">We couldn't verify that number</h1>
+            <h1 className="font-display text-xl text-ink-900 mb-2">We couldn't verify that number</h1>
             <p className="text-sm text-ink-600 mb-6">
               Double-check the admission number and try again, or contact the school office if you're not
               sure what it is.
@@ -117,10 +117,10 @@ export function VerifyChildPage() {
         )}
 
         {(stage === 'found' || stage === 'confirming') && student && (
-          <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
+          <div className="bg-panel border border-ink-200 rounded-2xl overflow-hidden shadow-[0_0_40px_-14px_rgba(139,108,255,0.25)]">
             <div className="px-6 py-5 border-b border-ink-200 text-center">
               <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
-              <h1 className="font-display text-lg text-ink-900">Is this your child?</h1>
+              <h1 className="font-display text-xl text-ink-900">Is this your child?</h1>
             </div>
             <div className="px-6 py-5">
               <p className="font-display text-xl text-ink-900 font-medium mb-1">{student.full_name}</p>
@@ -159,7 +159,7 @@ export function VerifyChildPage() {
         {stage === 'pending' && (
           <div className="bg-panel border border-ink-200 rounded-lg p-6 text-center">
             <Clock className="w-8 h-8 text-amber-600 mx-auto mb-3" strokeWidth={1.5} />
-            <h1 className="font-display text-lg text-ink-900 mb-2">Sent for confirmation</h1>
+            <h1 className="font-display text-xl text-ink-900 mb-2">Sent for confirmation</h1>
             <p className="text-sm text-ink-600 mb-6">
               We've sent this to the school office to confirm. Once approved, you'll see your child's fee
               details here — this usually doesn't take long.
