@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ShieldCheck } from 'lucide-react';
+import { BookOpen, ShieldCheck, Fingerprint } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
 import { OtpInput } from '../components/ui/OtpInput';
 import { login, verifyTwoFactorLogin, googleAuth } from '../api/auth';
+import { getLoginOptions, verifyLogin } from '../api/webauthn';
+import { isPlatformAuthenticatorAvailable, performAuthentication } from '../lib/webauthnBrowser';
 import { useAuthStore } from '../store/authStore';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
@@ -15,15 +17,43 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fingerprintAvailable, setFingerprintAvailable] = useState(false);
+  const [fingerprintBusy, setFingerprintBusy] = useState(false);
 
   // Set once the server confirms the password was correct but 2FA is required —
   // switches the form into "enter your authenticator code" mode.
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
 
+  useEffect(() => {
+    isPlatformAuthenticatorAvailable().then(setFingerprintAvailable);
+  }, []);
+
   function completeLogin(token: string, user: Parameters<typeof setSession>[1]) {
     setSession(token, user);
     navigate(user.role === 'PARENT' ? '/parent/dashboard' : user.role === 'TEACHER' ? '/class-groups' : '/dashboard');
+  }
+
+  async function handleFingerprintSignIn() {
+    setError(null);
+    setFingerprintBusy(true);
+    try {
+      const { options, challenge_id } = await getLoginOptions();
+      const credential = await performAuthentication(options);
+      const result = await verifyLogin(challenge_id, credential);
+      completeLogin(result.token, result.user);
+    } catch (err: unknown) {
+      // The person cancelling the OS fingerprint prompt throws
+      // NotAllowedError — that's a change-of-mind, not a failure, so it
+      // gets no error message. Anything else (no fingerprint registered
+      // on this device, a real verification failure) does.
+      const name = (err as { name?: string })?.name;
+      if (name !== 'NotAllowedError') {
+        setError("Couldn't sign in with fingerprint. Try your password instead.");
+      }
+    } finally {
+      setFingerprintBusy(false);
+    }
   }
 
   async function handlePasswordSubmit(e: FormEvent) {
@@ -92,6 +122,25 @@ export function LoginPage() {
           <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-ink-200" aria-hidden="true" />
           {!challengeToken ? (
             <>
+              {fingerprintAvailable && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleFingerprintSignIn}
+                    disabled={fingerprintBusy}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-ink-200 text-sm font-medium text-ink-900 hover:bg-ink-100 transition-colors mb-4 disabled:opacity-50"
+                  >
+                    {fingerprintBusy ? <span className="orbit-spinner" /> : <Fingerprint className="w-4 h-4" strokeWidth={2} />}
+                    {fingerprintBusy ? 'Waiting for fingerprint…' : 'Sign in with fingerprint'}
+                  </button>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="h-px bg-ink-200 flex-1" />
+                    <span className="text-xs text-ink-400">or use your password</span>
+                    <div className="h-px bg-ink-200 flex-1" />
+                  </div>
+                </>
+              )}
+
               <h1 className="font-display text-xl text-ink-900 mb-1">Sign in</h1>
               <p className="text-sm text-ink-600 mb-6">Access your school's fee dashboard.</p>
 

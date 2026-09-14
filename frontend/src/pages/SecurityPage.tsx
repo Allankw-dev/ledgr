@@ -5,6 +5,7 @@ import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
 import { get2FAStatus, setup2FA, enable2FA, disable2FA } from '../api/auth';
+import { FingerprintSettings } from '../components/FingerprintSettings';
 
 type Stage = 'loading' | 'disabled' | 'enabled' | 'setting-up';
 
@@ -189,6 +190,10 @@ export function SecurityPage() {
             )}
           </div>
         )}
+
+        <div className="mt-6">
+          <FingerprintSettings />
+        </div>
       </div>
     </AppShell>
   );

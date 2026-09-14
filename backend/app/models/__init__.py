@@ -8,3 +8,4 @@ from app.models.payment_plan import PaymentPlan, PaymentPlanInstallment  # noqa:
 from app.models.teacher_class_assignment import TeacherClassAssignment  # noqa: F401
 from app.models.class_group_message import ClassGroupMessage  # noqa: F401
 from app.models.class_group_read_state import ClassGroupReadState  # noqa: F401
+from app.models.webauthn import WebAuthnCredential, WebAuthnChallenge  # noqa: F401

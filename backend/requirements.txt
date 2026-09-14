@@ -13,6 +13,7 @@ python-multipart==0.0.12
 python-dotenv==1.0.1
 slowapi==0.1.9
 pyotp==2.9.0
+webauthn==3.0.0
 httpx==0.27.2
 anthropic==0.39.0
 reportlab==4.2.5

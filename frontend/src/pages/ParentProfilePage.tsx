@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ParentShell } from '../components/ParentShell';
 import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
 import { getMyProfile, type MyProfile } from '../api/user';
+import { FingerprintSettings } from '../components/FingerprintSettings';
 
 export function ParentProfilePage() {
   const [profile, setProfile] = useState<MyProfile | null>(null);
@@ -39,6 +40,8 @@ export function ParentProfilePage() {
               Not available for parent accounts yet — reach out to the school office if you need help signing in.
             </p>
           </div>
+
+          <FingerprintSettings />
         </div>
       )}
     </ParentShell>

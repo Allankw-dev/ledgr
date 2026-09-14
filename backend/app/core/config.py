@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     # rather than the API. Defaults to the local Vite dev server.
     frontend_url: str = "http://localhost:5173"
 
+    # WebAuthn (fingerprint / Face ID / Windows Hello login). rp_id must be
+    # exactly the domain the frontend is served from, no scheme/port — the
+    # browser refuses to complete a ceremony if this doesn't match. For a
+    # real deployment this becomes your real domain, e.g. "app.ledgr.co";
+    # "localhost" only works for local dev over http.
+    webauthn_rp_id: str = "localhost"
+    webauthn_rp_name: str = "Ledgr"
+
     # Phase 2 — M-Pesa Daraja
     mpesa_base_url: str | None = None  # override for local testing, e.g. Pesa Playground — see mpesa_service.py
     mpesa_consumer_key: str | None = None
