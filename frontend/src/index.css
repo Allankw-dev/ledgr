@@ -226,4 +226,164 @@
       transform: rotate(360deg);
     }
   }
+
+  /* ---- Sliding neumorphic auth card (login / parent sign up) ---- */
+
+  .auth-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .auth-card {
+    position: relative;
+    width: 840px;
+    max-width: 94vw;
+    border-radius: 28px;
+    background: var(--color-panel);
+    overflow: hidden;
+    box-shadow:
+      10px 10px 28px rgba(0, 0, 0, 0.55),
+      -8px -8px 20px rgba(255, 255, 255, 0.03),
+      0 0 60px -20px var(--color-green-glow);
+  }
+
+  .auth-forms-row {
+    display: flex;
+    width: 200%;
+    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
+    will-change: transform;
+  }
+  .auth-card[data-mode='signup'] .auth-forms-row {
+    transform: translateX(-50%);
+  }
+
+  .auth-form-panel {
+    width: 50%;
+    padding: 56px 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* The panel sliding out of view is `inert` (set directly in the JSX,
+     keyed off `mode`) so Tab can never land focus in fields the person
+     can't see — independent of what's happening visually mid-animation. */
+
+  .auth-overlay-track {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 50%;
+    height: 100%;
+    overflow: hidden;
+    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
+    will-change: transform;
+    border-radius: 28px 0 0 28px;
+  }
+  .auth-card[data-mode='signup'] .auth-overlay-track {
+    transform: translateX(-100%);
+    border-radius: 0 28px 28px 0;
+  }
+
+  .auth-overlay {
+    width: 200%;
+    height: 100%;
+    display: flex;
+    transform: translateX(0);
+    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
+    will-change: transform;
+    background: linear-gradient(135deg, var(--color-emerald-800), #146a94);
+  }
+  .auth-card[data-mode='signup'] .auth-overlay {
+    transform: translateX(-50%);
+  }
+
+  .auth-overlay-panel {
+    width: 50%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 40px;
+  }
+
+  .auth-overlay-btn {
+    padding: 11px 26px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 255, 255, 0.6);
+    background: transparent;
+    color: #fff;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .auth-overlay-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Neumorphic "pressed in" treatment for inputs inside the auth card —
+     scoped to .neu-input so the rest of the app's flat TextField/
+     PasswordField styling elsewhere is untouched. !important is needed
+     because Tailwind's utility layer (border-*, bg-panel) loads after
+     this components-layer rule and would otherwise win on specificity ties. */
+  .neu-input {
+    border-color: transparent !important;
+    background: var(--color-bg-raised) !important;
+    box-shadow:
+      inset 4px 4px 8px rgba(0, 0, 0, 0.55),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.03) !important;
+  }
+  .neu-input:focus-visible {
+    outline: none !important;
+    box-shadow:
+      inset 4px 4px 8px rgba(0, 0, 0, 0.55),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.03),
+      0 0 0 2px var(--color-green-200) !important;
+  }
+
+  /* Below this width there's no room for a form panel AND a sliding
+     overlay side by side without the overlay covering part of the
+     inputs — exactly the visibility problem to avoid. So on mobile the
+     overlay is dropped entirely: one stacked form, switched via the
+     plain text link rendered inside each panel (`md:hidden`), no slide. */
+  @media (max-width: 767px) {
+    .auth-card {
+      width: 100%;
+      border-radius: 20px;
+    }
+    .auth-forms-row {
+      width: 100%;
+      transition: none;
+    }
+    .auth-card[data-mode='signup'] .auth-forms-row {
+      transform: none;
+    }
+    .auth-form-panel {
+      width: 100%;
+      padding: 48px 24px 32px;
+    }
+    .auth-form-panel[data-hidden='true'] {
+      display: none;
+    }
+    .auth-overlay-track {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-forms-row,
+    .auth-overlay-track,
+    .auth-overlay {
+      transition: none !important;
+    }
+  }
 }

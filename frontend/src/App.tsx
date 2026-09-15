@@ -8,7 +8,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 // the login screen could render. Now a first visit only pulls the chunk
 // for the route actually being hit; everything else loads on demand as
 // the person navigates there.
-const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m.AuthPage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -26,7 +26,6 @@ const ParentInvoicesPage = lazy(() => import('./pages/ParentInvoicesPage').then(
 const ParentReceiptsPage = lazy(() => import('./pages/ParentReceiptsPage').then((m) => ({ default: m.ParentReceiptsPage })));
 const ParentAssistantPage = lazy(() => import('./pages/ParentAssistantPage').then((m) => ({ default: m.ParentAssistantPage })));
 const ParentProfilePage = lazy(() => import('./pages/ParentProfilePage').then((m) => ({ default: m.ParentProfilePage })));
-const ParentSignUpPage = lazy(() => import('./pages/ParentSignUpPage').then((m) => ({ default: m.ParentSignUpPage })));
 const VerifyChildPage = lazy(() => import('./pages/VerifyChildPage').then((m) => ({ default: m.VerifyChildPage })));
 const ClassGroupsPage = lazy(() => import('./pages/ClassGroupsPage').then((m) => ({ default: m.ClassGroupsPage })));
 const ParentClassGroupPage = lazy(() => import('./pages/ParentClassGroupPage').then((m) => ({ default: m.ParentClassGroupPage })));
@@ -47,10 +46,10 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<AuthPage initialMode="login" />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/signup" element={<ParentSignUpPage />} />
+        <Route path="/signup" element={<AuthPage initialMode="signup" />} />
         <Route
           path="/verify-child"
           element={
