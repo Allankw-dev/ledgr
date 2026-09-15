@@ -88,6 +88,8 @@ ALTER TABLE mpesa_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teacher_class_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_group_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_group_read_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webauthn_credentials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webauthn_challenges ENABLE ROW LEVEL SECURITY;
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It
@@ -255,6 +257,39 @@ CREATE POLICY tenant_isolation ON class_group_read_state FOR ALL TO ledgr_app
     SELECT 1 FROM school_classes
     WHERE school_classes.id = class_group_read_state.class_id
       AND school_classes.school_id = (select current_setting('app.current_school_id', true))::text
+  ));
+
+-- WebAuthn credentials/challenges have no direct school_id — they belong
+-- to a user, who belongs to a school. Only ever touched via get_db (with
+-- school context already set) for registration/management by an already-
+-- authenticated user; the actual login ceremony (looking up a credential
+-- before anyone's identity is known) correctly uses get_system_db instead
+-- — see routers/webauthn_auth.py — so it never needs these policies to
+-- begin with.
+DROP POLICY IF EXISTS tenant_isolation ON webauthn_credentials;
+CREATE POLICY tenant_isolation ON webauthn_credentials FOR ALL TO ledgr_app
+  USING (EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = webauthn_credentials.user_id
+      AND users.school_id = (select current_setting('app.current_school_id', true))::text
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = webauthn_credentials.user_id
+      AND users.school_id = (select current_setting('app.current_school_id', true))::text
+  ));
+
+DROP POLICY IF EXISTS tenant_isolation ON webauthn_challenges;
+CREATE POLICY tenant_isolation ON webauthn_challenges FOR ALL TO ledgr_app
+  USING (EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = webauthn_challenges.user_id
+      AND users.school_id = (select current_setting('app.current_school_id', true))::text
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = webauthn_challenges.user_id
+      AND users.school_id = (select current_setting('app.current_school_id', true))::text
   ));
 
 

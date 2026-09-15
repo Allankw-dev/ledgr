@@ -46,8 +46,8 @@ export async function performRegistration(optionsJson: Record<string, unknown>):
       id: base64UrlToBuffer((optionsJson.user as { id: string }).id),
     },
     excludeCredentials: ((optionsJson.excludeCredentials as { id: string; type: string }[]) || []).map((c) => ({
-      ...c,
       id: base64UrlToBuffer(c.id),
+      type: 'public-key' as const,
     })),
   };
 
@@ -71,8 +71,8 @@ export async function performAuthentication(optionsJson: Record<string, unknown>
     ...(optionsJson as unknown as PublicKeyCredentialRequestOptions),
     challenge: base64UrlToBuffer(optionsJson.challenge as string),
     allowCredentials: ((optionsJson.allowCredentials as { id: string; type: string }[]) || []).map((c) => ({
-      ...c,
       id: base64UrlToBuffer(c.id),
+      type: 'public-key' as const,
     })),
   };
 
