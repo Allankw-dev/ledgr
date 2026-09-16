@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { MessageCircle, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
+import { MessageTicks } from '../components/MessageTicks';
+import { TypingDots } from '../components/TypingDots';
 import {
   getConversations,
   getConversation,
   sendConversationReply,
+  pingConversationTyping,
+  getParentTypingStatus,
   type ConversationSummary,
   type Message,
 } from '../api/messages';
+
+const POLL_THREAD_MS = 3000;
+const POLL_TYPING_MS = 1500;
+const TYPING_PING_THROTTLE_MS = 2000;
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -27,7 +35,9 @@ export function MessagesPage() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [parentTyping, setParentTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastTypingPingRef = useRef(0);
 
   async function loadConversations() {
     setLoadingList(true);
@@ -46,6 +56,7 @@ export function MessagesPage() {
 
   async function openConversation(parentUserId: string) {
     setSelected(parentUserId);
+    setParentTyping(false);
     setLoadingThread(true);
     setError(null);
     try {
@@ -59,9 +70,41 @@ export function MessagesPage() {
     }
   }
 
+  // Poll the open thread for new messages and updated read receipts.
+  useEffect(() => {
+    if (!selected) return;
+    const id = setInterval(() => {
+      getConversation(selected)
+        .then(setThread)
+        .catch(() => {});
+    }, POLL_THREAD_MS);
+    return () => clearInterval(id);
+  }, [selected]);
+
+  // Poll whether this parent is currently typing.
+  useEffect(() => {
+    if (!selected) return;
+    const id = setInterval(() => {
+      getParentTypingStatus(selected)
+        .then(setParentTyping)
+        .catch(() => {});
+    }, POLL_TYPING_MS);
+    return () => clearInterval(id);
+  }, [selected]);
+
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [thread]);
+  }, [thread, parentTyping]);
+
+  function handleInputChange(value: string) {
+    setInput(value);
+    if (!selected) return;
+    const now = Date.now();
+    if (value.trim() && now - lastTypingPingRef.current > TYPING_PING_THROTTLE_MS) {
+      lastTypingPingRef.current = now;
+      pingConversationTyping(selected).catch(() => {});
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -149,10 +192,16 @@ export function MessagesPage() {
                           )}
                           {m.student_name && <p className="text-xs opacity-70 mb-0.5">Re: {m.student_name}</p>}
                           {m.body}
+                          {m.sender_role === 'STAFF' && (
+                            <span className="flex justify-end mt-1 text-ink-500">
+                              <MessageTicks read={!!m.read_at} />
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))
                   )}
+                  {parentTyping && <TypingDots />}
                   {error && <p className="text-xs text-clay-700">{error}</p>}
                   <div ref={scrollRef} />
                 </div>
@@ -160,7 +209,7 @@ export function MessagesPage() {
                 <form onSubmit={handleSubmit} className="flex items-center gap-2 px-6 py-4 border-t border-ink-200">
                   <input
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => handleInputChange(e.target.value)}
                     placeholder="Type a reply…"
                     className="flex-1 px-3.5 py-2 rounded-md border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-ink-900/20"
                     disabled={sending}

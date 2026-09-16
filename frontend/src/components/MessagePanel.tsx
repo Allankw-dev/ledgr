@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { MessageCircle, Send, ChevronUp, ChevronDown } from 'lucide-react';
-import { getMyMessages, sendMyMessage, type Message } from '../api/messages';
+import { getMyMessages, sendMyMessage, pingMyTyping, getStaffTypingStatus, type Message } from '../api/messages';
+import { MessageTicks } from './MessageTicks';
+import { TypingDots } from './TypingDots';
+
+const POLL_MESSAGES_MS = 3000;
+const POLL_TYPING_MS = 1500;
+const TYPING_PING_THROTTLE_MS = 2000;
 
 export function MessagePanel() {
   const [open, setOpen] = useState(false);
@@ -9,7 +15,9 @@ export function MessagePanel() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [staffTyping, setStaffTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastTypingPingRef = useRef(0);
 
   useEffect(() => {
     if (open && !loaded) {
@@ -20,9 +28,44 @@ export function MessagePanel() {
     }
   }, [open, loaded]);
 
+  // Poll for new messages (and updated read receipts on ours) while the
+  // panel is open. Merges by id rather than replacing wholesale so a
+  // message mid-send locally isn't ever momentarily duplicated or dropped.
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => {
+      getMyMessages()
+        .then(setMessages)
+        .catch(() => {
+          /* a missed poll isn't worth surfacing as an error */
+        });
+    }, POLL_MESSAGES_MS);
+    return () => clearInterval(id);
+  }, [open]);
+
+  // Poll whether staff is currently typing.
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => {
+      getStaffTypingStatus()
+        .then(setStaffTyping)
+        .catch(() => {});
+    }, POLL_TYPING_MS);
+    return () => clearInterval(id);
+  }, [open]);
+
   useEffect(() => {
     if (open) scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, open]);
+  }, [messages, staffTyping, open]);
+
+  function handleInputChange(value: string) {
+    setInput(value);
+    const now = Date.now();
+    if (value.trim() && now - lastTypingPingRef.current > TYPING_PING_THROTTLE_MS) {
+      lastTypingPingRef.current = now;
+      pingMyTyping().catch(() => {});
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -71,9 +114,16 @@ export function MessagePanel() {
                 >
                   {m.sender_role === 'STAFF' && <p className="text-xs font-medium text-ink-600 mb-0.5">{m.sender_name}</p>}
                   {m.body}
+                  {m.sender_role === 'PARENT' && (
+                    <span className="flex justify-end mt-1 text-ink-500">
+                      <MessageTicks read={!!m.read_at} />
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
+
+            {staffTyping && <TypingDots />}
 
             {error && <p className="text-xs text-clay-700">{error}</p>}
             <div ref={scrollRef} />
@@ -82,7 +132,7 @@ export function MessagePanel() {
           <form onSubmit={handleSubmit} className="flex items-center gap-2 px-5 py-3 border-t border-ink-100">
             <input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               placeholder="Type a message…"
               className="flex-1 px-3.5 py-2 rounded-md border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-ink-900/20"
               disabled={sending}

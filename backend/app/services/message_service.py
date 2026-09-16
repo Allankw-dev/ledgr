@@ -1,12 +1,19 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select, func, and_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.models.message import Message
 from app.models.school import User
 from app.models.student import Student
 from app.models.enums import MessageSenderRole
+from app.models.typing_status import TypingStatus
+
+# How long a typing ping stays "fresh" before the indicator clears itself.
+# Comfortably longer than the client's ~2s ping interval so a normal pause
+# between keystrokes doesn't flicker the indicator off and on.
+TYPING_TTL = timedelta(seconds=4)
 
 
 def send_message(
@@ -48,6 +55,13 @@ def _serialize_messages(db: Session, messages: list[Message]) -> list[dict]:
         else {}
     )
 
+    def _read_at(m: Message) -> str | None:
+        # The relevant "has this been read" timestamp is always the OTHER
+        # side's read column — a parent's sent message cares whether staff
+        # read it, not whether the parent (its own sender) has.
+        other_side_read = m.read_by_staff_at if m.sender_role == MessageSenderRole.PARENT else m.read_by_parent_at
+        return other_side_read.isoformat() if other_side_read else None
+
     return [
         {
             "id": m.id,
@@ -57,6 +71,7 @@ def _serialize_messages(db: Session, messages: list[Message]) -> list[dict]:
             "student_id": m.student_id,
             "student_name": students_by_id[m.student_id].full_name if m.student_id in students_by_id else None,
             "created_at": m.created_at.isoformat(),
+            "read_at": _read_at(m),
         }
         for m in messages
     ]
@@ -97,6 +112,38 @@ def mark_read_by_staff(db: Session, school_id: str, parent_user_id: str) -> None
         .values(read_by_staff_at=datetime.now(timezone.utc))
     )
     db.commit()
+
+
+def ping_typing(db: Session, school_id: str, parent_user_id: str, *, is_parent: bool) -> None:
+    """Upsert this side's last-typed-at timestamp for the conversation.
+    One row per (school, parent) regardless of which side is pinging, so
+    this is a single upsert rather than a lookup-then-update — cheap
+    enough to call on every debounced keystroke."""
+    column = "parent_typing_at" if is_parent else "staff_typing_at"
+    now = datetime.now(timezone.utc)
+    stmt = (
+        pg_insert(TypingStatus.__table__)
+        .values(school_id=school_id, parent_user_id=parent_user_id, **{column: now})
+        .on_conflict_do_update(
+            index_elements=["school_id", "parent_user_id"],
+            set_={column: now},
+        )
+    )
+    db.execute(stmt)
+    db.commit()
+
+
+def get_typing_status(db: Session, school_id: str, parent_user_id: str, *, is_parent: bool) -> bool:
+    """Is the OTHER side's most recent ping still fresh? is_parent=True
+    means "I am the parent asking about staff", so we check staff_typing_at,
+    and vice versa."""
+    row = db.get(TypingStatus, {"school_id": school_id, "parent_user_id": parent_user_id})
+    if not row:
+        return False
+    other_typing_at = row.staff_typing_at if is_parent else row.parent_typing_at
+    if not other_typing_at:
+        return False
+    return datetime.now(timezone.utc) - other_typing_at < TYPING_TTL
 
 
 def list_conversations_for_school(db: Session, school_id: str) -> list[dict]:

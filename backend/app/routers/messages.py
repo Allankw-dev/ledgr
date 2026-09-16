@@ -7,13 +7,15 @@ from app.core.deps import get_current_user, get_school_scope, require_roles, Cur
 from app.models.school import User
 from app.models.student import StudentGuardian
 from app.models.enums import UserRole, MessageSenderRole, GuardianLinkStatus
-from app.schemas.message import SendMessageRequest, MessageOut, ConversationSummary
+from app.schemas.message import SendMessageRequest, MessageOut, ConversationSummary, TypingStatusOut
 from app.services.message_service import (
     send_message,
     list_conversation,
     mark_read_by_parent,
     mark_read_by_staff,
     list_conversations_for_school,
+    ping_typing,
+    get_typing_status,
 )
 
 router = APIRouter(prefix="/api", tags=["messages"], dependencies=[Depends(get_current_user)])
@@ -70,6 +72,48 @@ def post_my_message(
         student_id=payload.student_id,
     )
     return _to_message_out(db, msg)
+
+
+@router.post("/parent/messages/typing", status_code=204)
+def ping_parent_typing(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    school_id: str = Depends(get_school_scope),
+):
+    if user.role != "PARENT":
+        raise HTTPException(403, "This endpoint is for parent accounts only")
+    ping_typing(db, school_id, user.user_id, is_parent=True)
+
+
+@router.get("/parent/messages/typing", response_model=TypingStatusOut)
+def get_parent_side_typing_status(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    school_id: str = Depends(get_school_scope),
+):
+    if user.role != "PARENT":
+        raise HTTPException(403, "This endpoint is for parent accounts only")
+    return {"other_typing": get_typing_status(db, school_id, user.user_id, is_parent=True)}
+
+
+@router.post("/messages/conversations/{parent_user_id}/typing", status_code=204)
+def ping_staff_typing(
+    parent_user_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_school_scope),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+):
+    ping_typing(db, school_id, parent_user_id, is_parent=False)
+
+
+@router.get("/messages/conversations/{parent_user_id}/typing", response_model=TypingStatusOut)
+def get_staff_side_typing_status(
+    parent_user_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_school_scope),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+):
+    return {"other_typing": get_typing_status(db, school_id, parent_user_id, is_parent=False)}
 
 
 @router.get("/messages/conversations", response_model=list[ConversationSummary])
@@ -140,4 +184,6 @@ def _to_message_out(db: Session, msg) -> dict:
         "student_id": msg.student_id,
         "student_name": student_name,
         "created_at": msg.created_at.isoformat(),
+        # Freshly sent — the other side can't have read it yet.
+        "read_at": None,
     }

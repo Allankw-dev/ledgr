@@ -8,6 +8,7 @@ export interface Message {
   student_id: string | null;
   student_name: string | null;
   created_at: string;
+  read_at: string | null;
 }
 
 export interface ConversationSummary {
@@ -47,4 +48,25 @@ export async function sendConversationReply(parentUserId: string, body: string, 
     student_id: studentId ?? null,
   });
   return data;
+}
+
+// Typing indicator — both sides ping on keystroke (debounced) and poll for
+// the other side's status. See TYPING_TTL server-side for how long a ping
+// stays "fresh" before the indicator clears itself.
+export async function pingMyTyping(): Promise<void> {
+  await apiClient.post('/api/parent/messages/typing');
+}
+
+export async function getStaffTypingStatus(): Promise<boolean> {
+  const { data } = await apiClient.get<{ other_typing: boolean }>('/api/parent/messages/typing');
+  return data.other_typing;
+}
+
+export async function pingConversationTyping(parentUserId: string): Promise<void> {
+  await apiClient.post(`/api/messages/conversations/${parentUserId}/typing`);
+}
+
+export async function getParentTypingStatus(parentUserId: string): Promise<boolean> {
+  const { data } = await apiClient.get<{ other_typing: boolean }>(`/api/messages/conversations/${parentUserId}/typing`);
+  return data.other_typing;
 }

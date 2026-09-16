@@ -73,8 +73,16 @@ export function AuthPage({ initialMode }: AuthPageProps) {
 
   function toggle(next: Mode) {
     if (next === mode) return;
-    playWhoosh(next === 'signup' ? 'forward' : 'back');
+    // The mode change must never be at the mercy of the sound effect — a
+    // browser blocking AudioContext (autoplay policy, or any other reason)
+    // used to throw here and abort this function before setMode ran,
+    // which is what caused the card to go fully blank on toggle.
     setMode(next);
+    try {
+      playWhoosh(next === 'signup' ? 'forward' : 'back');
+    } catch {
+      /* the slide must work even if the browser won't allow audio */
+    }
   }
 
   // Move focus into the panel that just became active — but not on first
@@ -260,7 +268,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
         <div className="auth-card" data-mode={mode}>
           <div className="auth-forms-row">
             {/* ---------------- LOGIN PANEL ---------------- */}
-            <div className="auth-form-panel" data-hidden={mode !== 'login'} ref={loginPanelRef} inert={mode !== 'login'}>
+            <div className="auth-form-panel auth-form-panel--login" data-hidden={mode !== 'login'} ref={loginPanelRef} inert={mode !== 'login'}>
+              <div className="auth-form-inner">
               {!challengeToken ? (
                 <>
                   {fingerprintAvailable && (
@@ -372,10 +381,12 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   </form>
                 </>
               )}
+              </div>
             </div>
 
             {/* ---------------- SIGNUP PANEL ---------------- */}
-            <div className="auth-form-panel" data-hidden={mode !== 'signup'} ref={signupPanelRef} inert={mode !== 'signup'}>
+            <div className="auth-form-panel auth-form-panel--signup" data-hidden={mode !== 'signup'} ref={signupPanelRef} inert={mode !== 'signup'}>
+              <div className="auth-form-inner">
               <h1 className="font-display text-xl text-ink-900 mb-1">Parent sign up</h1>
               <p className="text-sm text-ink-600 mb-6">Create your account, then we'll verify your child's details.</p>
 
@@ -443,6 +454,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   Sign in
                 </button>
               </p>
+              </div>
             </div>
           </div>
 
