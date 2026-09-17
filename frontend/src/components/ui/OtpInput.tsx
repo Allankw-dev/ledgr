@@ -15,12 +15,12 @@ interface OtpInputProps {
 // A small fixed set of directions boxes fan out toward on completion —
 // see the note in index.css on why this isn't computed via CSS trig.
 const ORBIT_DIRECTIONS = [
-  { x: '10px', y: '-10px' },
-  { x: '-10px', y: '-10px' },
-  { x: '10px', y: '10px' },
-  { x: '-10px', y: '10px' },
-  { x: '12px', y: '0px' },
-  { x: '-12px', y: '0px' },
+  { x: '18px', y: '-18px' },
+  { x: '-18px', y: '-18px' },
+  { x: '18px', y: '18px' },
+  { x: '-18px', y: '18px' },
+  { x: '20px', y: '0px' },
+  { x: '-20px', y: '0px' },
 ];
 
 export function OtpInput({
@@ -42,7 +42,7 @@ export function OtpInput({
     if (isComplete && !hasOrbited.current) {
       hasOrbited.current = true;
       setShowOrbit(true);
-      const timer = setTimeout(() => setShowOrbit(false), 650);
+      const timer = setTimeout(() => setShowOrbit(false), 950);
       return () => clearTimeout(timer);
     }
     if (!isComplete) hasOrbited.current = false;
