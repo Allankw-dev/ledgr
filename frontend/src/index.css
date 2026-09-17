@@ -276,34 +276,54 @@
       0 0 60px -20px var(--color-green-glow);
   }
 
+  /* Both panels sit in the SAME grid cell and are each 100% of the card's
+     own width — not 50% of an artificial 200%-wide row. That earlier
+     approach (a flex row twice the card's width, holding two 50% panels,
+     shifted by translateX(-50%) of the row's own doubled width) produced
+     a reproducible, unexplained compounding offset in testing — every
+     element inside it, including the independently-transformed overlay,
+     ended up shifted by an extra multiple of its own size, hiding all
+     content off-screen after a toggle. Rather than depend on that
+     mechanism working correctly, each panel here transforms by 100% of
+     ITS OWN, directly-known size (which always equals the card's size) —
+     a single, non-nested percentage with nothing left to compound.
+     CSS Grid (not absolute positioning) keeps both overlapping panels
+     part of normal layout sizing, so the card's height still comes from
+     whichever panel is tallest, just as it did before. */
   .auth-forms-row {
-    display: flex;
-    width: 200%;
-    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
-    will-change: transform;
-  }
-  .auth-card[data-mode='signup'] .auth-forms-row {
-    transform: translateX(-50%);
+    display: grid;
+    width: 100%;
   }
 
   .auth-form-panel {
-    width: 50%;
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
     display: flex;
     flex-direction: column;
     justify-content: center;
+    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
+    will-change: transform;
+  }
+  .auth-form-panel--login {
+    transform: translateX(0);
+  }
+  .auth-form-panel--signup {
+    transform: translateX(100%);
+  }
+  .auth-card[data-mode='signup'] .auth-form-panel--login {
+    transform: translateX(-100%);
+  }
+  .auth-card[data-mode='signup'] .auth-form-panel--signup {
+    transform: translateX(0);
   }
 
-  /* THE FIX: .auth-form-panel itself spans the full card width whenever it's
-     the active panel (it's 50% of the 200%-wide .auth-forms-row, which
-     equals 100% of the card) — that's required for the horizontal slide
-     between login/signup to work. But .auth-overlay-track only ever covers
-     HALF of the card (right half for login, left half for signup). Without
-     this inner wrapper, a panel's real content — including the password
-     field — extends into the half the overlay is currently sitting on top
-     of, and gets visually hidden underneath it. Capping actual content to
-     420px and pinning it to the correct side (login → left, signup →
-     right, matching which side each mode's overlay panel is NOT on) keeps
-     every field entirely inside the uncovered half at all times, including
+  /* .auth-overlay-track only ever covers HALF of the card (right half for
+     login, left half for signup). A panel's real content — including the
+     password field — must never extend into whichever half the overlay
+     currently sits on top of. Capping content to 392px and pinning it to
+     the correct side (login → left, signup → right) keeps every field
+     entirely inside the uncovered half at all times, including
      mid-transition. */
   .auth-form-inner {
     width: 100%;
@@ -323,6 +343,20 @@
      keyed off `mode`) so Tab can never land focus in fields the person
      can't see — independent of what's happening visually mid-animation. */
 
+  /* The track itself slides via `left` (a simple percentage of the card,
+     its own positioning containing block) rather than `transform` — kept
+     deliberately different from the panels' mechanism above so the two
+     independently-sliding pieces of this card never share the same kind
+     of percentage resolution to compound against each other again. */
+  /* Slides via `transform`, not `left` — `left` is a layout-triggering
+     property, and animating it here was found (through direct testing)
+     to force continuous layout recalculation that corrupted the
+     transform-based position of the sibling .auth-form-panel while both
+     animations were running together, dragging it off-screen by the time
+     the transition settled. `transform` is compositor-only and doesn't
+     have that effect. The percentage is still a single, non-nested one —
+     -100% of this element's own, directly-known width — same principle
+     as the panels above. */
   .auth-overlay-track {
     position: absolute;
     top: 0;
@@ -330,7 +364,9 @@
     width: 50%;
     height: 100%;
     overflow: hidden;
-    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
+    transition:
+      transform 0.7s cubic-bezier(0.76, 0, 0.24, 1),
+      border-radius 0.7s cubic-bezier(0.76, 0, 0.24, 1);
     will-change: transform;
     border-radius: 28px 0 0 28px;
   }
@@ -340,20 +376,17 @@
   }
 
   .auth-overlay {
-    width: 200%;
+    position: relative;
+    width: 100%;
     height: 100%;
-    display: flex;
-    transform: translateX(0);
-    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
-    will-change: transform;
+    display: grid;
     background: linear-gradient(135deg, var(--color-emerald-800), #146a94);
-  }
-  .auth-card[data-mode='signup'] .auth-overlay {
-    transform: translateX(-50%);
   }
 
   .auth-overlay-panel {
-    width: 50%;
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -361,6 +394,19 @@
     justify-content: center;
     text-align: center;
     padding: 0 40px;
+    transition: transform 0.7s cubic-bezier(0.76, 0, 0.24, 1);
+  }
+  .auth-overlay-panel--signup-cta {
+    transform: translateX(0);
+  }
+  .auth-overlay-panel--login-cta {
+    transform: translateX(100%);
+  }
+  .auth-card[data-mode='signup'] .auth-overlay-panel--signup-cta {
+    transform: translateX(-100%);
+  }
+  .auth-card[data-mode='signup'] .auth-overlay-panel--login-cta {
+    transform: translateX(0);
   }
 
   .auth-overlay-btn {
@@ -403,30 +449,27 @@
      overlay side by side without the overlay covering part of the
      inputs — exactly the visibility problem to avoid. So on mobile the
      overlay is dropped entirely: one stacked form, switched via the
-     plain text link rendered inside each panel (`md:hidden`), no slide. */
+     plain text link rendered inside each panel (`md:hidden`), no slide.
+     Both panels sit in the same grid cell year-round now, so mobile just
+     needs to hide whichever one isn't current — `data-hidden` (already
+     set in the JSX, driving `inert` too) does that directly. */
   @media (max-width: 767px) {
     .auth-card {
       width: 100%;
       border-radius: 20px;
     }
-    .auth-forms-row {
-      width: 100%;
+    .auth-form-panel {
+      position: static;
+      transform: none !important;
       transition: none;
     }
-    .auth-card[data-mode='signup'] .auth-forms-row {
-      transform: none;
-    }
-    .auth-form-panel {
-      width: 100%;
-      padding: 0;
+    .auth-form-panel[data-hidden='true'] {
+      display: none;
     }
     .auth-form-inner {
       max-width: none;
       margin: 0 auto;
       padding: 48px 24px 32px;
-    }
-    .auth-form-panel[data-hidden='true'] {
-      display: none;
     }
     .auth-overlay-track {
       display: none;
@@ -434,9 +477,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .auth-forms-row,
+    .auth-form-panel,
     .auth-overlay-track,
-    .auth-overlay {
+    .auth-overlay-panel {
       transition: none !important;
     }
   }

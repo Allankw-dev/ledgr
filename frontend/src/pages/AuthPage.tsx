@@ -461,7 +461,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
           {/* ---------------- SLIDING ACCENT OVERLAY (desktop only) ---------------- */}
           <div className="auth-overlay-track">
             <div className="auth-overlay">
-              <div className="auth-overlay-panel">
+              <div className="auth-overlay-panel auth-overlay-panel--signup-cta">
                 <h2 className="font-display text-2xl text-white mb-3">New to Ledgr?</h2>
                 <p className="text-sm text-white/85 leading-relaxed mb-6">
                   Create a parent account to track fees, pay via M-Pesa, and stay in touch with the school.
@@ -470,7 +470,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   Create account
                 </button>
               </div>
-              <div className="auth-overlay-panel">
+              <div className="auth-overlay-panel auth-overlay-panel--login-cta">
                 <h2 className="font-display text-2xl text-white mb-3">Already a member?</h2>
                 <p className="text-sm text-white/85 leading-relaxed mb-6">
                   Sign in to see your children's balances and recent payments.
