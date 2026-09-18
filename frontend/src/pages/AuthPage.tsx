@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ShieldCheck, Fingerprint } from 'lucide-react';
+import { BookOpen, ShieldCheck, Fingerprint, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
@@ -110,6 +110,15 @@ export function AuthPage({ initialMode }: AuthPageProps) {
   const [fingerprintBusy, setFingerprintBusy] = useState(false);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
+  type VerifyStage = 'entering' | 'verifying' | 'success';
+  const [verifyStage, setVerifyStage] = useState<VerifyStage>('entering');
+  const [verifiedUser, setVerifiedUser] = useState<Parameters<typeof setSession>[1] | null>(null);
+  // Guards against verifyCode firing twice for the same code — e.g. the
+  // OTP boxes auto-submit on completion AND the user also hits Enter or
+  // clicks the button in the same instant. Reset on failure so a retry
+  // can fire again; deliberately left set on success since the panel is
+  // about to navigate away.
+  const autoVerifyingRef = useRef(false);
 
   useEffect(() => {
     isPlatformAuthenticatorAvailable().then(setFingerprintAvailable);
@@ -173,19 +182,32 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     }
   }
 
-  async function handleCodeSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!challengeToken) return;
+  async function verifyCode(codeToVerify: string) {
+    if (!challengeToken || autoVerifyingRef.current) return;
+    if (codeToVerify.length !== 6) return;
+    autoVerifyingRef.current = true;
     setLoginError(null);
-    setLoginLoading(true);
+    setVerifyStage('verifying');
     try {
-      const result = await verifyTwoFactorLogin(challengeToken, code);
-      completeLogin(result.token, result.user);
+      const result = await verifyTwoFactorLogin(challengeToken, codeToVerify);
+      // Hold on a polished "welcome" moment before navigating, instead of
+      // snapping straight to the dashboard — the success state is real
+      // (session is usable from here on), navigation is just deliberately
+      // delayed a beat so the confirmation is actually seen.
+      setVerifiedUser(result.user);
+      setVerifyStage('success');
+      setTimeout(() => completeLogin(result.token, result.user), 1100);
     } catch {
       setLoginError('Incorrect code. Check your authenticator app and try again.');
-    } finally {
-      setLoginLoading(false);
+      setVerifyStage('entering');
+      setCode('');
+      autoVerifyingRef.current = false;
     }
+  }
+
+  function handleCodeFormSubmit(e: FormEvent) {
+    e.preventDefault();
+    verifyCode(code);
   }
 
   // ---- Signup state --------------------------------------------------
@@ -346,6 +368,16 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                     </button>
                   </p>
                 </>
+              ) : verifyStage === 'success' ? (
+                <div className="flex flex-col items-center justify-center text-center py-10 welcome-pop">
+                  <div className="w-14 h-14 rounded-full bg-emerald-700/15 flex items-center justify-center mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-700" strokeWidth={2} />
+                  </div>
+                  <h1 className="font-display text-2xl text-ink-900 mb-1">
+                    Welcome back{verifiedUser?.full_name ? `, ${verifiedUser.full_name.split(' ')[0]}` : ''}!
+                  </h1>
+                  <p className="text-sm text-ink-600">Taking you to your dashboard…</p>
+                </div>
               ) : (
                 <>
                   <div className="flex items-center gap-2 mb-1">
@@ -354,30 +386,40 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   </div>
                   <p className="text-sm text-ink-600 mb-6">Enter the 6-digit code from your authenticator app.</p>
 
-                  <form onSubmit={handleCodeSubmit} className="flex flex-col gap-5" noValidate>
-                    <OtpInput length={6} value={code} onChange={setCode} />
+                  <form onSubmit={handleCodeFormSubmit} className="flex flex-col gap-5" noValidate>
+                    <OtpInput
+                      length={6}
+                      value={code}
+                      onChange={setCode}
+                      onComplete={verifyCode}
+                      spinning={verifyStage === 'verifying'}
+                    />
 
-                    {loginError && (
-                      <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2 text-center">
-                        {loginError}
-                      </p>
+                    {verifyStage === 'verifying' ? (
+                      <p className="text-center text-sm text-ink-600 py-1">Verifying…</p>
+                    ) : (
+                      <>
+                        {loginError && (
+                          <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2 text-center">
+                            {loginError}
+                          </p>
+                        )}
+                        <Button type="submit" disabled={code.length !== 6} className="mt-1 flex items-center justify-center gap-2">
+                          Verify and sign in
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChallengeToken(null);
+                            setCode('');
+                            setLoginError(null);
+                          }}
+                          className="text-sm text-ink-600 hover:underline underline-offset-2 text-center"
+                        >
+                          Back to sign in
+                        </button>
+                      </>
                     )}
-
-                    <Button type="submit" disabled={loginLoading || code.length !== 6} className="mt-1 flex items-center justify-center gap-2">
-                      {loginLoading && <span className="orbit-spinner" />}
-                      {loginLoading ? 'Verifying…' : 'Verify and sign in'}
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChallengeToken(null);
-                        setCode('');
-                        setLoginError(null);
-                      }}
-                      className="text-sm text-ink-600 hover:underline underline-offset-2 text-center"
-                    >
-                      Back to sign in
-                    </button>
                   </form>
                 </>
               )}

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, type ClipboardEvent, type KeyboardEvent, type CSSProperties } from 'react';
+import { useRef, useEffect, type ClipboardEvent, type KeyboardEvent, type CSSProperties } from 'react';
 
 interface OtpInputProps {
   length?: number;
@@ -10,17 +10,23 @@ interface OtpInputProps {
      "verified" moment the reference design uses, just in Ledgr's own
      accent color rather than copying the reference's teal. */
   celebrateOnComplete?: boolean;
+  /** True for exactly as long as the code is actually being checked
+     against the server — not a fixed decorative duration. Each box
+     spins continuously while this is true and settles the moment it
+     goes false, so the motion's length always matches how long
+     verification actually took, whether that's 200ms or 2 seconds. */
+  spinning?: boolean;
 }
 
-// A small fixed set of directions boxes fan out toward on completion —
+// A small fixed set of directions boxes fan out toward while spinning —
 // see the note in index.css on why this isn't computed via CSS trig.
 const ORBIT_DIRECTIONS = [
-  { x: '18px', y: '-18px' },
-  { x: '-18px', y: '-18px' },
-  { x: '18px', y: '18px' },
-  { x: '-18px', y: '18px' },
-  { x: '20px', y: '0px' },
-  { x: '-20px', y: '0px' },
+  { x: '16px', y: '-16px' },
+  { x: '-16px', y: '-16px' },
+  { x: '16px', y: '16px' },
+  { x: '-16px', y: '16px' },
+  { x: '18px', y: '0px' },
+  { x: '-18px', y: '0px' },
 ];
 
 export function OtpInput({
@@ -30,22 +36,14 @@ export function OtpInput({
   onComplete,
   autoFocus = true,
   celebrateOnComplete = true,
+  spinning = false,
 }: OtpInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = value.padEnd(length, ' ').split('').slice(0, length);
   const isComplete = value.length === length;
-  const [showOrbit, setShowOrbit] = useState(false);
-  const hasOrbited = useRef(false);
 
   useEffect(() => {
     if (isComplete && onComplete) onComplete(value);
-    if (isComplete && !hasOrbited.current) {
-      hasOrbited.current = true;
-      setShowOrbit(true);
-      const timer = setTimeout(() => setShowOrbit(false), 950);
-      return () => clearTimeout(timer);
-    }
-    if (!isComplete) hasOrbited.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isComplete]);
 
@@ -108,17 +106,16 @@ export function OtpInput({
             value={digit.trim()}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
+            readOnly={spinning}
             autoFocus={autoFocus && i === 0}
             aria-label={`Digit ${i + 1} of ${length}`}
-            style={{ '--orbit-x': direction.x, '--orbit-y': direction.y } as CSSProperties}
+            style={{ '--orbit-x': direction.x, '--orbit-y': direction.y, animationDelay: `${i * 40}ms` } as CSSProperties}
             className={`w-11 h-[52px] sm:w-12 sm:h-14 rounded-xl border text-center text-lg font-semibold bg-ink-100 text-ink-900 transition-all duration-200 focus:outline-none ${
-              showOrbit ? 'otp-orbit' : ''
+              spinning ? 'otp-box-spinning' : ''
             } ${
               isComplete && celebrateOnComplete
                 ? 'border-emerald-700 text-emerald-700 shadow-[0_0_16px_-2px_rgba(57,255,136,0.45)]'
-                : digit.trim()
-                  ? 'border-ink-200'
-                  : 'border-ink-200'
+                : 'border-ink-200'
             } focus:border-emerald-700 focus:shadow-[0_0_0_3px_rgba(57,255,136,0.18)]`}
           />
         );

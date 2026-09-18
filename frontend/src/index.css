@@ -165,30 +165,50 @@
     }
   }
 
-  /* The "orbit" motion from the reference design: each OTP box spins a
-     full turn and drifts out along a short arc before settling back into
-     place. Fires once, right when the code completes — not a constant
-     animation. Each box gets its own --orbit-x/--orbit-y (set inline, one
-     of a handful of fixed directions) so they fan out differently rather
-     than moving in lockstep. Deliberately not using CSS trig functions
-     (sin/cos) here — they're not reliably supported on older mobile
-     browsers, which matters for an app meant to install on any device.
-     Ends at rotate(360deg), not 0deg — visually identical resting angle,
-     but the box arrives there by completing the spin instead of snapping
-     backward through it, so the motion reads as one continuous turn. */
-  .otp-orbit {
-    animation: otp-orbit-flourish 0.9s cubic-bezier(0.45, 0, 0.2, 1) both;
+  /* The "orbit" motion: each OTP box spins continuously, drifting out
+     along a short arc and back, for as long as the code is genuinely
+     being checked against the server — driven by the `spinning` prop
+     (tied to real request state in AuthPage), not a fixed timer. It
+     starts the instant the 6th digit lands (auto-submitting) and keeps
+     going until the response comes back, so its length always matches
+     how long verification actually took. Each box gets its own
+     --orbit-x/--orbit-y (set inline, one of a handful of fixed
+     directions) plus a small stagger via animation-delay, so they orbit
+     out of sync with each other rather than moving in lockstep.
+     Deliberately not using CSS trig functions (sin/cos) here — they're
+     not reliably supported on older mobile browsers, which matters for
+     an app meant to install on any device. */
+  .otp-box-spinning {
+    animation: otp-orbit-loop 1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   }
 
-  @keyframes otp-orbit-flourish {
+  @keyframes otp-orbit-loop {
     0% {
       transform: translate(0, 0) rotate(0deg) scale(1);
     }
     50% {
-      transform: translate(var(--orbit-x, 18px), var(--orbit-y, -18px)) rotate(180deg) scale(1.12);
+      transform: translate(var(--orbit-x, 16px), var(--orbit-y, -16px)) rotate(180deg) scale(1.1);
     }
     100% {
       transform: translate(0, 0) rotate(360deg) scale(1);
+    }
+  }
+
+  /* A polished hold for the "welcome back" success moment — a gentle
+     scale-and-fade in rather than an abrupt appearance, since this is the
+     one screen in the app that's deliberately shown for its own sake
+     (not just relaying data) before navigating away a beat later. */
+  .welcome-pop {
+    animation: welcome-pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes welcome-pop-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.92) translateY(6px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
     }
   }
 
