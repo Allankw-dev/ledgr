@@ -18,16 +18,7 @@ interface OtpInputProps {
   spinning?: boolean;
 }
 
-// A small fixed set of directions boxes fan out toward while spinning —
-// see the note in index.css on why this isn't computed via CSS trig.
-const ORBIT_DIRECTIONS = [
-  { x: '16px', y: '-16px' },
-  { x: '-16px', y: '-16px' },
-  { x: '16px', y: '16px' },
-  { x: '-16px', y: '16px' },
-  { x: '18px', y: '0px' },
-  { x: '-18px', y: '0px' },
-];
+const ORBIT_LOOP_MS = 1200;
 
 export function OtpInput({
   length = 6,
@@ -92,7 +83,14 @@ export function OtpInput({
   return (
     <div className="flex items-center justify-center gap-2.5" onPaste={handlePaste}>
       {digits.map((digit, i) => {
-        const direction = ORBIT_DIRECTIONS[i % ORBIT_DIRECTIONS.length];
+        // A negative delay makes the animation act as though it already
+        // ran that long — so at the very first frame, each box is
+        // already sitting at its own point around the shared circular
+        // track, evenly spaced from the others, rather than all starting
+        // stacked at the top and taking time to spread out. That's what
+        // makes them read as chasing each other around one loop instead
+        // of six boxes independently jittering.
+        const orbitDelay = `-${(i * ORBIT_LOOP_MS) / length}ms`;
         return (
           <input
             key={i}
@@ -109,7 +107,7 @@ export function OtpInput({
             readOnly={spinning}
             autoFocus={autoFocus && i === 0}
             aria-label={`Digit ${i + 1} of ${length}`}
-            style={{ '--orbit-x': direction.x, '--orbit-y': direction.y, animationDelay: `${i * 40}ms` } as CSSProperties}
+            style={{ '--orbit-delay': orbitDelay } as CSSProperties}
             className={`w-11 h-[52px] sm:w-12 sm:h-14 rounded-xl border text-center text-lg font-semibold bg-ink-100 text-ink-900 transition-all duration-200 focus:outline-none ${
               spinning ? 'otp-box-spinning' : ''
             } ${
