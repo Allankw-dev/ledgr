@@ -50,7 +50,7 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ledgr_app') THEN
-    CREATE ROLE ledgr_app LOGIN PASSWORD 's#BDZySwd705qM*h34$U';
+    CREATE ROLE ledgr_app LOGIN PASSWORD 'CHANGE_ME_BEFORE_RUNNING';  -- never commit a real password here
   END IF;
 END
 $$;
@@ -90,6 +90,7 @@ ALTER TABLE class_group_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_group_read_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webauthn_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webauthn_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE typing_status ENABLE ROW LEVEL SECURITY;
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It
@@ -335,3 +336,32 @@ CREATE POLICY tenant_isolation ON mpesa_transactions FOR ALL TO ledgr_app
 --    section 5 above) is deliberate, not a gap — flagging it here so it
 --    isn't mistaken for one during a future security review.
 -- ============================================================================
+
+
+-- ----------------------------------------------------------------------------
+-- typing_status (added after the tables above; direct school_id column)
+-- ----------------------------------------------------------------------------
+DROP POLICY IF EXISTS tenant_isolation ON typing_status;
+CREATE POLICY tenant_isolation ON typing_status FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
+
+-- ----------------------------------------------------------------------------
+-- Lock the Supabase auto-generated Data API out of this schema
+-- ----------------------------------------------------------------------------
+-- Ledgr's backend connects to Postgres directly and never uses the Supabase
+-- REST/GraphQL API, so the anon/authenticated roles need no access at all.
+DO $$
+DECLARE r text;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+      EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %I', r);
+      EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM %I', r);
+      EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM %I', r);
+      EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM %I', r);
+    END IF;
+  END LOOP;
+END
+$$;

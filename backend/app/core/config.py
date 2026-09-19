@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"
-    jwt_expires_minutes: int = 60 * 24 * 7  # 7 days
+    jwt_expires_minutes: int = 60 * 24  # 1 day (was 7). Tokens are also re-validated against the DB — see core/deps.py
 
     cors_origins: str = "http://localhost:5173"
 
@@ -96,6 +97,22 @@ class Settings(BaseSettings):
     # exposed to the internet — clients could spoof their IP.
     forwarded_allow_ips: str = "127.0.0.1"
 
+    # --- M-Pesa webhook protection ------------------------------------------
+    # Safaricom does not sign its callbacks, so ANYONE who can reach these URLs
+    # can POST a fake "payment received". Put a long random secret on the
+    # callback URLs you give Safaricom (e.g. MPESA_CALLBACK_URL=https://api.example.com/api/payments/mpesa/callback?token=SECRET,
+    # and register the C2B URLs with ?token=SECRET too) and set it here.
+    # REQUIRED when ENVIRONMENT=production.
+    mpesa_callback_secret: str | None = None
+    # Optional extra layer: comma-separated Safaricom source IPs allowed to call
+    # the webhooks (take the current list from Safaricom's Daraja docs).
+    mpesa_allowed_ips: str | None = None
+
+    # How long a user's active/token-version state is cached per worker before
+    # being re-read from the DB. This is the longest a deactivation or a
+    # password reset can take to cut off an already-issued token.
+    user_state_cache_seconds: int = 30
+
     # Set to false on all but ONE instance so the daily reminder sweep is not
     # started by every worker.
     run_scheduler: bool = True
@@ -103,6 +120,17 @@ class Settings(BaseSettings):
     # Optional error monitoring (https://sentry.io) — unset = disabled.
     sentry_dsn: str | None = None
     environment: str = "development"
+
+    @model_validator(mode="after")
+    def _production_sanity_checks(self):
+        # Fail at startup, not at 2am: a weak JWT secret lets anyone forge
+        # admin tokens, and open M-Pesa webhooks let anyone forge payments.
+        if self.environment == "production":
+            if len(self.jwt_secret) < 32:
+                raise ValueError("JWT_SECRET must be at least 32 characters when ENVIRONMENT=production")
+            if not self.mpesa_callback_secret or len(self.mpesa_callback_secret) < 24:
+                raise ValueError("MPESA_CALLBACK_SECRET (24+ chars) is required when ENVIRONMENT=production")
+        return self
 
     class Config:
         env_file = ".env"

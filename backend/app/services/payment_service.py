@@ -186,6 +186,7 @@ def resolve_mpesa_callback(
     checkout_request_id: str,
     result_code: int,
     mpesa_receipt_number: str | None,
+    paid_amount: Decimal | int | float | str | None = None,
 ) -> Payment | None:
     """
     Called from the (public, unauthenticated) Daraja callback endpoint.
@@ -210,6 +211,22 @@ def resolve_mpesa_callback(
 
     if not payment:
         return None
+
+    # Never confirm money we can't account for: if Safaricom reports a
+    # different amount than we asked for, leave the payment PENDING and flag
+    # it for a human instead of marking the invoice paid.
+    if result_code == 0 and paid_amount is not None:
+        if Decimal(str(paid_amount)) != Decimal(str(payment.amount)):
+            log_audit(
+                db,
+                school_id=payment.school_id,
+                action="MPESA_CALLBACK_AMOUNT_MISMATCH",
+                entity_type="Payment",
+                entity_id=payment.id,
+                metadata={"expected": str(payment.amount), "reported": str(paid_amount)},
+            )
+            db.commit()
+            return None
 
     if result_code == 0:
         payment.status = PaymentStatus.CONFIRMED

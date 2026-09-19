@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
@@ -5,7 +6,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.config import settings
+from app.core.database import get_db, system_engine
 from app.core.security import decode_access_token
 
 bearer_scheme = HTTPBearer()
@@ -16,6 +18,37 @@ class CurrentUser:
     user_id: str
     school_id: str | None
     role: str
+
+
+# --- Server-side check that a validly-signed token is still allowed ---------
+# A JWT alone can't be revoked, so without this a deactivated user, or someone
+# whose password was just reset, keeps working until the token expires. We
+# re-read (is_active, token_version) from the DB, cached per worker for a short
+# time so this costs one tiny query per user per cache window, not per request.
+_user_state: dict[str, tuple[float, bool, int]] = {}
+
+
+def invalidate_user_state(user_id: str) -> None:
+    _user_state.pop(user_id, None)
+
+
+def _load_user_state(user_id: str) -> tuple[bool, int] | None:
+    now = time.monotonic()
+    hit = _user_state.get(user_id)
+    if hit and hit[0] > now:
+        return hit[1], hit[2]
+    with system_engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT is_active, token_version FROM users WHERE id = :id"), {"id": user_id}
+        ).one_or_none()
+    if row is None:
+        _user_state.pop(user_id, None)
+        return None
+    if len(_user_state) > 10_000:  # bound memory
+        _user_state.clear()
+    state = (row[0] is not False, int(row[1] or 0))
+    _user_state[user_id] = (now + settings.user_state_cache_seconds, state[0], state[1])
+    return state
 
 
 def get_current_user(
@@ -32,6 +65,11 @@ def get_current_user(
     # KeyError, which would otherwise surface as an unhandled 500.
     role = payload.get("role")
     if not role:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+
+    state = _load_user_state(payload["sub"])
+    if state is None or not state[0] or state[1] != int(payload.get("tv", 0)):
+        # Deleted, deactivated, or signed out by a credential change.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
 
     return CurrentUser(

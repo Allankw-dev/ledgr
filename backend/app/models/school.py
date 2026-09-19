@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, func, Enum as SAEnum
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, func, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -42,6 +42,9 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Bumped when credentials change (password reset). Every JWT carries the
+    # version it was issued under, so bumping this signs the user out everywhere.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Two-factor authentication (TOTP) — restricted to SCHOOL_ADMIN/BURSAR in
     # the API layer, since those roles handle money and admin actions.

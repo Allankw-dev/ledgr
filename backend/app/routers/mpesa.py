@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, get_system_db
+from app.core.webhook_auth import verify_mpesa_webhook
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.config import settings
 from app.core.rate_limit import limiter
@@ -113,7 +114,7 @@ async def request_stk_push(
     )
 
 
-@router.post("/callback")
+@router.post("/callback", dependencies=[Depends(verify_mpesa_webhook)])
 async def mpesa_callback(request: Request, db: Session = Depends(get_system_db)):
     """
     PUBLIC endpoint — Safaricom's servers call this directly, with no auth
@@ -143,17 +144,21 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_system_db))
     callback = payload.Body.stkCallback
 
     mpesa_receipt = None
+    paid_amount = None
     if callback.CallbackMetadata:
         items = callback.CallbackMetadata.get("Item", [])
         for item in items:
             if item.get("Name") == "MpesaReceiptNumber":
                 mpesa_receipt = item.get("Value")
+            elif item.get("Name") == "Amount":
+                paid_amount = item.get("Value")
 
     # Deliberately NOT wrapped in try/except — see docstring above.
     await run_in_threadpool(
         resolve_mpesa_callback,
         db,
         checkout_request_id=callback.CheckoutRequestID,
+        paid_amount=paid_amount,
         result_code=callback.ResultCode,
         mpesa_receipt_number=str(mpesa_receipt) if mpesa_receipt else None,
     )

@@ -16,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core import background
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.database import SystemSessionLocal, engine
 from app.core.locks import try_advisory_lock
 from app.core.rate_limit import limiter
@@ -114,7 +115,12 @@ async def lifespan(app: FastAPI):  # noqa: ARG001 — required by FastAPI's life
     background.shutdown()
 
 
-app = FastAPI(title="Ledgr API", version="0.1.0", lifespan=lifespan)
+# Interactive API docs list every endpoint and its schema — handy in dev, a
+# free map of the attack surface in production.
+_docs_kwargs = (
+    {"docs_url": None, "redoc_url": None, "openapi_url": None} if settings.environment == "production" else {}
+)
+app = FastAPI(title="Ledgr API", version="0.1.0", lifespan=lifespan, **_docs_kwargs)
 
 # Rate limiting — auth endpoints are the prime brute-force target, and are
 # decorated individually in app/routers/auth.py (@limiter.limit(...)).
@@ -134,6 +140,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.forwarded_allo
 # Compress larger JSON responses (lists, analytics) — big bandwidth savings on
 # slow mobile connections. Small responses are left alone.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

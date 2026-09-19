@@ -14,13 +14,15 @@ from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_system_db
+from app.core.webhook_auth import verify_mpesa_webhook
 from app.schemas.mpesa import C2BPayload
 from app.services.mpesa_reconciliation_service import record_c2b_transaction
 
 logger = logging.getLogger("ledgr.mpesa")
 
-router = APIRouter(prefix="/api/payments/c2b", tags=["mpesa"])
+router = APIRouter(prefix="/api/payments/c2b", tags=["mpesa"], dependencies=[Depends(verify_mpesa_webhook)])
 
 
 @router.post("/validation")
@@ -52,6 +54,12 @@ async def c2b_confirmation(request: Request, db: Session = Depends(get_system_db
         payload = C2BPayload.model_validate(raw_body)
     except Exception:
         logger.warning("Received malformed M-Pesa C2B confirmation: %s", raw_body)
+        return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+    # A confirmation addressed to a different paybill/till than ours is not
+    # ours to record — ignore it rather than credit a student for it.
+    if settings.mpesa_shortcode and payload.BusinessShortCode and str(payload.BusinessShortCode) != str(settings.mpesa_shortcode):
+        logger.warning("Ignoring C2B confirmation for foreign shortcode %s", payload.BusinessShortCode)
         return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
     await run_in_threadpool(record_c2b_transaction, db, payload)

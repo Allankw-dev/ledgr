@@ -9,6 +9,7 @@ from google.auth.transport import requests as google_requests
 
 from app.core.config import settings
 from app.core.database import get_system_db
+from app.core.deps import invalidate_user_state
 from app.core.security import (
     hash_password,
     verify_password,
@@ -92,7 +93,7 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
 
 
 def _build_token_response(user: User, school_name: str | None = None) -> TokenResponse:
-    token = create_access_token(user.id, user.school_id, user.role.value)
+    token = create_access_token(user.id, user.school_id, user.role.value, user.token_version or 0)
     return TokenResponse(
         token=token,
         user={
@@ -372,5 +373,9 @@ def reset_password(request: Request, data: ResetPasswordRequest, db: Session = D
         raise HTTPException(400, str(exc))
 
     user.password_hash = hash_password(data.new_password)
+    # Sign the user out of every existing session: any token issued before
+    # this reset carries the old version and is rejected by get_current_user.
+    user.token_version = (user.token_version or 0) + 1
     db.commit()
+    invalidate_user_state(user.id)
     return {"reset": True}
