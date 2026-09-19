@@ -68,6 +68,42 @@ class Settings(BaseSettings):
     africastalking_api_key: str | None = None
     africastalking_sandbox: bool = True
 
+    # --- Scale & reliability -------------------------------------------------
+    # Shared rate-limit counters. Without this, every worker/instance keeps its
+    # own in-memory counters (limits multiply by worker count and reset on every
+    # restart). Example: redis://default:password@host:6379
+    redis_url: str | None = None
+
+    # Per-process DB pool sizes. Total connections = workers x (pool_size +
+    # max_overflow) for each engine, so keep these small when running several
+    # workers against Supabase's pooler (Nano allows ~15 per user/db).
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout: int = 15  # seconds to wait for a free connection before failing fast
+    db_pool_recycle: int = 1800  # recycle connections older than 30 min
+    system_db_pool_size: int = 2
+    system_db_max_overflow: int = 3
+
+    # Threads available to sync route handlers (FastAPI's default is 40).
+    threadpool_size: int = 80
+    # Threads for fire-and-forget work (SMS/email after a payment, etc).
+    background_workers: int = 8
+
+    # Which peers may set the client IP via X-Forwarded-For. Rate limiting is
+    # per client IP, so behind a proxy/load balancer this must trust the proxy
+    # (or be "*" when the proxy is the only thing that can reach the server).
+    # Leave as 127.0.0.1 for local dev. Never use "*" if the app is directly
+    # exposed to the internet — clients could spoof their IP.
+    forwarded_allow_ips: str = "127.0.0.1"
+
+    # Set to false on all but ONE instance so the daily reminder sweep is not
+    # started by every worker.
+    run_scheduler: bool = True
+
+    # Optional error monitoring (https://sentry.io) — unset = disabled.
+    sentry_dsn: str | None = None
+    environment: str = "development"
+
     class Config:
         env_file = ".env"
 

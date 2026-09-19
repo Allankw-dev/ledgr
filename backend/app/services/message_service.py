@@ -16,6 +16,10 @@ from app.models.typing_status import TypingStatus
 TYPING_TTL = timedelta(seconds=4)
 
 
+# Most recent messages returned per conversation thread.
+MAX_THREAD_MESSAGES = 300
+
+
 def send_message(
     db: Session,
     school_id: str,
@@ -78,11 +82,16 @@ def _serialize_messages(db: Session, messages: list[Message]) -> list[dict]:
 
 
 def list_conversation(db: Session, school_id: str, parent_user_id: str) -> list[dict]:
+    # The thread is re-fetched on every poll, so cap it to the most recent
+    # messages (newest N, returned oldest-first) — an old, very long thread
+    # must not make every poll transfer and serialize its entire history.
     messages = db.execute(
         select(Message)
         .where(Message.school_id == school_id, Message.parent_user_id == parent_user_id)
-        .order_by(Message.created_at.asc())
+        .order_by(Message.created_at.desc())
+        .limit(MAX_THREAD_MESSAGES)
     ).scalars().all()
+    messages.reverse()
     return _serialize_messages(db, messages)
 
 

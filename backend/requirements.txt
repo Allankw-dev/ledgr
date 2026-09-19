@@ -20,3 +20,11 @@ reportlab==4.2.5
 apscheduler==3.10.4
 google-auth==2.35.0
 openpyxl==3.1.5
+# Imported by the app but previously missing from this file (clean installs failed):
+requests==2.32.3
+numpy>=1.26
+scikit-learn>=1.4
+# Scale & reliability
+redis==5.0.8
+sentry-sdk[fastapi]==2.14.0
+gunicorn==23.0.0; sys_platform != "win32"

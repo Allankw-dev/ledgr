@@ -3,6 +3,7 @@ import { MessageCircle, Send, ChevronUp, ChevronDown } from 'lucide-react';
 import { getMyMessages, sendMyMessage, pingMyTyping, getStaffTypingStatus, type Message } from '../api/messages';
 import { MessageTicks } from './MessageTicks';
 import { TypingDots } from './TypingDots';
+import { usePolling } from '../hooks/usePolling';
 
 const POLL_MESSAGES_MS = 3000;
 const POLL_TYPING_MS = 1500;
@@ -29,30 +30,12 @@ export function MessagePanel() {
   }, [open, loaded]);
 
   // Poll for new messages (and updated read receipts on ours) while the
-  // panel is open. Merges by id rather than replacing wholesale so a
-  // message mid-send locally isn't ever momentarily duplicated or dropped.
-  useEffect(() => {
-    if (!open) return;
-    const id = setInterval(() => {
-      getMyMessages()
-        .then(setMessages)
-        .catch(() => {
-          /* a missed poll isn't worth surfacing as an error */
-        });
-    }, POLL_MESSAGES_MS);
-    return () => clearInterval(id);
-  }, [open]);
+  // panel is open. usePolling waits for each request to finish and pauses
+  // while the tab is hidden, so an open-but-forgotten chat costs nothing.
+  usePolling(() => getMyMessages().then(setMessages), POLL_MESSAGES_MS, open);
 
   // Poll whether staff is currently typing.
-  useEffect(() => {
-    if (!open) return;
-    const id = setInterval(() => {
-      getStaffTypingStatus()
-        .then(setStaffTyping)
-        .catch(() => {});
-    }, POLL_TYPING_MS);
-    return () => clearInterval(id);
-  }, [open]);
+  usePolling(() => getStaffTypingStatus().then(setStaffTyping), POLL_TYPING_MS, open);
 
   useEffect(() => {
     if (open) scrollRef.current?.scrollIntoView({ behavior: 'smooth' });

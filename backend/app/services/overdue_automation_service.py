@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.locks import try_advisory_lock
 from app.models.enums import GuardianLinkStatus, InvoiceStatus
 from app.models.invoice import Invoice, InvoiceReminderLog
 from app.models.school import School, User
@@ -43,9 +44,27 @@ class SweepResult:
 
 
 def run_overdue_reminder_sweep(db: Session, school_id: str) -> SweepResult:
+    """Only one sweep per school runs at a time, across ALL workers and
+    instances (Postgres advisory lock) — a bursar clicking "run now" while
+    the daily job fires, or several workers each running the scheduler, can
+    no longer both send the same reminder. If another sweep holds the lock,
+    this one returns immediately with a note instead of duplicating work."""
+    with try_advisory_lock(f"overdue-sweep:{school_id}") as got_lock:
+        if not got_lock:
+            result = SweepResult()
+            result.errors.append("A reminder sweep is already running for this school — skipped.")
+            return result
+        return _run_overdue_reminder_sweep_locked(db, school_id)
+
+
+def _run_overdue_reminder_sweep_locked(db: Session, school_id: str) -> SweepResult:
     school = db.get(School, school_id)
     if not school:
         return SweepResult()
+
+    # Read these once: db.commit() inside the loop expires every ORM object,
+    # and re-fetching the school row for each invoice would be wasted queries.
+    school_name, school_currency = school.name, school.currency
 
     now = datetime.now(timezone.utc)
     invoices = db.execute(
@@ -89,7 +108,7 @@ def run_overdue_reminder_sweep(db: Session, school_id: str) -> SweepResult:
 
         balance = invoice.total_amount - invoice.amount_paid
         subject, body, sms_text = compose_overdue_escalation(
-            target_tier, student.full_name, school.name, balance, school.currency, invoice.due_date
+            target_tier, student.full_name, school_name, balance, school_currency, invoice.due_date
         )
 
         any_sent = False
@@ -105,6 +124,11 @@ def run_overdue_reminder_sweep(db: Session, school_id: str) -> SweepResult:
         if any_sent:
             db.add(InvoiceReminderLog(invoice_id=invoice.id, school_id=school_id, tier=target_tier))
             result.reminders_sent += 1
+            # Commit the log row right after the send, not once at the very
+            # end: if the process dies (or a later invoice blows up) halfway
+            # through a big school, reminders already sent are already
+            # recorded, so the next run never re-sends them.
+            db.commit()
 
     db.commit()
     return result

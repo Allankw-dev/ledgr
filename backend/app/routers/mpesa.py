@@ -1,5 +1,6 @@
 import logging
 
+from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,20 +30,11 @@ logger = logging.getLogger("ledgr.mpesa")
 router = APIRouter(prefix="/api/payments/mpesa", tags=["mpesa"])
 
 
-@router.post("/stk-push", response_model=StkPushResponse, status_code=201)
-async def request_stk_push(
-    data: StkPushRequest,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-    school_id: str = Depends(get_school_scope),
-):
-    """
-    Triggers an M-Pesa prompt on the payer's phone. Callable by a bursar
-    (paying on a parent's behalf, e.g. over the phone) or a parent (paying
-    for their own child) — but a parent must be linked to the student on
-    this invoice via student_guardians, checked explicitly below rather
-    than assumed from role alone.
-    """
+def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, school_id: str):
+    """All the synchronous DB work for an STK push, kept in a plain function
+    so the async route can run it in the threadpool. Calling blocking
+    SQLAlchemy directly inside an `async def` handler freezes the whole event
+    loop (every other request on that worker) while the query runs."""
     invoice = db.execute(
         select(Invoice).where(Invoice.id == data.invoice_id, Invoice.school_id == school_id)
     ).scalar_one_or_none()
@@ -64,6 +56,24 @@ async def request_stk_push(
         raise HTTPException(422, "This invoice is already fully paid")
 
     student = db.get(Student, invoice.student_id)
+    return invoice, balance, student
+
+
+@router.post("/stk-push", response_model=StkPushResponse, status_code=201)
+async def request_stk_push(
+    data: StkPushRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    school_id: str = Depends(get_school_scope),
+):
+    """
+    Triggers an M-Pesa prompt on the payer's phone. Callable by a bursar
+    (paying on a parent's behalf, e.g. over the phone) or a parent (paying
+    for their own child) — but a parent must be linked to the student on
+    this invoice via student_guardians, checked explicitly below rather
+    than assumed from role alone.
+    """
+    invoice, balance, student = await run_in_threadpool(_prepare_stk_push, db, data, user, school_id)
 
     if not settings.mpesa_callback_url:
         raise HTTPException(503, "M-Pesa is not fully configured yet — missing callback URL")
@@ -87,7 +97,8 @@ async def request_stk_push(
     if not checkout_request_id:
         raise HTTPException(502, "M-Pesa did not return a valid request ID")
 
-    create_pending_mpesa_payment(
+    await run_in_threadpool(
+        create_pending_mpesa_payment,
         db,
         school_id=school_id,
         student_id=invoice.student_id,
@@ -139,7 +150,8 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_system_db))
                 mpesa_receipt = item.get("Value")
 
     # Deliberately NOT wrapped in try/except — see docstring above.
-    resolve_mpesa_callback(
+    await run_in_threadpool(
+        resolve_mpesa_callback,
         db,
         checkout_request_id=callback.CheckoutRequestID,
         result_code=callback.ResultCode,

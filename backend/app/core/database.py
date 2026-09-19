@@ -22,7 +22,30 @@ if not settings.app_database_url:
 # pool_pre_ping avoids "server closed the connection unexpectedly" errors
 # after Supabase idles a connection out — the classic cause of intermittent
 # 500s in apps that don't set this.
-engine = create_engine(_runtime_url, pool_pre_ping=True, pool_size=10, max_overflow=20)
+#
+# Pool sizes are deliberately small and configurable (see config.py): every
+# worker process gets its own pool, so total connections = workers x
+# (pool_size + max_overflow). pool_timeout makes a saturated pool fail fast
+# with a clear error instead of hanging requests; pool_recycle retires stale
+# connections before Supabase/the pooler drops them; TCP keepalives let the
+# driver notice a dead connection instead of waiting on it forever.
+_connect_args = {
+    "connect_timeout": 10,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 5,
+}
+
+engine = create_engine(
+    _runtime_url,
+    pool_pre_ping=True,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_recycle=settings.db_pool_recycle,
+    connect_args=_connect_args,
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -37,7 +60,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # understands. Use get_system_db() ONLY for endpoints with that kind of
 # alternative security guarantee, never as a shortcut to avoid tenant checks
 # elsewhere.
-_system_engine = create_engine(settings.database_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+_system_engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_size=settings.system_db_pool_size,
+    max_overflow=settings.system_db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_recycle=settings.db_pool_recycle,
+    connect_args=_connect_args,
+)
+system_engine = _system_engine  # public alias for app.core.locks / health checks
 SystemSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_system_engine)
 
 Base = declarative_base()

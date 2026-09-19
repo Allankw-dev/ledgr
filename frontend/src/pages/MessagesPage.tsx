@@ -3,6 +3,7 @@ import { MessageCircle, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { MessageTicks } from '../components/MessageTicks';
 import { TypingDots } from '../components/TypingDots';
+import { usePolling } from '../hooks/usePolling';
 import {
   getConversations,
   getConversation,
@@ -71,26 +72,15 @@ export function MessagesPage() {
   }
 
   // Poll the open thread for new messages and updated read receipts.
-  useEffect(() => {
-    if (!selected) return;
-    const id = setInterval(() => {
-      getConversation(selected)
-        .then(setThread)
-        .catch(() => {});
-    }, POLL_THREAD_MS);
-    return () => clearInterval(id);
-  }, [selected]);
+  // usePolling waits for each request to finish and pauses in hidden tabs.
+  usePolling(() => (selected ? getConversation(selected).then(setThread) : undefined), POLL_THREAD_MS, !!selected);
 
   // Poll whether this parent is currently typing.
-  useEffect(() => {
-    if (!selected) return;
-    const id = setInterval(() => {
-      getParentTypingStatus(selected)
-        .then(setParentTyping)
-        .catch(() => {});
-    }, POLL_TYPING_MS);
-    return () => clearInterval(id);
-  }, [selected]);
+  usePolling(
+    () => (selected ? getParentTypingStatus(selected).then(setParentTyping) : undefined),
+    POLL_TYPING_MS,
+    !!selected,
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });

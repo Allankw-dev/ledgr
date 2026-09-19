@@ -5,6 +5,8 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import background
+from app.core.database import SystemSessionLocal
 from app.models.payment import Payment
 from app.models.invoice import Invoice
 from app.models.student import Student, StudentGuardian
@@ -66,7 +68,7 @@ def record_confirmed_payment(
     if invoice_id:
         recalculate_invoice_status(db, invoice_id)
 
-    _notify_guardians_of_payment_result(db, payment, succeeded=True)
+    queue_payment_notification(payment, succeeded=True)
 
     return payment
 
@@ -99,6 +101,29 @@ def create_pending_mpesa_payment(
     db.commit()
     db.refresh(payment)
     return payment
+
+
+def _notify_payment_result_task(payment_id: str, succeeded: bool) -> None:
+    """Runs on the background pool with its own session — the request's
+    session is already closed by the time this executes. Uses the system
+    session because there is no user/tenant context in a background thread;
+    it only ever loads the one payment it was handed and that payment's
+    guardians."""
+    db = SystemSessionLocal()
+    try:
+        payment = db.get(Payment, payment_id)
+        if payment:
+            _notify_guardians_of_payment_result(db, payment, succeeded)
+    finally:
+        db.close()
+
+
+def queue_payment_notification(payment: Payment, succeeded: bool) -> None:
+    """Sends the parent's SMS/email without holding up the request. SMTP and
+    SMS providers can take seconds; making Safaricom's callback (or a
+    bursar's screen) wait on them ties up server threads and triggers
+    callback retries."""
+    background.submit(_notify_payment_result_task, payment.id, succeeded)
 
 
 def _notify_guardians_of_payment_result(db: Session, payment: Payment, succeeded: bool) -> None:
@@ -170,11 +195,17 @@ def resolve_mpesa_callback(
     is found (e.g. a replayed or malformed callback) — callers should treat
     that as a no-op, not an error, since Safaricom does retry callbacks.
     """
+    # FOR UPDATE serializes concurrent duplicate callbacks (Safaricom retries):
+    # the second one waits for the first to commit, then no longer matches
+    # status == PENDING and becomes a no-op — instead of both reading PENDING
+    # at the same time and both confirming the payment / texting the parent.
     payment = db.execute(
-        select(Payment).where(
+        select(Payment)
+        .where(
             Payment.external_txn_id == checkout_request_id,
             Payment.status == PaymentStatus.PENDING,
         )
+        .with_for_update()
     ).scalar_one_or_none()
 
     if not payment:
@@ -198,7 +229,7 @@ def resolve_mpesa_callback(
             metadata={"checkout_request_id": checkout_request_id, "mpesa_receipt": mpesa_receipt_number},
         )
         db.commit()
-        _notify_guardians_of_payment_result(db, payment, succeeded=True)
+        queue_payment_notification(payment, succeeded=True)
     else:
         payment.status = PaymentStatus.FAILED
         db.commit()
@@ -212,7 +243,7 @@ def resolve_mpesa_callback(
             metadata={"checkout_request_id": checkout_request_id, "result_code": result_code},
         )
         db.commit()
-        _notify_guardians_of_payment_result(db, payment, succeeded=False)
+        queue_payment_notification(payment, succeeded=False)
 
     return payment
 

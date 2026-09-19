@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -62,7 +63,21 @@ def record_c2b_transaction(db: Session, payload: C2BPayload) -> MpesaTransaction
         payer_name=payer_name,
     )
     db.add(txn)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        # Two retries of the same Safaricom confirmation raced past the
+        # "existing" check above at the same instant; the unique constraint
+        # on trans_id let exactly one through. Treat the loser as the
+        # duplicate it is instead of surfacing a 500 (which just triggers
+        # yet another retry).
+        db.rollback()
+        existing = db.execute(
+            select(MpesaTransaction).where(MpesaTransaction.trans_id == payload.TransID)
+        ).scalar_one_or_none()
+        if existing:
+            return existing
+        raise
 
     if txn.bill_ref_number and amount > 0:
         candidates = db.execute(

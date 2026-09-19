@@ -10,6 +10,7 @@ RegisterURL call actually points at.
 
 import logging
 
+from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
@@ -53,6 +54,6 @@ async def c2b_confirmation(request: Request, db: Session = Depends(get_system_db
         logger.warning("Received malformed M-Pesa C2B confirmation: %s", raw_body)
         return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
-    record_c2b_transaction(db, payload)
+    await run_in_threadpool(record_c2b_transaction, db, payload)
 
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
