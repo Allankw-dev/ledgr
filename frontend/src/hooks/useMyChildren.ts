@@ -12,7 +12,8 @@ export function useMyChildren() {
     try {
       const data = await listMyChildren();
       setChildren(data);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load children:', err);
       setError('Could not load your children\'s records. Check your connection and try again.');
     } finally {
       setLoading(false);

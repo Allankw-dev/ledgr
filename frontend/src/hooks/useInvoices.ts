@@ -18,7 +18,8 @@ export function useInvoices(termId?: string, status?: string, pageSize = DEFAULT
       const data = await listInvoices(page, pageSize, status, termId);
       setInvoices(data.items);
       setMeta(data.meta);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load invoices:', err);
       setError('Could not load invoices. Check your connection and try again.');
     } finally {
       setLoading(false);

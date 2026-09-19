@@ -18,7 +18,8 @@ export function useStudents(classId?: string) {
       const data = await listStudents(page, PAGE_SIZE, classId);
       setStudents(data.items);
       setMeta(data.meta);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load students:', err);
       setError('Could not load students. Check your connection and try again.');
     } finally {
       setLoading(false);
