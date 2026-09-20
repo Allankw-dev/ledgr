@@ -90,3 +90,39 @@ def decrypt_text(token: str, conversation_id: str, message_id: str, sender_id: s
         ).decode("utf-8")
     except (InvalidTag, KeyError, ValueError) as exc:
         raise DecryptionError("Message could not be decrypted") from exc
+
+
+# ---------------------------------------------------------------------------
+# Files (photos / documents sent in private chats)
+# ---------------------------------------------------------------------------
+# Same key ring and per-conversation derivation (with its own label, so a
+# file key is never the same as a text key), a fresh nonce per file, and the
+# conversation / file / sender ids bound in as authenticated data.
+# Blob layout: b"LDF1" | 2-byte key version | 12-byte nonce | ciphertext+tag
+_FILE_MAGIC = b"LDF1"
+
+
+def _file_subkey(master: bytes, conversation_id: str) -> bytes:
+    return HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"ledgr-dm-file|" + conversation_id.encode()).derive(master)
+
+
+def encrypt_bytes(data: bytes, conversation_id: str, file_id: str, sender_id: str) -> bytes:
+    version = current_key_version()
+    nonce = os.urandom(12)
+    ct = AESGCM(_file_subkey(_key_ring()[version], conversation_id)).encrypt(
+        nonce, data, _aad(conversation_id, file_id, sender_id)
+    )
+    return _FILE_MAGIC + version.to_bytes(2, "big") + nonce + ct
+
+
+def decrypt_bytes(blob: bytes, conversation_id: str, file_id: str, sender_id: str) -> bytes:
+    try:
+        if blob[:4] != _FILE_MAGIC:
+            raise ValueError("not an encrypted file")
+        version = int.from_bytes(blob[4:6], "big")
+        nonce, ct = blob[6:18], blob[18:]
+        return AESGCM(_file_subkey(_key_ring()[version], conversation_id)).decrypt(
+            nonce, ct, _aad(conversation_id, file_id, sender_id)
+        )
+    except (InvalidTag, KeyError, ValueError) as exc:
+        raise DecryptionError("File could not be decrypted") from exc

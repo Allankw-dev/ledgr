@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/Button';
 import { TextField } from './ui/TextField';
-import { SelectField } from './ui/SelectField';
+import { MultiGradeSelect } from './ui/MultiGradeSelect';
 import { bulkGenerateInvoices } from '../api/school';
 import type { SchoolClass } from '../types';
 
@@ -13,7 +13,7 @@ interface BulkGenerateFormProps {
 }
 
 export function BulkGenerateForm({ termId, classes, onSuccess, onCancel }: BulkGenerateFormProps) {
-  const [classId, setClassId] = useState('');
+  const [classIds, setClassIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function BulkGenerateForm({ termId, classes, onSuccess, onCancel }: BulkG
     try {
       const result = await bulkGenerateInvoices({
         term_id: termId,
-        class_id: classId || undefined,
+        class_ids: classIds.length ? classIds : undefined,
         due_date: new Date(dueDate).toISOString(),
       });
       onSuccess(result);
@@ -42,12 +42,12 @@ export function BulkGenerateForm({ termId, classes, onSuccess, onCancel }: BulkG
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-      <SelectField
-        label="Class"
-        placeholder="All classes (every student in the school)"
-        options={classes.map((c) => ({ value: c.id, label: c.name }))}
-        value={classId}
-        onChange={(e) => setClassId(e.target.value)}
+      <MultiGradeSelect
+        label="Grades"
+        classes={classes}
+        value={classIds}
+        onChange={setClassIds}
+        allLabel="All grades (whole school)"
       />
       <TextField label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
 
@@ -58,7 +58,7 @@ export function BulkGenerateForm({ termId, classes, onSuccess, onCancel }: BulkG
       )}
 
       <p className="text-xs text-ink-600">
-        This creates one invoice per active student, totaling every fee structure set up for this term. Students who
+        This creates one invoice per active student in the selected grades, totaling every fee structure set up for this term. Students who
         already have an invoice for this term are skipped automatically.
       </p>
 

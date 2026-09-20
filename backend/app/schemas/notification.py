@@ -16,6 +16,7 @@ class AllNotificationsSummary(BaseModel):
     unread_class_group_messages: int = 0
     unread_mentions: int = 0  # unseen @mentions — a subset of the group messages above
     unread_direct_messages: int = 0  # private teacher<->parent chats
+    open_chat_reports: int = 0  # school admin only: chat reports awaiting review
     total: int = 0
 
 

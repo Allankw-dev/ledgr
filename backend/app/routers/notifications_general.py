@@ -8,7 +8,7 @@ from app.core.rate_limit import limiter
 from app.models.class_group_message import ClassGroupMention, ClassGroupMessage
 from app.models.enums import MessageSenderRole
 from app.models.message import Message
-from app.models.direct_message import DirectConversation, DirectMessage
+from app.models.direct_message import DirectConversation, DirectMessage, DirectReport
 from app.models.school import User
 from app.models.student import SchoolClass
 from app.routers.class_groups import unread_class_group_count_for_user, mark_class_groups_delivered
@@ -70,9 +70,16 @@ def get_summary(
             .select_from(DirectMessage)
             .where(
                 DirectMessage.read_at.is_(None),
+                DirectMessage.deleted_at.is_(None),
                 DirectMessage.sender_user_id != user.user_id,
                 DirectMessage.conversation_id.in_(mine),
             )
+        ).scalar_one()
+
+    open_reports = 0
+    if user.role == "SCHOOL_ADMIN":
+        open_reports = db.execute(
+            select(func.count()).select_from(DirectReport).where(DirectReport.status == "OPEN")
         ).scalar_one()
 
     return AllNotificationsSummary(
@@ -80,6 +87,7 @@ def get_summary(
         unread_class_group_messages=groups,
         unread_mentions=mentions,
         unread_direct_messages=unread_direct,
+        open_chat_reports=open_reports,
         total=unread_messages + groups + unread_direct,
     )
 

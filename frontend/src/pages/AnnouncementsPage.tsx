@@ -3,7 +3,7 @@ import { Megaphone, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
-import { SelectField } from '../components/ui/SelectField';
+import { MultiGradeSelect } from '../components/ui/MultiGradeSelect';
 import { useClasses } from '../hooks/useSchoolSetup';
 import { sendAnnouncement, type SendAnnouncementResult } from '../api/announcements';
 
@@ -11,12 +11,18 @@ export function AnnouncementsPage() {
   const { classes } = useClasses();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [classId, setClassId] = useState('');
+  const [classIds, setClassIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<SendAnnouncementResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const audienceLabel = classId ? classes.find((c) => c.id === classId)?.name || 'this class' : 'the whole school';
+  const picked = classes.filter((c) => classIds.includes(c.id)).map((c) => c.name);
+  const audienceLabel =
+    picked.length === 0
+      ? 'the whole school'
+      : picked.length <= 3
+        ? picked.join(', ')
+        : `${picked.slice(0, 3).join(', ')} and ${picked.length - 3} more grade${picked.length - 3 === 1 ? '' : 's'}`;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,7 +37,7 @@ export function AnnouncementsPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await sendAnnouncement({ subject: subject.trim(), message: message.trim(), classId: classId || undefined });
+      const res = await sendAnnouncement({ subject: subject.trim(), message: message.trim(), classIds });
       setResult(res);
       setSubject('');
       setMessage('');
@@ -56,13 +62,7 @@ export function AnnouncementsPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-panel border border-ink-200 rounded-lg p-6 flex flex-col gap-4">
-          <SelectField
-            label="Send to"
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-            options={classes.map((c) => ({ value: c.id, label: c.name }))}
-            placeholder="Whole school"
-          />
+          <MultiGradeSelect label="Send to" classes={classes} value={classIds} onChange={setClassIds} allLabel="Whole school" />
           <TextField
             label="Subject"
             value={subject}

@@ -94,6 +94,8 @@ ALTER TABLE typing_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_group_mentions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE direct_blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE direct_reports ENABLE ROW LEVEL SECURITY;
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It
@@ -363,6 +365,17 @@ CREATE POLICY tenant_isolation ON direct_conversations FOR ALL TO ledgr_app
 
 DROP POLICY IF EXISTS tenant_isolation ON direct_messages;
 CREATE POLICY tenant_isolation ON direct_messages FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
+
+DROP POLICY IF EXISTS tenant_isolation ON direct_blocks;
+CREATE POLICY tenant_isolation ON direct_blocks FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
+DROP POLICY IF EXISTS tenant_isolation ON direct_reports;
+CREATE POLICY tenant_isolation ON direct_reports FOR ALL TO ledgr_app
   USING (school_id = (select current_setting('app.current_school_id', true))::text)
   WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
 

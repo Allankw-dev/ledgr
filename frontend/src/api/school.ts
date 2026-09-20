@@ -1,9 +1,11 @@
 import { apiClient } from './client';
 import type { Student, InvoiceListItem, Page, Term, SchoolClass, FeeStructure, FeeCategory } from '../types';
 
-export async function listStudents(page = 1, pageSize = 25, classId?: string): Promise<Page<Student>> {
+export async function listStudents(page = 1, pageSize = 25, classIds?: string[]): Promise<Page<Student>> {
   const { data } = await apiClient.get<Page<Student>>('/api/students', {
-    params: { page, page_size: pageSize, class_id: classId },
+    params: { page, page_size: pageSize, class_ids: classIds && classIds.length ? classIds : undefined },
+    // class_ids=a&class_ids=b (axios' default would send class_ids[]=a)
+    paramsSerializer: { indexes: null },
   });
   return data;
 }
@@ -138,6 +140,7 @@ export async function deleteFeeStructure(id: string): Promise<void> {
 interface BulkGeneratePayload {
   term_id: string;
   class_id?: string;
+  class_ids?: string[];
   due_date: string;
 }
 

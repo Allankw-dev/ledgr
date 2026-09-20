@@ -22,6 +22,7 @@ export function useUnreadNotifications() {
   const [unreadClassGroups, setUnreadClassGroups] = useState(0);
   const [unreadMentions, setUnreadMentions] = useState(0);
   const [unreadDirect, setUnreadDirect] = useState(0);
+  const [openChatReports, setOpenChatReports] = useState(0);
   const [mentions, setMentions] = useState<MentionNotification[]>([]);
   const lastMentionCount = useRef<number | null>(null);
 
@@ -40,6 +41,7 @@ export function useUnreadNotifications() {
       setUnreadClassGroups(s.unread_class_group_messages);
       setUnreadMentions(s.unread_mentions);
       setUnreadDirect(s.unread_direct_messages ?? 0);
+      setOpenChatReports(s.open_chat_reports ?? 0);
 
       const previous = lastMentionCount.current;
       lastMentionCount.current = s.unread_mentions;
@@ -93,5 +95,5 @@ export function useUnreadNotifications() {
     };
   }, []);
 
-  return { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, refresh: poll, loadMentions, markSeen };
+  return { unreadMessages, unreadClassGroups, unreadDirect, openChatReports, unreadMentions, mentions, total, refresh: poll, loadMentions, markSeen };
 }

@@ -209,3 +209,67 @@ def read_local_file(key: str) -> Path:
     if not path.is_file():
         raise HTTPException(404, "File not found")
     return path
+
+
+# ---------------------------------------------------------------------------
+# Raw objects — used for ENCRYPTED private-chat files. Unlike group-chat
+# attachments these are never handed out via a signed link (the storage layer
+# only ever holds ciphertext); the API fetches, decrypts and streams them to
+# the two people in the conversation.
+# ---------------------------------------------------------------------------
+def _supabase_headers() -> dict:
+    return {"Authorization": f"Bearer {settings.supabase_service_key}", "apikey": settings.supabase_service_key}
+
+
+def _supabase_object_url(key: str) -> str:
+    return f"{settings.supabase_url.rstrip('/')}/storage/v1/object/{settings.supabase_storage_bucket}/{key}"
+
+
+def put_object(key: str, content: bytes) -> None:
+    if _use_supabase():
+        try:
+            resp = httpx.post(
+                _supabase_object_url(key),
+                content=content,
+                headers={**_supabase_headers(), "Content-Type": "application/octet-stream", "x-upsert": "false"},
+                timeout=30,
+            )
+        except httpx.HTTPError:
+            logger.exception("Supabase Storage upload failed")
+            raise HTTPException(503, "File storage is unavailable right now. Please try again.")
+        if resp.status_code >= 300:
+            logger.error("Supabase Storage upload rejected: %s %s", resp.status_code, resp.text[:200])
+            raise HTTPException(503, "File storage is unavailable right now. Please try again.")
+    else:
+        path = _local_path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+
+def get_object(key: str) -> bytes:
+    if _use_supabase():
+        try:
+            resp = httpx.get(_supabase_object_url(key), headers=_supabase_headers(), timeout=30)
+        except httpx.HTTPError:
+            logger.exception("Supabase Storage download failed")
+            raise HTTPException(503, "File storage is unavailable right now. Please try again.")
+        if resp.status_code == 404:
+            raise HTTPException(404, "File not found")
+        if resp.status_code >= 300:
+            raise HTTPException(503, "File storage is unavailable right now. Please try again.")
+        return resp.content
+    return read_local_file(key).read_bytes()
+
+
+def delete_object(key: str) -> None:
+    """Best effort — a storage hiccup must not stop a message being deleted
+    (the file is unreadable without its message anyway, and is encrypted)."""
+    try:
+        if _use_supabase():
+            httpx.request("DELETE", _supabase_object_url(key), headers=_supabase_headers(), timeout=15)
+        else:
+            path = _local_path(key)
+            if path.is_file():
+                path.unlink()
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not delete stored object %s", key, exc_info=True)

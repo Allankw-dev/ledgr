@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,7 @@ def list_students(
     page: int = 1,
     page_size: int = 25,
     class_id: str | None = None,
+    class_ids: list[str] = Query(default_factory=list),
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
 ):
@@ -39,8 +40,9 @@ def list_students(
     page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
 
     filters = [Student.school_id == school_id, Student.is_active == True]  # noqa: E712
-    if class_id:
-        filters.append(Student.class_id == class_id)
+    targets = list(dict.fromkeys([*class_ids, *([class_id] if class_id else [])]))
+    if targets:
+        filters.append(Student.class_id.in_(targets))
 
     total = db.execute(select(func.count()).select_from(Student).where(*filters)).scalar_one()
     items = (

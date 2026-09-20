@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { UserPlus, Users, UserCog, UserMinus, Pencil } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
+import { MultiGradeSelect } from '../components/ui/MultiGradeSelect';
 import { Modal } from '../components/ui/Modal';
 import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddStudentForm } from '../components/AddStudentForm';
@@ -13,8 +14,8 @@ import { deactivateStudent, updateStudentClass } from '../api/school';
 import type { Student } from '../types';
 
 export function StudentsPage() {
-  const [classFilter, setClassFilter] = useState('');
-  const { students, meta, setPage, loading, error, refetch } = useStudents(classFilter || undefined);
+  const [classFilter, setClassFilter] = useState<string[]>([]);
+  const { students, meta, setPage, loading, error, refetch } = useStudents(classFilter);
   const { classes } = useClasses();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Student | null>(null);
@@ -73,21 +74,16 @@ export function StudentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <select
+            <MultiGradeSelect
+              variant="dropdown"
+              classes={classes}
               value={classFilter}
-              onChange={(e) => {
-                setClassFilter(e.target.value);
+              allLabel="All grades"
+              onChange={(ids) => {
+                setClassFilter(ids);
                 setPage(1);
               }}
-              className="px-3 py-2 rounded-md border border-ink-200 bg-panel text-ink-900 text-sm focus-visible:outline-2 focus-visible:outline-ink-600"
-            >
-              <option value="">All grades</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            />
             <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
               <UserPlus className="w-4 h-4" strokeWidth={2} />
               Add student

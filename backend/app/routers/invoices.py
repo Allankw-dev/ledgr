@@ -161,8 +161,9 @@ def bulk_generate_invoices(
 ):
     """Generates one invoice per active student in a class/school for a term."""
     query = select(Student).where(Student.school_id == school_id, Student.is_active == True)  # noqa: E712
-    if data.class_id:
-        query = query.where(Student.class_id == data.class_id)
+    targets = data.target_class_ids()
+    if targets:
+        query = query.where(Student.class_id.in_(targets))
     students = db.execute(query).scalars().all()
 
     created, skipped, errors = 0, 0, []

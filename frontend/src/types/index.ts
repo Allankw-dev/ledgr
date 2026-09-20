@@ -204,6 +204,7 @@ export interface DirectContact {
   subtitle: string;
   conversation_id: string | null;
   unread_count: number;
+  blocked?: boolean;
 }
 
 export interface DirectConversation {
@@ -216,6 +217,7 @@ export interface DirectConversation {
   last_message_at: string | null;
   unread_count: number;
   can_send: boolean;
+  blocked_by_me?: boolean;
 }
 
 export interface DirectMessage {
@@ -224,5 +226,39 @@ export interface DirectMessage {
   sender_user_id: string;
   body: string;
   created_at: string;
+  attachment?: ChatAttachment | null;
+  deleted?: boolean;
   status?: MessageStatus | null;
+}
+
+export type ReportCategory = 'HARASSMENT' | 'INAPPROPRIATE' | 'SPAM' | 'SAFETY_CONCERN' | 'OTHER';
+export type ReportStatus = 'OPEN' | 'REVIEWING' | 'RESOLVED' | 'DISMISSED';
+
+export interface ReportPerson {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface ChatReportSummary {
+  id: string;
+  created_at: string;
+  status: ReportStatus;
+  category: ReportCategory;
+  reporter: ReportPerson;
+  reported: ReportPerson;
+  resolved_at: string | null;
+}
+
+export interface ChatReportDetail extends ChatReportSummary {
+  details: string | null;
+  resolution_note: string | null;
+  evidence: {
+    sender_name: string;
+    sender_is_reported: boolean;
+    sent_at: string;
+    body: string;
+    attachment_name: string | null;
+    deleted_before_report: boolean;
+  }[];
 }

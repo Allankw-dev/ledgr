@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class GenerateInvoiceRequest(BaseModel):
@@ -12,8 +12,13 @@ class GenerateInvoiceRequest(BaseModel):
 
 class BulkGenerateRequest(BaseModel):
     term_id: str
-    class_id: str | None = None
+    class_id: str | None = None  # a single grade (kept for older clients)
+    # One or more grades. Empty/omitted (and no class_id) = every active student in the school.
+    class_ids: list[str] = Field(default_factory=list, max_length=100)
     due_date: datetime
+
+    def target_class_ids(self) -> list[str]:
+        return list(dict.fromkeys([*self.class_ids, *([self.class_id] if self.class_id else [])]))
 
 
 class BulkGenerateResult(BaseModel):

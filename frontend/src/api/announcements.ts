@@ -4,6 +4,7 @@ export interface SendAnnouncementPayload {
   subject: string;
   message: string;
   classId?: string;
+  classIds?: string[];
 }
 
 export interface SendAnnouncementResult {
@@ -18,6 +19,7 @@ export async function sendAnnouncement(payload: SendAnnouncementPayload): Promis
     subject: payload.subject,
     message: payload.message,
     class_id: payload.classId || null,
+    class_ids: payload.classIds ?? [],
   });
   return data;
 }

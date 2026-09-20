@@ -44,5 +44,51 @@ class DirectMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Encrypted JSON {"key", "name", "mime", "size"} for a photo/file. The file
+    # itself lives in storage as ciphertext; even its name is not readable here.
+    attachment_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # "Delete for everyone": the content is wiped (body_enc replaced, file
+    # removed) and this is set, so the chat shows "This message was deleted".
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_direct_messages_conv_created", "conversation_id", "created_at"),)
+
+
+class DirectBlock(Base):
+    """blocker_user_id has blocked blocked_user_id: neither can send messages
+    in their private chat until it's undone. The blocked person isn't told."""
+
+    __tablename__ = "direct_blocks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    blocker_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    blocked_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("blocker_user_id", "blocked_user_id", name="uq_direct_block_pair"),)
+
+
+class DirectReport(Base):
+    """A report of a private chat, reviewed by the school admin. It carries an
+    ENCRYPTED snapshot of the recent messages taken at report time, so the
+    admin sees exactly what was reported (and only that — not the whole chat),
+    even if the sender later deletes those messages."""
+
+    __tablename__ = "direct_reports"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("direct_conversations.id", ondelete="CASCADE"), nullable=False)
+    reporter_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reported_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    details_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="OPEN")  # OPEN | REVIEWING | RESOLVED | DISMISSED
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (Index("ix_direct_reports_school_status", "school_id", "status"),)

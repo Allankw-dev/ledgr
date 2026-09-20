@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X , MessagesSquare } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X , MessagesSquare, Flag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
@@ -18,6 +18,7 @@ const staffNavItems = [
   { to: '/class-groups', label: 'Class groups', icon: Users2 },
   { to: '/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/guardian-requests', label: 'Parent requests', icon: UserCheck },
+  { to: '/chat-reports', label: 'Chat reports', icon: Flag },
   { to: '/audit-log', label: 'Audit log', icon: ScrollText },
   { to: '/security', label: 'Security', icon: ShieldCheck },
 ];
@@ -45,7 +46,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
   const { user, logout } = useAuthStore();
   const isTeacher = user?.role === 'TEACHER';
-  const navItems = isTeacher ? teacherNavItems : staffNavItems;
+  // Chat reports are for the school admin only (the bursar doesn't see them).
+  const navItems = isTeacher ? teacherNavItems : staffNavItems.filter((i) => i.to !== '/chat-reports' || user?.role === 'SCHOOL_ADMIN');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   function handleLogout() {
@@ -85,6 +87,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Icon className="w-4.5 h-4.5" strokeWidth={2} />
             {label}
+            {to === '/chat-reports' && notif.openChatReports > 0 && (
+              <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] bg-amber">
+                {notif.openChatReports}
+              </span>
+            )}
             {to === '/chats' && notif.unreadDirect > 0 && (
               <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] bg-green">
                 {notif.unreadDirect > 99 ? '99+' : notif.unreadDirect}

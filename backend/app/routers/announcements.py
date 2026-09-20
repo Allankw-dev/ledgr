@@ -34,7 +34,7 @@ def send_announcement(
         school_name=school.name,
         subject=payload.subject,
         message=payload.message,
-        class_id=payload.class_id,
+        class_ids=payload.target_class_ids(),
     )
 
     log_audit(
@@ -42,7 +42,7 @@ def send_announcement(
         school_id=school_id,
         action="SEND_ANNOUNCEMENT",
         entity_type="announcement",
-        entity_id=payload.class_id or "school-wide",
+        entity_id=",".join(payload.target_class_ids())[:200] or "school-wide",
         user_id=user.user_id,
         metadata={
             "subject": payload.subject,

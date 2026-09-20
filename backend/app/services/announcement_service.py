@@ -30,10 +30,12 @@ def send_bulk_announcement(
     subject: str,
     message: str,
     class_id: str | None = None,
+    class_ids: list[str] | None = None,
 ) -> AnnouncementResult:
     student_filters = [Student.school_id == school_id, Student.is_active == True]  # noqa: E712
-    if class_id:
-        student_filters.append(Student.class_id == class_id)
+    targets = list(dict.fromkeys([*(class_ids or []), *([class_id] if class_id else [])]))
+    if targets:
+        student_filters.append(Student.class_id.in_(targets))
 
     student_ids = db.execute(select(Student.id).where(*student_filters)).scalars().all()
     if not student_ids:
