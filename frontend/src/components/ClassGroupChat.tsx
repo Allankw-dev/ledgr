@@ -452,8 +452,11 @@ export function ClassGroupChat() {
         <Users className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />
         <p className="text-sm text-ink-900 font-medium">No class groups yet</p>
         <p className="text-xs text-ink-600 mt-1">
-          You'll see a group here once you're linked to a grade — as a child's parent, a teacher assigned to it, or a
-          member of the school office.
+          {user?.role === 'TEACHER'
+            ? "You'll see a group for each grade you're assigned to. Ask the school admin to assign you to your grade(s) under Teachers."
+            : user?.role === 'PARENT'
+              ? "You'll see your child's grade group here once the school has approved your link to them."
+              : 'Groups appear once grades exist and students are added to them.'}
         </p>
       </div>
     );

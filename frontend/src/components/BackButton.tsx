@@ -2,7 +2,14 @@ import { ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
-const HOME_PATHS = ['/', '/dashboard', '/parent/dashboard', '/login', '/signup'];
+const PUBLIC_PATHS = ['/', '/login', '/signup'];
+
+// Each role's landing page — teachers land in their class groups, parents on their dashboard.
+function homeFor(role: string | undefined) {
+  if (role === 'PARENT') return '/parent/dashboard';
+  if (role === 'TEACHER') return '/class-groups';
+  return '/dashboard';
+}
 
 /**
  * "Go back" button for the top-right of every signed-in page. Goes to the
@@ -15,12 +22,13 @@ export function BackButton({ className = '' }: { className?: string }) {
   const { pathname } = useLocation();
   const role = useAuthStore((s) => s.user?.role);
 
-  if (HOME_PATHS.includes(pathname)) return null;
+  const home = homeFor(role);
+  if (PUBLIC_PATHS.includes(pathname) || pathname === home) return null;
 
   function goBack() {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
     if (idx > 0) navigate(-1);
-    else navigate(role === 'PARENT' ? '/parent/dashboard' : '/dashboard', { replace: true });
+    else navigate(home, { replace: true });
   }
 
   return (

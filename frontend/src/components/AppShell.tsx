@@ -82,6 +82,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Icon className="w-4.5 h-4.5" strokeWidth={2} />
             {label}
+            {to === '/class-groups' && notif.unreadClassGroups > 0 && (
+              <span
+                className={`ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] ${
+                  notif.unreadMentions > 0 ? 'bg-amber' : 'bg-green'
+                }`}
+                title={notif.unreadMentions > 0 ? 'Someone mentioned you' : 'Unread messages'}
+              >
+                {notif.unreadClassGroups > 99 ? '99+' : notif.unreadClassGroups}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
