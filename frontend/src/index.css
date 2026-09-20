@@ -529,3 +529,20 @@
     }
   }
 }
+
+
+/* --- Chat wallpaper: deep navy with soft violet/cyan light and a faint
+   doodle pattern, so a long thread has texture without hurting legibility. --- */
+.chat-wallpaper {
+  background-color: #0B0E1B;
+  background-image:
+    radial-gradient(circle at 15% 8%, rgba(139, 108, 255, 0.12), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(63, 217, 255, 0.09), transparent 46%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.04' stroke-width='1.2' stroke-linecap='round'%3E%3Ccircle cx='14' cy='16' r='3.2'/%3E%3Cpath d='M56 10l6 6m0-6l-6 6'/%3E%3Crect x='32' y='52' width='9' height='9' rx='2.5'/%3E%3Cpath d='M66 66c3.5-4.5 9-4.5 12.5 0'/%3E%3Cpath d='M12 70l5-8 5 8z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.msg-in { animation: msg-in 0.18s ease-out; }

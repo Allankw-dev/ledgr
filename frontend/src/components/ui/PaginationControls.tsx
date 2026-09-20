@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { PageMeta } from '../types';
+import type { PageMeta } from '../../types';
 
 interface PaginationControlsProps {
   meta: PageMeta;

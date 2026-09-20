@@ -113,6 +113,19 @@ class Settings(BaseSettings):
     # password reset can take to cut off an already-issued token.
     user_state_cache_seconds: int = 30
 
+    # --- Chat attachments (photos / files in class group chats) --------------
+    # Production: set SUPABASE_URL + SUPABASE_SERVICE_KEY and create a PRIVATE
+    # bucket (default name below) — files then live in Supabase Storage and
+    # every download is a short-lived signed URL. With those unset, files are
+    # written to UPLOAD_DIR on local disk, which is fine for development but
+    # is wiped on most hosts at every deploy, so don't use it in production.
+    supabase_url: str | None = None
+    supabase_service_key: str | None = None  # server-side only — NEVER expose to the frontend
+    supabase_storage_bucket: str = "chat-attachments"
+    upload_dir: str = "uploads"
+    max_upload_mb: int = 10
+    attachment_url_ttl_seconds: int = 300
+
     # Set to false on all but ONE instance so the daily reminder sweep is not
     # started by every worker.
     run_scheduler: bool = True

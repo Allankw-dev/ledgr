@@ -11,7 +11,9 @@ class RegisterSchoolRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # An email address, or (for teachers) a phone number. Field name kept as
+    # `email` so existing clients keep working.
+    email: str = Field(min_length=3, max_length=254)
     password: str
 
 
@@ -49,7 +51,7 @@ class TwoFactorVerifyLoginRequest(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=3, max_length=254)  # email, or a teacher's phone number
 
 
 class ResetPasswordRequest(BaseModel):

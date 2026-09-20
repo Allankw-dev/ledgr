@@ -4,6 +4,8 @@ import { BookOpen, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
+import { BackButton } from './BackButton';
+import { NotificationBell } from './NotificationBell';
 
 const navItems = [
   { to: '/parent/dashboard', label: 'Dashboard', badgeKey: 'unreadMessages' as const },
@@ -26,7 +28,7 @@ function NavBadge({ count }: { count: number }) {
 export function ParentShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { unreadMessages, unreadClassGroups } = useUnreadNotifications();
+  const { unreadMessages, unreadClassGroups, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
   const badgeCounts = { unreadMessages, unreadClassGroups };
 
   function handleLogout() {
@@ -46,7 +48,9 @@ export function ParentShell({ children }: { children: ReactNode }) {
             </div>
             <span className="font-display text-lg font-semibold">Ledgr</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <BackButton />
+            <NotificationBell total={total} unreadMentions={unreadMentions} mentions={mentions} onOpen={loadMentions} onMarkSeen={markSeen} />
             <span className="text-sm text-ink-600 hidden sm:inline">{user?.full_name || user?.email}</span>
             <button
               onClick={handleLogout}

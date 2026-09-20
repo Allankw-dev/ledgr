@@ -22,5 +22,11 @@ class ClassGroupReadState(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     class_id: Mapped[str] = mapped_column(ForeignKey("school_classes.id"), nullable=False)
     last_read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # When this person's app last successfully fetched anything for this group
+    # (the periodic notification poll counts) — i.e. the message reached their
+    # device, even if they haven't opened the chat. Drives the WhatsApp-style
+    # "delivered" (double grey tick) state. Rows created purely to record
+    # delivery use the Unix epoch as last_read_at ("never read").
+    last_delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (UniqueConstraint("user_id", "class_id", name="uq_class_group_read_state"),)

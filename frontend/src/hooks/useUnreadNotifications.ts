@@ -1,87 +1,95 @@
-import { useEffect, useRef, useState } from 'react';
-import { getNotificationSummary } from '../api/notifications';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { getAllNotificationsSummary, listMentions, markMentionsSeen } from '../api/notifications';
 import { useAuthStore } from '../store/authStore';
+import { usePolling } from './usePolling';
+import type { MentionNotification } from '../types';
 
 const POLL_INTERVAL_MS = 25_000;
 const BASE_TITLE = 'Ledgr';
 
 /**
- * Drives every "something arrived" indicator in the parent app from one
- * shared poll: the nav dot on Class group, the browser tab title (like
- * Gmail/WhatsApp Web showing "(2) Ledgr"), and — when installed as a PWA
- * on a platform that supports it (Chrome/Edge on Android and desktop) —
- * the actual OS-level badge on the app icon, via the Badging API. iOS
- * Safari has no Badging API at all, so that part just silently no-ops
- * there; the nav dot and tab title still work everywhere.
- *
- * Polls only for parent accounts (the backend endpoint is parent-only),
- * and pauses while the tab is hidden so it isn't burning battery/data in
- * a background tab.
+ * One shared poll (every role) that drives every "something arrived"
+ * indicator: the nav badges, the notification bell, the browser tab title
+ * (like WhatsApp Web's "(2) Ledgr"), the OS app-icon badge when installed as
+ * a PWA, and a desktop notification when someone @mentions you (if the person
+ * allowed notifications). Pauses in hidden tabs and never overlaps requests
+ * (see usePolling). Polling also tells senders their message was delivered.
  */
 export function useUnreadNotifications() {
   const user = useAuthStore((s) => s.user);
-  const isParent = user?.role === 'PARENT';
+  const enabled = !!user;
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadClassGroups, setUnreadClassGroups] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [unreadMentions, setUnreadMentions] = useState(0);
+  const [mentions, setMentions] = useState<MentionNotification[]>([]);
+  const lastMentionCount = useRef<number | null>(null);
 
-  async function poll() {
+  const loadMentions = useCallback(async () => {
     try {
-      const summary = await getNotificationSummary();
-      setUnreadMessages(summary.unread_messages);
-      setUnreadClassGroups(summary.unread_class_group_messages);
+      setMentions(await listMentions());
     } catch {
-      // Silent — a failed poll just means the badge stays at its last
-      // known value until the next tick, not worth surfacing an error for.
+      /* keep the last list */
     }
-  }
+  }, []);
+
+  const poll = useCallback(async () => {
+    try {
+      const s = await getAllNotificationsSummary();
+      setUnreadMessages(s.unread_messages);
+      setUnreadClassGroups(s.unread_class_group_messages);
+      setUnreadMentions(s.unread_mentions);
+
+      const previous = lastMentionCount.current;
+      lastMentionCount.current = s.unread_mentions;
+      if (s.unread_mentions > 0 && (previous === null || s.unread_mentions > previous)) {
+        const list = await listMentions();
+        setMentions(list);
+        // Only interrupt with a desktop notification for a NEW mention, not on first load.
+        if (previous !== null && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          const newest = list.find((m) => !m.seen);
+          if (newest) {
+            new Notification(`${newest.sender_name} mentioned you in ${newest.class_name}`, {
+              body: newest.preview,
+              tag: `mention-${newest.id}`,
+            });
+          }
+        }
+      }
+    } catch {
+      /* a failed poll just leaves the badges at their last value */
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isParent) return;
+    if (enabled) void poll();
+  }, [enabled, poll]);
+  usePolling(poll, POLL_INTERVAL_MS, enabled);
 
-    poll();
-    intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
-
-    function handleVisibility() {
-      if (document.hidden) {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      } else {
-        poll();
-        intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isParent]);
+  const markSeen = useCallback(
+    async (ids?: string[]) => {
+      await markMentionsSeen(ids);
+      await Promise.all([poll(), loadMentions()]);
+    },
+    [poll, loadMentions]
+  );
 
   const total = unreadMessages + unreadClassGroups;
 
   useEffect(() => {
     document.title = total > 0 ? `(${total}) ${BASE_TITLE}` : BASE_TITLE;
-
     const nav = navigator as Navigator & {
       setAppBadge?: (count: number) => Promise<void>;
       clearAppBadge?: () => Promise<void>;
     };
-    if (total > 0) {
-      nav.setAppBadge?.(total).catch(() => {});
-    } else {
-      nav.clearAppBadge?.().catch(() => {});
-    }
+    if (total > 0) nav.setAppBadge?.(total).catch(() => {});
+    else nav.clearAppBadge?.().catch(() => {});
   }, [total]);
 
-  // Reset the tab title on unmount so it doesn't linger stale if this
-  // hook's consumer ever goes away without a full page reload.
   useEffect(() => {
     return () => {
       document.title = BASE_TITLE;
     };
   }, []);
 
-  return { unreadMessages, unreadClassGroups, total, refresh: poll };
+  return { unreadMessages, unreadClassGroups, unreadMentions, mentions, total, refresh: poll, loadMentions, markSeen };
 }

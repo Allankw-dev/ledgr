@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
             <>
               <div className="flex items-center gap-2 mb-1">
                 <MailCheck className="w-5 h-5 text-ink-900" strokeWidth={1.75} />
-                <h1 className="font-display text-xl text-ink-900">Check your email</h1>
+                <h1 className="font-display text-xl text-ink-900">Check your email or phone</h1>
               </div>
               <p className="text-sm text-ink-600">
                 If an account exists for <span className="text-ink-900">{email}</span>, we've sent a link to reset
@@ -51,14 +51,14 @@ export function ForgotPasswordPage() {
             <>
               <h1 className="font-display text-xl text-ink-900 mb-1">Reset your password</h1>
               <p className="text-sm text-ink-600 mb-6">
-                Enter your email and we'll send you a link to set a new password.
+                Enter your email (teachers can use their phone number) and we'll send you a link to set a new password.
               </p>
 
               <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
                 <TextField
-                  label="Email"
-                  type="email"
-                  autoComplete="email"
+                  label="Email or phone number"
+                  type="text"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

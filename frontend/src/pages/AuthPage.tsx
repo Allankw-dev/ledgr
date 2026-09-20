@@ -159,7 +159,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
         completeLogin(result.token, result.user);
       }
     } catch {
-      setLoginError('Incorrect email or password. Check your details and try again.');
+      setLoginError('Incorrect email/phone or password. Check your details and try again.');
     } finally {
       setLoginLoading(false);
     }
@@ -318,9 +318,10 @@ export function AuthPage({ initialMode }: AuthPageProps) {
 
                   <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4" noValidate>
                     <TextField
-                      label="Email"
-                      type="email"
-                      autoComplete="email"
+                      label="Email or phone number"
+                      type="text"
+                      autoComplete="username"
+                      placeholder="you@example.com or 0712 345 678"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="neu-input"

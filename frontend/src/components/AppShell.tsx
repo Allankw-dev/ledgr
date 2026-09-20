@@ -3,6 +3,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
+import { BackButton } from './BackButton';
+import { NotificationBell } from './NotificationBell';
+import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
 const staffNavItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
@@ -27,6 +30,16 @@ const teacherNavItems = [{ to: '/class-groups', label: 'Class groups', icon: Use
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const notif = useUnreadNotifications();
+  const bell = (
+    <NotificationBell
+      total={notif.total}
+      unreadMentions={notif.unreadMentions}
+      mentions={notif.mentions}
+      onOpen={notif.loadMentions}
+      onMarkSeen={notif.markSeen}
+    />
+  );
   const { user, logout } = useAuthStore();
   const isTeacher = user?.role === 'TEACHER';
   const navItems = isTeacher ? teacherNavItems : staffNavItems;
@@ -104,13 +117,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <span className="font-display text-base font-semibold">Ledgr</span>
         </div>
-        <button
-          onClick={() => setMobileNavOpen(true)}
-          aria-label="Open menu"
-          className="text-ink-900"
-        >
-          <Menu className="w-6 h-6" strokeWidth={2} />
-        </button>
+        <div className="flex items-center gap-2">
+          <BackButton className="!px-2.5 !py-1" />
+          {bell}
+          <button
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open menu"
+            className="text-ink-900 ml-1"
+          >
+            <Menu className="w-6 h-6" strokeWidth={2} />
+          </button>
+        </div>
       </div>
 
       {mobileNavOpen && (
@@ -126,7 +143,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         {sidebarContent}
       </aside>
 
-      <main className="flex-1 min-w-0 relative z-10 pt-14 md:pt-0">{children}</main>
+      <main className="flex-1 min-w-0 relative z-10 pt-14 md:pt-0">
+        {/* Top-right actions: go back + notifications */}
+        <div className="hidden md:flex items-center justify-end gap-2 px-8 pt-4">
+          <BackButton />
+          {bell}
+        </div>
+        {children}
+      </main>
       {!isTeacher && <AssistantFab to="/assistant" />}
     </div>
   );

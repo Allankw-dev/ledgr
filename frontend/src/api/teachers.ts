@@ -6,12 +6,25 @@ export async function listTeachers(): Promise<Teacher[]> {
   return data;
 }
 
-export async function createTeacher(fullName: string, email: string, classIds: string[]): Promise<Teacher> {
+export interface NewTeacher {
+  fullName: string;
+  email?: string;
+  phone?: string;
+  classIds: string[];
+}
+
+export async function createTeacher({ fullName, email, phone, classIds }: NewTeacher): Promise<Teacher> {
   const { data } = await apiClient.post<Teacher>('/api/teachers', {
     full_name: fullName,
-    email,
+    email: email || null,
+    phone: phone || null,
     class_ids: classIds,
   });
+  return data;
+}
+
+export async function resendTeacherInvite(teacherId: string): Promise<Teacher> {
+  const { data } = await apiClient.post<Teacher>(`/api/teachers/${teacherId}/resend-invite`);
   return data;
 }
 

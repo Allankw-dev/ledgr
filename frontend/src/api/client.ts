@@ -31,13 +31,15 @@ apiClient.interceptors.response.use(
 
 // Extracts a human-readable error message from any error thrown during
 // an API call (axios errors, native errors, or unknown values).
-export function getErrorMessage(error: unknown): string {
+export function getErrorMessage(error: unknown, fallback = 'An unexpected error occurred'): string {
   if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
     return (
+      (typeof detail === 'string' ? detail : undefined) ||
       error.response?.data?.message ||
       error.response?.data?.error ||
       error.message ||
-      'An unexpected error occurred'
+      fallback
     );
   }
   if (error instanceof Error) {

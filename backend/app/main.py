@@ -21,7 +21,7 @@ from app.core.database import SystemSessionLocal, engine
 from app.core.locks import try_advisory_lock
 from app.core.rate_limit import limiter
 from app.models.school import School
-from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth
+from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth, notifications_general, attachments
 from app.routers.students import guardian_requests_router
 from app.services.overdue_automation_service import run_overdue_reminder_sweep
 
@@ -195,6 +195,8 @@ app.include_router(messages.router)
 app.include_router(teachers.router)
 app.include_router(class_groups.router)
 app.include_router(notifications.router)
+app.include_router(notifications_general.router)
+app.include_router(attachments.router)
 app.include_router(webauthn_auth.router)
 
 

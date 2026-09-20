@@ -10,6 +10,7 @@ from google.auth.transport import requests as google_requests
 from app.core.config import settings
 from app.core.database import get_system_db
 from app.core.deps import invalidate_user_state
+from app.core.phone import normalize_phone
 from app.core.security import (
     hash_password,
     verify_password,
@@ -22,7 +23,7 @@ from app.core.security import (
 from app.core.totp import generate_totp_secret, get_provisioning_uri, verify_totp_code
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user, require_roles, CurrentUser
-from app.services.notification_service import send_email, NotificationConfigError
+from app.services.notification_service import send_email, send_sms, NotificationConfigError
 from app.schemas.auth import (
     RegisterSchoolRequest,
     LoginRequest,
@@ -90,6 +91,18 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     db.refresh(parent)
 
     return _build_token_response(parent)
+
+
+def _find_user_by_identifier(db: Session, identifier: str) -> User | None:
+    """Sign in with an email address, or — for teachers — a phone number
+    (any common format: 0712 345 678, +254712345678, …)."""
+    identifier = identifier.strip()
+    if "@" in identifier:
+        return db.query(User).filter(User.email == identifier).first()
+    phone = normalize_phone(identifier)
+    if not phone:
+        return None
+    return db.query(User).filter(User.phone == phone, User.role == UserRole.TEACHER).first()
 
 
 def _build_token_response(user: User, school_name: str | None = None) -> TokenResponse:
@@ -168,9 +181,9 @@ def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRe
 @router.post("/login", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
 @limiter.limit("10/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_system_db)):
-    user = db.query(User).filter(User.email == data.email).first()
+    user = _find_user_by_identifier(db, data.email)
     if not user or not user.is_active or not verify_password(data.password, user.password_hash):
-        raise HTTPException(401, "Invalid email or password")
+        raise HTTPException(401, "Invalid email/phone or password")
 
     return _complete_login(user, db)
 
@@ -326,24 +339,32 @@ def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session =
     is registered — an attacker enumerating emails shouldn't be able to
     tell the difference. The actual reset link is only ever sent by email,
     never returned in the response body."""
-    user = db.query(User).filter(User.email == data.email).first()
+    user = _find_user_by_identifier(db, data.email)
     if user and user.is_active:
         token = create_password_reset_token(user.id, user.password_hash)
         reset_link = f"{settings.frontend_url}/reset-password?token={token}"
-        try:
-            send_email(
-                user.email,
-                "Reset your Ledgr password",
-                f"Hi {user.full_name},\n\n"
-                f"Click the link below to reset your password. This link expires in 30 minutes "
-                f"and can only be used once:\n\n{reset_link}\n\n"
-                f"If you didn't request this, you can safely ignore this email.",
-            )
-        except NotificationConfigError:
-            # Email isn't configured on this deployment — fail quietly from
-            # the user's perspective (same generic response either way) but
-            # this is worth knowing about server-side.
-            pass
+        has_real_email = not user.email.endswith("@phone.ledgr.invalid")
+        if has_real_email:
+            try:
+                send_email(
+                    user.email,
+                    "Reset your Ledgr password",
+                    f"Hi {user.full_name},\n\n"
+                    f"Click the link below to reset your password. This link expires in 30 minutes "
+                    f"and can only be used once:\n\n{reset_link}\n\n"
+                    f"If you didn't request this, you can safely ignore this email.",
+                )
+            except NotificationConfigError:
+                # Email isn't configured on this deployment — fail quietly from
+                # the user's perspective (same generic response either way) but
+                # this is worth knowing about server-side.
+                pass
+        if user.phone and user.role == UserRole.TEACHER and "@" not in data.email.strip():
+            # Phone-based reset: only when they asked by phone number.
+            try:
+                send_sms(user.phone, f"Ledgr password reset (valid 30 min, one use): {reset_link}")
+            except NotificationConfigError:
+                pass
     return ForgotPasswordResponse()
 
 

@@ -91,6 +91,7 @@ ALTER TABLE class_group_read_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webauthn_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webauthn_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE typing_status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_group_mentions ENABLE ROW LEVEL SECURITY;
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It
@@ -343,6 +344,12 @@ CREATE POLICY tenant_isolation ON mpesa_transactions FOR ALL TO ledgr_app
 -- ----------------------------------------------------------------------------
 DROP POLICY IF EXISTS tenant_isolation ON typing_status;
 CREATE POLICY tenant_isolation ON typing_status FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
+
+DROP POLICY IF EXISTS tenant_isolation ON class_group_mentions;
+CREATE POLICY tenant_isolation ON class_group_mentions FOR ALL TO ledgr_app
   USING (school_id = (select current_setting('app.current_school_id', true))::text)
   WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
 
