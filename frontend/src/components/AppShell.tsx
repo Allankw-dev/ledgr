@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X , MessagesSquare } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
@@ -26,7 +26,10 @@ const staffNavItems = [
 // thing they're here for is their grades' class groups, so the nav stays
 // deliberately narrow rather than showing a wall of pages that would just
 // 403 or bounce them straight back out.
-const teacherNavItems = [{ to: '/class-groups', label: 'Class groups', icon: Users2 }];
+const teacherNavItems = [
+  { to: '/class-groups', label: 'Class groups', icon: Users2 },
+  { to: '/chats', label: 'Private chats', icon: MessagesSquare },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -82,6 +85,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Icon className="w-4.5 h-4.5" strokeWidth={2} />
             {label}
+            {to === '/chats' && notif.unreadDirect > 0 && (
+              <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] bg-green">
+                {notif.unreadDirect > 99 ? '99+' : notif.unreadDirect}
+              </span>
+            )}
             {to === '/class-groups' && notif.unreadClassGroups > 0 && (
               <span
                 className={`ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] ${

@@ -12,6 +12,7 @@ const navItems = [
   { to: '/parent/invoices', label: 'Invoices' },
   { to: '/parent/receipts', label: 'Receipts' },
   { to: '/parent/class-group', label: 'Class group', badgeKey: 'unreadClassGroups' as const },
+  { to: '/parent/chats', label: 'Teacher chats', badgeKey: 'unreadDirect' as const },
   { to: '/parent/assistant', label: 'Assistant' },
   { to: '/parent/profile', label: 'Profile' },
 ];
@@ -28,8 +29,8 @@ function NavBadge({ count }: { count: number }) {
 export function ParentShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { unreadMessages, unreadClassGroups, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
-  const badgeCounts = { unreadMessages, unreadClassGroups };
+  const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
+  const badgeCounts = { unreadMessages, unreadClassGroups, unreadDirect };
 
   function handleLogout() {
     logout();

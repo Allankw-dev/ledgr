@@ -11,3 +11,4 @@ from app.models.class_group_read_state import ClassGroupReadState  # noqa: F401
 from app.models.webauthn import WebAuthnCredential, WebAuthnChallenge  # noqa: F401
 from app.models.typing_status import TypingStatus  # noqa: F401
 from app.models.class_group_message import ClassGroupMention  # noqa: F401
+from app.models.direct_message import DirectConversation, DirectMessage  # noqa: F401

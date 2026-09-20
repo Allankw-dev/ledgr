@@ -28,6 +28,8 @@ const ParentAssistantPage = lazy(() => import('./pages/ParentAssistantPage').the
 const ParentProfilePage = lazy(() => import('./pages/ParentProfilePage').then((m) => ({ default: m.ParentProfilePage })));
 const VerifyChildPage = lazy(() => import('./pages/VerifyChildPage').then((m) => ({ default: m.VerifyChildPage })));
 const ClassGroupsPage = lazy(() => import('./pages/ClassGroupsPage').then((m) => ({ default: m.ClassGroupsPage })));
+const DirectChatsPage = lazy(() => import('./pages/DirectChatsPage').then((m) => ({ default: m.DirectChatsPage })));
+const ParentDirectChatsPage = lazy(() => import('./pages/ParentDirectChatsPage').then((m) => ({ default: m.ParentDirectChatsPage })));
 const ParentClassGroupPage = lazy(() => import('./pages/ParentClassGroupPage').then((m) => ({ default: m.ParentClassGroupPage })));
 const TeachersPage = lazy(() => import('./pages/TeachersPage').then((m) => ({ default: m.TeachersPage })));
 
@@ -151,6 +153,22 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES, 'TEACHER']}>
               <ClassGroupsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chats"
+          element={
+            <ProtectedRoute allowedRoles={['TEACHER']}>
+              <DirectChatsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/parent/chats"
+          element={
+            <ProtectedRoute allowedRoles={['PARENT']}>
+              <ParentDirectChatsPage />
             </ProtectedRoute>
           }
         />

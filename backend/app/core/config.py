@@ -82,8 +82,8 @@ class Settings(BaseSettings):
     db_max_overflow: int = 5
     db_pool_timeout: int = 15  # seconds to wait for a free connection before failing fast
     db_pool_recycle: int = 1800  # recycle connections older than 30 min
-    system_db_pool_size: int = 2
-    system_db_max_overflow: int = 3
+    system_db_pool_size: int = 3
+    system_db_max_overflow: int = 5
 
     # Threads available to sync route handlers (FastAPI's default is 40).
     threadpool_size: int = 80
@@ -126,6 +126,15 @@ class Settings(BaseSettings):
     max_upload_mb: int = 10
     attachment_url_ttl_seconds: int = 300
 
+    # --- Private (teacher <-> parent) chat encryption at rest ----------------
+    # Comma-separated key ring, "version:base64(32 bytes)". New messages are
+    # encrypted with the HIGHEST version; every listed version can still decrypt.
+    # Generate one:  python -c "import secrets,base64; print('1:'+base64.b64encode(secrets.token_bytes(32)).decode())"
+    # To rotate: add "2:<new key>" (keep the old entry) and restart.
+    # LOSE THE KEY = LOSE THE MESSAGES: back it up in a password manager.
+    # REQUIRED when ENVIRONMENT=production.
+    message_encryption_keys: str | None = None
+
     # Set to false on all but ONE instance so the daily reminder sweep is not
     # started by every worker.
     run_scheduler: bool = True
@@ -143,6 +152,19 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must be at least 32 characters when ENVIRONMENT=production")
             if not self.mpesa_callback_secret or len(self.mpesa_callback_secret) < 24:
                 raise ValueError("MPESA_CALLBACK_SECRET (24+ chars) is required when ENVIRONMENT=production")
+            if not self.message_encryption_keys:
+                raise ValueError("MESSAGE_ENCRYPTION_KEYS is required when ENVIRONMENT=production")
+        if self.message_encryption_keys:
+            import base64
+
+            for part in self.message_encryption_keys.split(","):
+                version, _, b64 = part.strip().partition(":")
+                try:
+                    ok = version.isdigit() and len(base64.b64decode(b64, validate=True)) == 32
+                except Exception:  # noqa: BLE001
+                    ok = False
+                if not ok:
+                    raise ValueError('MESSAGE_ENCRYPTION_KEYS entries must look like "1:<base64 of 32 random bytes>"')
         return self
 
     class Config:

@@ -21,6 +21,7 @@ export function useUnreadNotifications() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadClassGroups, setUnreadClassGroups] = useState(0);
   const [unreadMentions, setUnreadMentions] = useState(0);
+  const [unreadDirect, setUnreadDirect] = useState(0);
   const [mentions, setMentions] = useState<MentionNotification[]>([]);
   const lastMentionCount = useRef<number | null>(null);
 
@@ -38,6 +39,7 @@ export function useUnreadNotifications() {
       setUnreadMessages(s.unread_messages);
       setUnreadClassGroups(s.unread_class_group_messages);
       setUnreadMentions(s.unread_mentions);
+      setUnreadDirect(s.unread_direct_messages ?? 0);
 
       const previous = lastMentionCount.current;
       lastMentionCount.current = s.unread_mentions;
@@ -73,7 +75,7 @@ export function useUnreadNotifications() {
     [poll, loadMentions]
   );
 
-  const total = unreadMessages + unreadClassGroups;
+  const total = unreadMessages + unreadClassGroups + unreadDirect;
 
   useEffect(() => {
     document.title = total > 0 ? `(${total}) ${BASE_TITLE}` : BASE_TITLE;
@@ -91,5 +93,5 @@ export function useUnreadNotifications() {
     };
   }, []);
 
-  return { unreadMessages, unreadClassGroups, unreadMentions, mentions, total, refresh: poll, loadMentions, markSeen };
+  return { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, refresh: poll, loadMentions, markSeen };
 }

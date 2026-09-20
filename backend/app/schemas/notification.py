@@ -15,6 +15,7 @@ class AllNotificationsSummary(BaseModel):
     unread_messages: int = 0  # parent <-> school 1:1 messages (parents only)
     unread_class_group_messages: int = 0
     unread_mentions: int = 0  # unseen @mentions — a subset of the group messages above
+    unread_direct_messages: int = 0  # private teacher<->parent chats
     total: int = 0
 
 

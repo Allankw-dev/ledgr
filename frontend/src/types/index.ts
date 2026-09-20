@@ -196,3 +196,33 @@ export interface Payment {
   method: PaymentMethod;
   status: string;
 }
+
+// ---- Private teacher <-> parent chats (encrypted at rest) ----
+export interface DirectContact {
+  user_id: string;
+  name: string;
+  subtitle: string;
+  conversation_id: string | null;
+  unread_count: number;
+}
+
+export interface DirectConversation {
+  id: string;
+  other_user_id: string;
+  other_name: string;
+  other_role: UserRole;
+  other_subtitle: string;
+  last_message_preview: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  can_send: boolean;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversation_id: string;
+  sender_user_id: string;
+  body: string;
+  created_at: string;
+  status?: MessageStatus | null;
+}

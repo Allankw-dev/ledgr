@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -8,6 +8,7 @@ from app.core.rate_limit import limiter
 from app.models.class_group_message import ClassGroupMention, ClassGroupMessage
 from app.models.enums import MessageSenderRole
 from app.models.message import Message
+from app.models.direct_message import DirectConversation, DirectMessage
 from app.models.school import User
 from app.models.student import SchoolClass
 from app.routers.class_groups import unread_class_group_count_for_user, mark_class_groups_delivered
@@ -48,11 +49,38 @@ def get_summary(
         .where(ClassGroupMention.mentioned_user_id == user.user_id, ClassGroupMention.seen_at.is_(None))
     ).scalar_one()
 
+    unread_direct = 0
+    if user.role in ("TEACHER", "PARENT"):
+        mine = select(DirectConversation.id).where(
+            (DirectConversation.teacher_user_id == user.user_id) | (DirectConversation.parent_user_id == user.user_id)
+        )
+        # The person's app just reached the server: their incoming private messages are now "delivered".
+        db.execute(
+            update(DirectMessage)
+            .where(
+                DirectMessage.delivered_at.is_(None),
+                DirectMessage.sender_user_id != user.user_id,
+                DirectMessage.conversation_id.in_(mine),
+            )
+            .values(delivered_at=func.clock_timestamp())
+        )
+        db.commit()
+        unread_direct = db.execute(
+            select(func.count())
+            .select_from(DirectMessage)
+            .where(
+                DirectMessage.read_at.is_(None),
+                DirectMessage.sender_user_id != user.user_id,
+                DirectMessage.conversation_id.in_(mine),
+            )
+        ).scalar_one()
+
     return AllNotificationsSummary(
         unread_messages=unread_messages,
         unread_class_group_messages=groups,
         unread_mentions=mentions,
-        total=unread_messages + groups,
+        unread_direct_messages=unread_direct,
+        total=unread_messages + groups + unread_direct,
     )
 
 

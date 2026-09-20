@@ -9,6 +9,7 @@ export interface NotificationSummary {
 
 export interface AllNotificationsSummary extends NotificationSummary {
   unread_mentions: number;
+  unread_direct_messages: number;
 }
 
 /** Parent-only legacy endpoint, kept for compatibility. */
