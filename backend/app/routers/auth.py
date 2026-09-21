@@ -1,5 +1,6 @@
 from typing import Union
 from datetime import datetime, timezone
+import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -20,11 +21,21 @@ from app.core.security import (
     decode_2fa_challenge_token,
     create_password_reset_token,
     decode_password_reset_token,
+    create_email_change_token,
+    decode_email_change_token,
+    _email_fingerprint,
 )
 from app.core.totp import generate_totp_secret, get_provisioning_uri, verify_totp_code
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user, require_roles, CurrentUser
 from app.services.notification_service import send_email, send_sms, NotificationConfigError
+from app.services.audit_service import log_audit
+from app.services.refresh_token_service import (
+    issue_refresh_token,
+    rotate_refresh_token,
+    revoke_token_family,
+    revoke_all_for_user,
+)
 from app.schemas.auth import (
     RegisterSchoolRequest,
     LoginRequest,
@@ -38,6 +49,9 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
     ForgotPasswordResponse,
+    RefreshRequest,
+    EmailChangeRequest,
+    EmailChangeConfirmRequest,
 )
 from app.models.school import School, User
 from app.models.enums import UserRole
@@ -45,6 +59,8 @@ from app.models.enums import UserRole
 from app.schemas.guardian_request import RegisterParentRequest
 from app.models.school import School, User
 from app.models.enums import UserRole
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -91,7 +107,7 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     db.commit()
     db.refresh(parent)
 
-    return _build_token_response(parent)
+    return _build_token_response(db, parent)
 
 
 def _find_user_by_identifier(db: Session, identifier: str) -> User | None:
@@ -153,10 +169,11 @@ def _authenticate(db: Session, identifier: str, password: str) -> User | None:
     return matches[0] if len(matches) == 1 else None
 
 
-def _build_token_response(user: User, school_name: str | None = None) -> TokenResponse:
+def _token_response(user: User, refresh_token: str, school_name: str | None = None) -> TokenResponse:
     token = create_access_token(user.id, user.school_id, user.role.value, user.token_version or 0)
     return TokenResponse(
         token=token,
+        refresh_token=refresh_token,
         user={
             "id": user.id,
             "email": user.email,
@@ -166,6 +183,11 @@ def _build_token_response(user: User, school_name: str | None = None) -> TokenRe
         },
         school={"id": user.school_id, "name": school_name} if school_name else None,
     )
+
+
+def _build_token_response(db: Session, user: User, school_name: str | None = None) -> TokenResponse:
+    """A fresh sign-in: short-lived access token + a new refresh-token family."""
+    return _token_response(user, issue_refresh_token(db, user), school_name)
 
 
 @router.post("/register-school", response_model=TokenResponse, status_code=201)
@@ -211,7 +233,7 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
     db.refresh(admin)
     db.refresh(school)
 
-    return _build_token_response(admin, school.name)
+    return _build_token_response(db, admin, school.name)
 
 
 def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRequiredResponse]:
@@ -223,7 +245,7 @@ def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRe
 
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
-    return _build_token_response(user)
+    return _build_token_response(db, user)
 
 
 @router.post("/login", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
@@ -307,7 +329,7 @@ def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Sessio
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
 
-    return _build_token_response(user)
+    return _build_token_response(db, user)
 
 
 @router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
@@ -445,6 +467,137 @@ def reset_password(request: Request, data: ResetPasswordRequest, db: Session = D
     # Sign the user out of every existing session: any token issued before
     # this reset carries the old version and is rejected by get_current_user.
     user.token_version = (user.token_version or 0) + 1
+    revoke_all_for_user(db, user.id)
     db.commit()
     invalidate_user_state(user.id)
     return {"reset": True}
+
+
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("60/minute")
+def refresh_session(request: Request, data: RefreshRequest, db: Session = Depends(get_system_db)):
+    """Swap a refresh token for a new access token + a new refresh token. The
+    old refresh token is single-use — see services/refresh_token_service.py."""
+    result = rotate_refresh_token(db, data.refresh_token)
+    if result is None:
+        raise HTTPException(401, "Your session has expired. Please sign in again.")
+    user, new_refresh = result
+    return _token_response(user, new_refresh)
+
+
+@router.post("/logout")
+@limiter.limit("60/minute")
+def logout(request: Request, data: RefreshRequest, db: Session = Depends(get_system_db)):
+    """Ends this device's session for good. Idempotent and always 200 — the
+    caller is signing out either way, and it shouldn't learn anything about tokens."""
+    revoke_token_family(db, data.refresh_token)
+    return {"ok": True}
+
+
+# --- Parent changes their own sign-in email ----------------------------------
+# Covers "I lost access to the email I signed up with". Two proofs are needed:
+# the current password (someone on an unlocked, already-signed-in phone can't
+# redirect the account) and a link that only works from the NEW inbox (so a
+# typo, or someone else's address, can't be attached to the account).
+
+_PLACEHOLDER_EMAIL_DOMAIN = "@phone.ledgr.invalid"
+
+
+@router.post("/email-change/request")
+@limiter.limit("5/minute")
+def request_email_change(
+    request: Request,
+    data: EmailChangeRequest,
+    db: Session = Depends(get_system_db),
+    user: CurrentUser = Depends(require_roles("PARENT")),
+):
+    db_user = db.get(User, user.user_id)
+    if not db_user:
+        raise HTTPException(404, "User not found")
+
+    if not verify_password(data.password, db_user.password_hash):
+        raise HTTPException(401, "Incorrect password")
+
+    new_email = data.new_email.strip()
+    if new_email.lower().endswith(_PLACEHOLDER_EMAIL_DOMAIN):
+        raise HTTPException(422, "Please enter a real email address.")
+    if new_email.lower() == db_user.email.lower():
+        raise HTTPException(400, "That's already your email address.")
+    taken = db.query(User.id).filter(func.lower(User.email) == new_email.lower(), User.id != db_user.id).first()
+    if taken:
+        raise HTTPException(409, "That email is already used by another account.")
+
+    token = create_email_change_token(db_user.id, db_user.email, new_email)
+    link = f"{settings.frontend_url}/confirm-email?token={token}"
+    try:
+        send_email(
+            new_email,
+            "Confirm your new Ledgr email",
+            f"Hi {db_user.full_name},\n\n"
+            f"Someone asked to use this address as the sign-in email for a Ledgr parent account. "
+            f"To confirm it's you, open the link below. It expires in "
+            f"{settings.email_change_expires_minutes} minutes and only works once:\n\n{link}\n\n"
+            f"If you didn't ask for this, ignore this email — nothing will change.",
+        )
+    except NotificationConfigError:
+        # Unlike forgot-password, this must NOT pretend it worked: the parent is
+        # signed in and waiting on a link that will never arrive.
+        raise HTTPException(503, "Email isn't set up for this school yet, so we can't send the confirmation link. Contact the school office.")
+
+    return {"message": f"We sent a confirmation link to {new_email}. It expires in {settings.email_change_expires_minutes} minutes."}
+
+
+@router.post("/email-change/confirm")
+@limiter.limit("10/minute")
+def confirm_email_change(request: Request, data: EmailChangeConfirmRequest, db: Session = Depends(get_system_db)):
+    """Public on purpose — the link is opened from the new inbox, possibly on
+    a different device than the one signed in. The signed token is the proof."""
+    try:
+        user_id, new_email, current_fp = decode_email_change_token(data.token)
+    except ValueError:
+        raise HTTPException(400, "This link is invalid or has expired. Request the change again from your profile.")
+
+    db_user = db.get(User, user_id)
+    if not db_user or not db_user.is_active or db_user.role != UserRole.PARENT:
+        raise HTTPException(400, "This link is invalid or has expired. Request the change again from your profile.")
+    if _email_fingerprint(db_user.email) != current_fp:
+        raise HTTPException(400, "This link has already been used or is out of date.")
+    if db.query(User.id).filter(func.lower(User.email) == new_email.lower(), User.id != db_user.id).first():
+        raise HTTPException(409, "That email is already used by another account.")
+
+    old_email = db_user.email
+    db_user.email = new_email
+    # An email change is a credential change: sign out every existing session
+    # (access tokens via token_version, refresh tokens explicitly).
+    db_user.token_version = (db_user.token_version or 0) + 1
+    revoke_all_for_user(db, db_user.id)
+    if db_user.school_id:
+        log_audit(
+            db,
+            school_id=db_user.school_id,
+            action="USER_EMAIL_CHANGED",
+            entity_type="User",
+            entity_id=db_user.id,
+            user_id=db_user.id,
+            metadata={"old_email": old_email, "new_email": new_email},
+        )
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(409, "That email is already used by another account.")
+    invalidate_user_state(db_user.id)
+
+    # Tell the old address, if it was a real one, so a hijack doesn't go unnoticed.
+    if not old_email.lower().endswith(_PLACEHOLDER_EMAIL_DOMAIN):
+        try:
+            send_email(
+                old_email,
+                "Your Ledgr sign-in email was changed",
+                f"Hi {db_user.full_name},\n\nThe sign-in email on your Ledgr parent account was changed to {new_email}. "
+                f"If this was you, nothing more to do. If it wasn't, contact the school office right away.",
+            )
+        except Exception:  # best-effort notice; never undo a confirmed change
+            logger.warning("Could not send email-change notice to previous address", exc_info=True)
+
+    return {"changed": True, "email": new_email}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ParentShell } from '../components/ParentShell';
 import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
+import { UpdateEmailForm } from '../components/UpdateEmailForm';
 import { getMyProfile, type MyProfile } from '../api/user';
 import { FingerprintSettings } from '../components/FingerprintSettings';
 
@@ -26,8 +27,8 @@ export function ParentProfilePage() {
           <div className="bg-panel border border-ink-200 rounded-lg px-5 py-4">
             <p className="text-xs text-ink-600 mb-1">Name</p>
             <p className="text-sm text-ink-900 font-medium mb-3">{profile?.full_name}</p>
-            <p className="text-xs text-ink-600 mb-1">Email</p>
-            <p className="text-sm text-ink-900 font-medium">{profile?.email}</p>
+            <p className="text-xs text-ink-600 mb-1.5">Email</p>
+            {profile && <UpdateEmailForm currentEmail={profile.email} />}
           </div>
 
           <div className="bg-panel border border-ink-200 rounded-lg px-5 py-4">

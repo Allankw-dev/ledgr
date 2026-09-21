@@ -3,6 +3,7 @@ import type { AuthUser } from '../types';
 
 interface LoginResponse {
   token: string;
+  refresh_token?: string;
   user: AuthUser;
 }
 
@@ -85,5 +86,15 @@ export async function forgotPassword(email: string): Promise<{ message: string }
 
 export async function resetPassword(token: string, newPassword: string): Promise<{ reset: boolean }> {
   const { data } = await apiClient.post('/api/auth/reset-password', { token, new_password: newPassword });
+  return data;
+}
+
+export async function requestEmailChange(newEmail: string, password: string): Promise<{ message: string }> {
+  const { data } = await apiClient.post('/api/auth/email-change/request', { new_email: newEmail, password });
+  return data;
+}
+
+export async function confirmEmailChange(token: string): Promise<{ changed: boolean; email: string }> {
+  const { data } = await apiClient.post('/api/auth/email-change/confirm', { token });
   return data;
 }

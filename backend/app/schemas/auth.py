@@ -23,6 +23,7 @@ class GoogleAuthRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    refresh_token: str | None = None
     user: dict
     school: dict | None = None
 
@@ -63,3 +64,16 @@ class ForgotPasswordResponse(BaseModel):
     # Deliberately generic — never reveals whether the email is registered,
     # so this endpoint can't be used to check who has an account.
     message: str = "If an account exists for that email, a reset link has been sent."
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=200)
+
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+
+class EmailChangeConfirmRequest(BaseModel):
+    token: str

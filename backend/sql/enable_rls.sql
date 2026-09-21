@@ -96,6 +96,9 @@ ALTER TABLE direct_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_reports ENABLE ROW LEVEL SECURITY;
+-- refresh_tokens: enabled with NO policy => deny-all for ledgr_app. Only the
+-- owner connection (get_system_db, auth endpoints) ever touches it.
+ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It

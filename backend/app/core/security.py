@@ -90,3 +90,35 @@ def decode_password_reset_token(token: str, current_password_hash: str) -> str:
         raise ValueError("This reset link has already been used")
 
     return payload["sub"]
+
+
+def _email_fingerprint(email: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()[:16]
+
+
+def create_email_change_token(user_id: str, current_email: str, new_email: str) -> str:
+    """Emailed to the NEW address; opening it proves the parent controls that
+    inbox. Carries a fingerprint of the current email, so once the change is
+    applied the same link (or any older one) is dead."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.email_change_expires_minutes)
+    payload = {
+        "sub": user_id,
+        "purpose": "email_change",
+        "new_email": new_email,
+        "cur_fp": _email_fingerprint(current_email),
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_email_change_token(token: str) -> tuple[str, str, str]:
+    """Returns (user_id, new_email, current_email_fingerprint) or raises ValueError."""
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as exc:
+        raise ValueError("Invalid or expired link") from exc
+    if payload.get("purpose") != "email_change" or not payload.get("new_email"):
+        raise ValueError("Not a valid email change link")
+    return payload["sub"], payload["new_email"], payload["cur_fp"]

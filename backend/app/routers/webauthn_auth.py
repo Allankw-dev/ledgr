@@ -254,4 +254,4 @@ def login_verify(request: Request, data: WebAuthnLoginVerifyRequest, db: Session
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
 
-    return _build_token_response(user)
+    return _build_token_response(db, user)

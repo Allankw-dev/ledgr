@@ -18,7 +18,13 @@ class Settings(BaseSettings):
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"
-    jwt_expires_minutes: int = 60 * 24  # 1 day (was 7). Tokens are also re-validated against the DB — see core/deps.py
+    # Access tokens are short-lived; the frontend silently swaps in a new one
+    # using a rotating refresh token (see services/refresh_token_service.py).
+    jwt_expires_minutes: int = 15
+    refresh_expires_days: int = 30  # idle lifetime of a refresh token (slides forward on every use)
+    refresh_absolute_days: int = 90  # hard cap on one sign-in, however often it refreshes
+    refresh_reuse_grace_seconds: int = 30  # two tabs refreshing at once must not look like theft
+    email_change_expires_minutes: int = 30
 
     cors_origins: str = "http://localhost:5173"
 

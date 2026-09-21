@@ -124,8 +124,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     isPlatformAuthenticatorAvailable().then(setFingerprintAvailable);
   }, []);
 
-  function completeLogin(token: string, user: Parameters<typeof setSession>[1]) {
-    setSession(token, user);
+  function completeLogin(token: string, user: Parameters<typeof setSession>[1], refreshToken?: string | null) {
+    setSession(token, user, refreshToken);
     navigate(user.role === 'PARENT' ? '/parent/dashboard' : user.role === 'TEACHER' ? '/class-groups' : '/dashboard');
   }
 
@@ -136,7 +136,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       const { options, challenge_id } = await getLoginOptions();
       const credential = await performAuthentication(options);
       const result = await verifyLogin(challenge_id, credential);
-      completeLogin(result.token, result.user);
+      completeLogin(result.token, result.user, result.refresh_token);
     } catch (err: unknown) {
       const name = (err as { name?: string })?.name;
       if (name !== 'NotAllowedError') {
@@ -156,7 +156,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       if ('requires_2fa' in result) {
         setChallengeToken(result.challenge_token);
       } else {
-        completeLogin(result.token, result.user);
+        completeLogin(result.token, result.user, result.refresh_token);
       }
     } catch {
       setLoginError('Incorrect email/phone or password. Check your details and try again.');
@@ -173,7 +173,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       if ('requires_2fa' in result) {
         setChallengeToken(result.challenge_token);
       } else {
-        completeLogin(result.token, result.user);
+        completeLogin(result.token, result.user, result.refresh_token);
       }
     } catch {
       setLoginError('Could not sign in with Google. Please try again.');
@@ -196,7 +196,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       // delayed a beat so the confirmation is actually seen.
       setVerifiedUser(result.user);
       setVerifyStage('success');
-      setTimeout(() => completeLogin(result.token, result.user), 1100);
+      setTimeout(() => completeLogin(result.token, result.user, result.refresh_token), 1100);
     } catch {
       setLoginError('Incorrect code. Check your authenticator app and try again.');
       setVerifyStage('entering');
@@ -235,12 +235,12 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     setSuError(null);
     setSuLoading(true);
     try {
-      const { token, user } = await registerParent({
+      const { token, user, refresh_token } = await registerParent({
         full_name: suFullName.trim(),
         email: suEmail.trim(),
         password: suPassword,
       });
-      setSession(token, user);
+      setSession(token, user, refresh_token);
       navigate('/verify-child', { state: { admissionNumber: suAdmissionNumber.trim() } });
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
@@ -265,7 +265,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
         setSuError('This email belongs to a staff account. Please sign in from the staff login instead.');
         return;
       }
-      setSession(result.token, result.user);
+      setSession(result.token, result.user, result.refresh_token);
       navigate('/verify-child');
     } catch {
       setSuError('Could not sign up with Google. Please try again.');

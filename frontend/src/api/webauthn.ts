@@ -3,6 +3,7 @@ import type { AuthUser } from '../types';
 
 interface WebAuthnLoginResponse {
   token: string;
+  refresh_token?: string;
   user: AuthUser;
 }
 

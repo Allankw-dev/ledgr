@@ -12,3 +12,4 @@ from app.models.webauthn import WebAuthnCredential, WebAuthnChallenge  # noqa: F
 from app.models.typing_status import TypingStatus  # noqa: F401
 from app.models.class_group_message import ClassGroupMention  # noqa: F401
 from app.models.direct_message import DirectConversation, DirectMessage, DirectBlock, DirectReport  # noqa: F401
+from app.models.refresh_token import RefreshToken  # noqa: F401
