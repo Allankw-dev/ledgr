@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
@@ -10,7 +11,7 @@ from google.auth.transport import requests as google_requests
 from app.core.config import settings
 from app.core.database import get_system_db
 from app.core.deps import invalidate_user_state
-from app.core.phone import normalize_phone
+from app.core.phone import normalize_phone, phone_key
 from app.core.security import (
     hash_password,
     verify_password,
@@ -94,8 +95,11 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
 
 
 def _find_user_by_identifier(db: Session, identifier: str) -> User | None:
-    """Sign in with an email address, or — for teachers — a phone number
-    (any common format: 0712 345 678, +254712345678, …)."""
+    """Used by password RESET. An email address, or — for teachers only — a
+    phone number. Phone-number reset is deliberately limited to teachers: their
+    numbers are entered (and so known to be right) by the school admin, whereas
+    a parent's number is self-entered and unverified — a typo'd number would
+    otherwise let a stranger who owns it request a reset link for that account."""
     identifier = identifier.strip()
     if "@" in identifier:
         return db.query(User).filter(User.email == identifier).first()
@@ -103,6 +107,50 @@ def _find_user_by_identifier(db: Session, identifier: str) -> User | None:
     if not phone:
         return None
     return db.query(User).filter(User.phone == phone, User.role == UserRole.TEACHER).first()
+
+
+_MAX_PHONE_CANDIDATES = 5
+_dummy_hash: str | None = None
+
+
+def _burn_password_check(password: str) -> None:
+    """Spend the same time a real password check would when there's no such
+    account, so response time doesn't reveal which emails/numbers are registered."""
+    global _dummy_hash
+    if _dummy_hash is None:
+        _dummy_hash = hash_password("not-a-real-password")
+    verify_password(password, _dummy_hash)
+
+
+def _authenticate(db: Session, identifier: str, password: str) -> User | None:
+    """Email OR phone number + password, for every role.
+
+    A phone number can legitimately be on more than one account (two parents
+    sharing a phone, a parent who is also a teacher, ...), so a phone sign-in
+    checks the password against each active account with that number and
+    succeeds only if exactly ONE matches. That keeps the failure message
+    identical for "no such number", "wrong password" and "ambiguous".
+    """
+    identifier = identifier.strip()
+    if "@" in identifier:
+        candidates = [u for u in [db.query(User).filter(User.email == identifier).first()] if u]
+    else:
+        key = phone_key(identifier)
+        candidates = (
+            db.query(User)
+            .filter(func.ledgr_phone_key(User.phone) == key, User.is_active.is_(True))
+            .order_by(User.created_at)
+            .limit(_MAX_PHONE_CANDIDATES)
+            .all()
+            if key
+            else []
+        )
+
+    if not candidates:
+        _burn_password_check(password)
+        return None
+    matches = [u for u in candidates if u.is_active and verify_password(password, u.password_hash)]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _build_token_response(user: User, school_name: str | None = None) -> TokenResponse:
@@ -181,8 +229,8 @@ def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRe
 @router.post("/login", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
 @limiter.limit("10/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_system_db)):
-    user = _find_user_by_identifier(db, data.email)
-    if not user or not user.is_active or not verify_password(data.password, user.password_hash):
+    user = _authenticate(db, data.email, data.password)
+    if not user:
         raise HTTPException(401, "Invalid email/phone or password")
 
     return _complete_login(user, db)

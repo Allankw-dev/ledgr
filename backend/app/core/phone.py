@@ -38,3 +38,27 @@ def normalize_phone(raw: str | None) -> str | None:
 
 def looks_like_email(value: str) -> bool:
     return "@" in value
+
+
+def phone_key(raw: str | None) -> str | None:
+    """Canonical digits-only form used to MATCH phone numbers however they were
+    typed or stored: "0712 345 678", "+254712345678", "254-712-345-678" and
+    "712345678" all give "254712345678".
+
+    MUST stay in lock-step with the SQL function ledgr_phone_key() (created in
+    the a8f3c1d6e2b9 migration, backed by an index) — same rules, same order.
+    """
+    if not raw:
+        return None
+    d = re.sub(r"\D", "", raw)
+    if not d:
+        return None
+    if d.startswith("00"):
+        d = d[2:]
+    elif d.startswith("0"):
+        d = DEFAULT_COUNTRY_CODE + d[1:]
+    elif d.startswith(DEFAULT_COUNTRY_CODE) and len(d) >= 12:
+        pass
+    elif len(d) in (9, 10) and d[0] in "71":
+        d = DEFAULT_COUNTRY_CODE + d
+    return d if 9 <= len(d) <= 15 else None

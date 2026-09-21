@@ -13,7 +13,13 @@ def hash_password(plain: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return pwd_context.verify(plain, hashed)
+    except (ValueError, TypeError):
+        # A malformed/unrecognised stored hash (bad import, manual edit) must
+        # mean "wrong password" — not a 500 — and now that a phone number can
+        # match several accounts, one bad record must not break the others.
+        return False
 
 
 def create_access_token(user_id: str, school_id: str | None, role: str, token_version: int = 0) -> str:

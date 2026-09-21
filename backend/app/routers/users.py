@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_system_db
 from app.core.deps import get_current_user, CurrentUser
 from app.schemas.user import UpdateMyProfileRequest, MyProfileResponse
+from app.core.phone import phone_key
 from app.models.school import User
 
 router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(get_current_user)])
@@ -37,7 +38,11 @@ def update_my_profile(
         raise HTTPException(404, "User not found")
 
     if data.phone is not None:
-        db_user.phone = data.phone
+        cleaned = data.phone.strip()
+        if cleaned and phone_key(cleaned) is None:
+            # The number is also a sign-in identifier now, so don't store junk.
+            raise HTTPException(422, "That phone number doesn't look valid — e.g. 0712 345 678 or +254712345678")
+        db_user.phone = cleaned or None
     if data.full_name is not None:
         db_user.full_name = data.full_name
 

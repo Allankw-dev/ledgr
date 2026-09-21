@@ -3,6 +3,7 @@ import { Phone, Check } from 'lucide-react';
 import { Button } from './ui/Button';
 import { TextField } from './ui/TextField';
 import { updateMyProfile } from '../api/user';
+import { getErrorMessage } from '../api/client';
 
 interface UpdatePhoneFormProps {
   currentPhone: string | null;
@@ -26,8 +27,8 @@ export function UpdatePhoneForm({ currentPhone, onUpdated }: UpdatePhoneFormProp
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch {
-      setError('Could not update your phone number. Try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Could not update your phone number. Try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -39,6 +40,7 @@ export function UpdatePhoneForm({ currentPhone, onUpdated }: UpdatePhoneFormProp
         <div className="flex items-center gap-2.5 text-sm">
           <Phone className="w-4 h-4 text-ink-400" strokeWidth={1.75} />
           <span className="text-ink-900">{currentPhone || 'No phone number on file'}</span>
+          {currentPhone && !saved && <span className="text-ink-400 text-xs hidden sm:inline">· also works to sign in</span>}
           {saved && (
             <span className="flex items-center gap-1 text-emerald-700 text-xs font-medium">
               <Check className="w-3.5 h-3.5" /> Updated
