@@ -96,9 +96,8 @@ export function AnnouncementsPage() {
 
           {result && (
             <div className="bg-emerald-50 text-emerald-800 rounded-md px-4 py-3 text-sm">
-              Sent to {result.recipient_count} guardian{result.recipient_count === 1 ? '' : 's'} —{' '}
-              {result.emails_sent} email{result.emails_sent === 1 ? '' : 's'}, {result.sms_sent} text
-              {result.sms_sent === 1 ? '' : 's'} delivered.
+              Queued for {result.recipient_count} guardian{result.recipient_count === 1 ? '' : 's'}. Delivery
+              happens in the background and may take a few minutes for large groups.
               {result.errors.length > 0 && (
                 <ul className="mt-2 list-disc list-inside text-xs">
                   {result.errors.map((e, i) => (

@@ -47,15 +47,13 @@ def send_announcement(
         metadata={
             "subject": payload.subject,
             "recipient_count": result.recipient_count,
-            "emails_sent": result.emails_sent,
-            "sms_sent": result.sms_sent,
+            "jobs_queued": result.jobs_queued,
         },
     )
     db.commit()
 
     return SendAnnouncementResponse(
         recipient_count=result.recipient_count,
-        emails_sent=result.emails_sent,
-        sms_sent=result.sms_sent,
+        jobs_queued=result.jobs_queued,
         errors=result.errors,
     )

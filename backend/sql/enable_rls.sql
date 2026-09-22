@@ -99,6 +99,18 @@ ALTER TABLE direct_reports ENABLE ROW LEVEL SECURITY;
 -- refresh_tokens: enabled with NO policy => deny-all for ledgr_app. Only the
 -- owner connection (get_system_db, auth endpoints) ever touches it.
 ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
+-- jobs / idempotency_keys: normal tenant isolation. Request handlers enqueue and
+-- record keys as ledgr_app (own school only); the worker uses the owner connection.
+ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON jobs;
+CREATE POLICY tenant_isolation ON jobs FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+DROP POLICY IF EXISTS tenant_isolation ON idempotency_keys;
+CREATE POLICY tenant_isolation ON idempotency_keys FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
 
 -- alembic_version isn't tenant data — it's a single-row table Alembic
 -- itself uses to track which migration the schema is currently at. It

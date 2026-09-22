@@ -58,7 +58,14 @@ interface RecordPaymentPayload {
 }
 
 export async function recordPayment(payload: RecordPaymentPayload) {
-  const { data } = await apiClient.post('/api/payments', payload);
+  // Idempotency-Key: if the network hiccups after the bursar hits "record"
+  // and the client retries (or the button is double-tapped), the server
+  // returns the SAME payment instead of creating a second one. A fresh key
+  // per call is what makes an intentional second payment (same amount, same
+  // student, moments later) go through as its own payment, as it should.
+  const { data } = await apiClient.post('/api/payments', payload, {
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+  });
   return data;
 }
 

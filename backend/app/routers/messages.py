@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
+from app.core.rate_limit import limiter
 from app.models.school import User
 from app.models.student import StudentGuardian
 from app.models.enums import UserRole, MessageSenderRole, GuardianLinkStatus
@@ -53,7 +54,9 @@ def get_my_messages(
 
 
 @router.post("/parent/messages", response_model=MessageOut)
+@limiter.limit("30/minute")
 def post_my_message(
+    request: Request,  # required by @limiter.limit — unused otherwise
     payload: SendMessageRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
@@ -143,7 +146,9 @@ def get_conversation(
 
 
 @router.post("/messages/conversations/{parent_user_id}", response_model=MessageOut)
+@limiter.limit("30/minute")
 def post_conversation_reply(
+    request: Request,  # required by @limiter.limit — unused otherwise
     parent_user_id: str,
     payload: SendMessageRequest,
     db: Session = Depends(get_db),

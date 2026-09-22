@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_school_scope, require_roles
+from app.core.rate_limit import limiter
 from app.schemas.invoice import (
     GenerateInvoiceRequest,
     BulkGenerateRequest,
@@ -94,7 +95,9 @@ def list_invoices(
 
 
 @router.post("", response_model=InvoiceResponse, status_code=201)
+@limiter.limit("60/minute")
 def create_invoice(
+    request: Request,  # required by @limiter.limit — unused otherwise
     data: GenerateInvoiceRequest,
     school_id: str = Depends(get_school_scope),  # noqa: ARG001 — enforced via student lookup in service
     db: Session = Depends(get_db),
@@ -154,7 +157,9 @@ def void_invoice(
 
 
 @router.post("/bulk-generate", response_model=BulkGenerateResult, status_code=207)
+@limiter.limit("10/hour")
 def bulk_generate_invoices(
+    request: Request,  # required by @limiter.limit — unused otherwise; also loops every active student, so this is deliberately tight
     data: BulkGenerateRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

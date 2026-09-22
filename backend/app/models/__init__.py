@@ -13,3 +13,5 @@ from app.models.typing_status import TypingStatus  # noqa: F401
 from app.models.class_group_message import ClassGroupMention  # noqa: F401
 from app.models.direct_message import DirectConversation, DirectMessage, DirectBlock, DirectReport  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
+from app.models.job import Job  # noqa: F401
+from app.models.idempotency import IdempotencyKey  # noqa: F401

@@ -1,4 +1,5 @@
 import logging
+import threading
 from contextlib import asynccontextmanager
 
 import anyio.to_thread
@@ -19,6 +20,7 @@ from app.core import background
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.database import SystemSessionLocal, engine
 from app.core.locks import try_advisory_lock
+from app.core.jobs import worker_loop
 from app.core.rate_limit import limiter
 from app.models.school import School
 from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth, notifications_general, attachments, direct_messages
@@ -39,6 +41,16 @@ if settings.sentry_dsn:
     )
 
 scheduler = BackgroundScheduler()
+
+# In-process queue worker thread (see core/jobs.py). One thread is plenty for
+# an in-process worker — it just claims a small batch and runs handlers, which
+# are themselves I/O-bound (SMTP/SMS calls). Running several API instances
+# means several of these threads, all pulling from the same `jobs` table
+# safely (FOR UPDATE SKIP LOCKED); set RUN_JOB_WORKER=false to run the queue
+# via `python -m app.worker` instead (recommended once volume grows enough
+# that queue work should scale independently of the API).
+_job_worker_stop = threading.Event()
+_job_worker_thread: threading.Thread | None = None
 
 
 def run_daily_overdue_sweep() -> None:
@@ -109,9 +121,22 @@ async def lifespan(app: FastAPI):  # noqa: ARG001 — required by FastAPI's life
         scheduler.start()
     else:
         logger.info("RUN_SCHEDULER=false — daily overdue sweep disabled on this instance")
+
+    global _job_worker_thread
+    if settings.run_job_worker:
+        _job_worker_thread = threading.Thread(
+            target=worker_loop, args=(_job_worker_stop,), name="ledgr-job-worker", daemon=True
+        )
+        _job_worker_thread.start()
+    else:
+        logger.info("RUN_JOB_WORKER=false — run `python -m app.worker` as a separate process instead")
+
     yield
     if scheduler.running:
         scheduler.shutdown(wait=False)
+    _job_worker_stop.set()
+    if _job_worker_thread is not None:
+        _job_worker_thread.join(timeout=10)
     background.shutdown()
 
 

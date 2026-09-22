@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core import cache
+from app.core.idempotency import run_idempotent
+from app.core.rate_limit import limiter
 from app.core.deps import get_school_scope, require_roles, get_current_user, CurrentUser
 from app.models.payment import Payment
 from app.schemas.payment import RecordPaymentRequest, ReversePaymentRequest, PaymentResponse
@@ -18,37 +21,78 @@ router = APIRouter(
 
 
 @router.post("", response_model=PaymentResponse, status_code=201)
+@limiter.limit("30/minute")
 def record_manual_payment(
+    request: Request,  # required by @limiter.limit — unused otherwise
     data: RecordPaymentRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     """
     Manual entry (cash/bank/cheque recorded by a bursar). M-Pesa payments
     go through the separate Daraja webhook handler instead, since those
     must only be confirmed once the provider callback arrives.
+
+    Idempotency-Key: a bursar's double-tap, or a retry after the response was
+    lost on a bad connection, must never record the same cash payment twice.
+    With the header set, a retry gets back the exact same PaymentResponse
+    instead of creating a second payment — see core/idempotency.py.
     """
-    return record_confirmed_payment(
+    return run_idempotent(
         db,
         school_id=school_id,
-        student_id=data.student_id,
-        amount=data.amount,
-        method=data.method,
-        invoice_id=data.invoice_id,
-        reference_code=data.reference_code,
-        actor_user_id=user.user_id,
+        user_id=user.user_id,
+        scope="payments.record",
+        key=idempotency_key,
+        request_body=data.model_dump(mode="json"),
+        action=lambda: (
+            201,
+            PaymentResponse.model_validate(
+                record_confirmed_payment(
+                    db,
+                    school_id=school_id,
+                    student_id=data.student_id,
+                    amount=data.amount,
+                    method=data.method,
+                    invoice_id=data.invoice_id,
+                    reference_code=data.reference_code,
+                    actor_user_id=user.user_id,
+                    commit=False,
+                )
+            ).model_dump(mode="json"),
+        ),
+        on_commit=lambda: cache.bump(school_id, "fin"),
     )
 
 
 @router.post("/{payment_id}/reverse", response_model=PaymentResponse, status_code=201)
+@limiter.limit("15/minute")
 def reverse_payment_endpoint(
+    request: Request,  # required by @limiter.limit — unused otherwise
     payment_id: str,
     data: ReversePaymentRequest,
+    school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    return reverse_payment(db, payment_id, data.reason, user.user_id)
+    return run_idempotent(
+        db,
+        school_id=school_id,
+        user_id=user.user_id,
+        scope=f"payments.reverse:{payment_id}",
+        key=idempotency_key,
+        request_body=data.model_dump(mode="json"),
+        action=lambda: _do_reverse(db, payment_id, data.reason, user.user_id),
+        on_commit=lambda: cache.bump(school_id, "fin"),
+    )
+
+
+def _do_reverse(db: Session, payment_id: str, reason: str, actor_user_id: str) -> tuple[int, dict]:
+    reversal = reverse_payment(db, payment_id, reason, actor_user_id)
+    return 201, PaymentResponse.model_validate(reversal).model_dump(mode="json")
 
 
 @router.get("/anomalies", response_model=list[PaymentAnomalyResponse])

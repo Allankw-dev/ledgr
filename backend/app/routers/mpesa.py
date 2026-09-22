@@ -1,7 +1,7 @@
 import logging
 
 from starlette.concurrency import run_in_threadpool
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from app.core.database import get_db, get_system_db
 from app.core.webhook_auth import verify_mpesa_webhook
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.config import settings
+from app.core.idempotency import reserve_key, release_key, store_result
 from app.core.rate_limit import limiter
 from app.schemas.mpesa import (
     StkPushRequest,
@@ -66,6 +67,7 @@ async def request_stk_push(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
     school_id: str = Depends(get_school_scope),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     """
     Triggers an M-Pesa prompt on the payer's phone. Callable by a bursar
@@ -73,11 +75,37 @@ async def request_stk_push(
     for their own child) — but a parent must be linked to the student on
     this invoice via student_guardians, checked explicitly below rather
     than assumed from role alone.
+
+    Idempotency-Key: without it, a double-tap on "Pay now" — or a client
+    retrying because the response was slow or dropped — fires a SECOND STK
+    prompt to the parent's phone and a second PENDING payment. The actual
+    Daraja call can't be wrapped in a DB transaction (it's an irreversible
+    external side effect), so this uses the lower-level reserve/store pair
+    instead of run_idempotent: reserve the key BEFORE calling Daraja (so a
+    concurrent duplicate request waits instead of also calling Daraja), then
+    store the result after. If Daraja itself fails, the reservation is
+    released so a genuine retry isn't stuck behind a dead key.
     """
     invoice, balance, student = await run_in_threadpool(_prepare_stk_push, db, data, user, school_id)
 
     if not settings.mpesa_callback_url:
         raise HTTPException(503, "M-Pesa is not fully configured yet — missing callback URL")
+
+    request_body = data.model_dump(mode="json")
+
+    if idempotency_key:
+        reservation = await run_in_threadpool(
+            reserve_key,
+            db,
+            school_id=school_id,
+            user_id=user.user_id,
+            scope="mpesa.stk_push",
+            key=idempotency_key,
+            request_body=request_body,
+        )
+        if reservation is not None:
+            _, stored_response = reservation
+            return StkPushResponse.model_validate(stored_response)
 
     try:
         phone = normalize_phone_number(data.phone_number)
@@ -89,13 +117,19 @@ async def request_stk_push(
             callback_url=settings.mpesa_callback_url,
         )
     except MpesaConfigError as exc:
+        if idempotency_key:
+            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
         raise HTTPException(503, str(exc))
     except Exception as exc:  # noqa: BLE001 — any Daraja/network failure should surface as a clean 502, not crash
         logger.exception("STK push failed")
+        if idempotency_key:
+            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
         raise HTTPException(502, f"Could not reach M-Pesa: {exc}")
 
     checkout_request_id = result.get("CheckoutRequestID")
     if not checkout_request_id:
+        if idempotency_key:
+            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
         raise HTTPException(502, "M-Pesa did not return a valid request ID")
 
     await run_in_threadpool(
@@ -108,11 +142,22 @@ async def request_stk_push(
         checkout_request_id=checkout_request_id,
     )
 
-    return StkPushResponse(
+    response = StkPushResponse(
         checkout_request_id=checkout_request_id,
         message="Check your phone and enter your M-Pesa PIN to complete payment.",
     )
-
+    if idempotency_key:
+        await run_in_threadpool(
+            store_result,
+            db,
+            school_id=school_id,
+            user_id=user.user_id,
+            scope="mpesa.stk_push",
+            key=idempotency_key,
+            status_code=201,
+            response=response.model_dump(mode="json"),
+        )
+    return response
 
 @router.post("/callback", dependencies=[Depends(verify_mpesa_webhook)])
 async def mpesa_callback(request: Request, db: Session = Depends(get_system_db)):

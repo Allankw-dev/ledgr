@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import cache
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles
 from app.models.invoice import Invoice
@@ -88,31 +89,43 @@ def dashboard_analytics(
     if not school_id:
         raise HTTPException(400, "SUPER_ADMIN must act within a specific school for analytics")
 
-    stats = get_summary_stats(db, school_id)
+    def load() -> dict:
+        stats = get_summary_stats(db, school_id)
 
-    collection_by_term = [
-        TermCollectionPoint(term_id=t.term_id, term_name=t.term_name, total_billed=t.total_billed, total_paid=t.total_paid)
-        for t in get_collection_by_term(db, school_id)
-    ]
+        collection_by_term = [
+            TermCollectionPoint(
+                term_id=t.term_id, term_name=t.term_name, total_billed=t.total_billed, total_paid=t.total_paid
+            )
+            for t in get_collection_by_term(db, school_id)
+        ]
 
-    top_risk = [
-        TopRiskInvoice(
-            invoice_id=r.invoice_id,
-            student_id=r.student_id,
-            student_name=r.student_name,
-            class_name=r.class_name,
-            balance=r.balance,
-            risk_score=r.risk_score,
-            risk_level=r.risk_level,
-        )
-        for r in get_top_risk_invoices(db, school_id, limit=5)
-    ]
+        top_risk = [
+            TopRiskInvoice(
+                invoice_id=r.invoice_id,
+                student_id=r.student_id,
+                student_name=r.student_name,
+                class_name=r.class_name,
+                balance=r.balance,
+                risk_score=r.risk_score,
+                risk_level=r.risk_level,
+            )
+            for r in get_top_risk_invoices(db, school_id, limit=5)
+        ]
 
-    return DashboardAnalyticsResponse(
-        total_collected=stats.total_collected,
-        total_outstanding=stats.total_outstanding,
-        overdue_count=stats.overdue_count,
-        active_student_count=stats.active_student_count,
-        collection_by_term=collection_by_term,
-        top_risk=top_risk,
-    )
+        return DashboardAnalyticsResponse(
+            total_collected=stats.total_collected,
+            total_outstanding=stats.total_outstanding,
+            overdue_count=stats.overdue_count,
+            active_student_count=stats.active_student_count,
+            collection_by_term=collection_by_term,
+            top_risk=top_risk,
+        ).model_dump(mode="json")
+
+    # Several summary/ranking queries scan the whole invoices table; every
+    # bursar and admin hits this dashboard on load, often repeatedly. Cached
+    # for cache_default_ttl_seconds (30s) and invalidated immediately whenever
+    # a payment or invoice changes (cache.bump(school_id, "fin")) — so it's
+    # never more than a few seconds behind a real change, but a burst of page
+    # loads doesn't re-run the same scans over and over.
+    data = cache.cached(school_id, "fin", "dashboard-analytics", load)
+    return DashboardAnalyticsResponse.model_validate(data)

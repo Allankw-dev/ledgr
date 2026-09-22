@@ -9,8 +9,7 @@ export interface SendAnnouncementPayload {
 
 export interface SendAnnouncementResult {
   recipient_count: number;
-  emails_sent: number;
-  sms_sent: number;
+  jobs_queued: number;
   errors: string[];
 }
 

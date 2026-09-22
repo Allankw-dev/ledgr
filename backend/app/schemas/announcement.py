@@ -15,6 +15,5 @@ class SendAnnouncementRequest(BaseModel):
 
 class SendAnnouncementResponse(BaseModel):
     recipient_count: int
-    emails_sent: int
-    sms_sent: int
+    jobs_queued: int  # notification jobs enqueued for delivery — see core/jobs.py
     errors: list[str]

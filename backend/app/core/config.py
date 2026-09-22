@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     refresh_reuse_grace_seconds: int = 30  # two tabs refreshing at once must not look like theft
     email_change_expires_minutes: int = 30
 
+    # --- Durable job queue (core/jobs.py) ------------------------------------
+    job_max_attempts: int = 5
+    job_poll_seconds: float = 2.0  # idle sleep between polls
+    job_batch_size: int = 10
+    job_visibility_timeout_seconds: int = 300  # a 'running' job older than this is re-claimed
+    # Run a queue worker inside every API process. Fine for one small server;
+    # for several instances run `python -m app.worker` separately and set this false.
+    run_job_worker: bool = True
+
+    # --- Cache (core/cache.py) ---------------------------------------------
+    cache_default_ttl_seconds: int = 30
+
     cors_origins: str = "http://localhost:5173"
 
     # Base URL of the deployed frontend — used to build links inside emails

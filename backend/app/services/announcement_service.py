@@ -10,16 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.enums import GuardianLinkStatus
-from app.models.school import User
 from app.models.student import Student, StudentGuardian
-from app.services.notification_service import send_message_to_guardian
+from app.services.job_handlers import enqueue_guardian_message
 
 
 @dataclass
 class AnnouncementResult:
     recipient_count: int
-    emails_sent: int
-    sms_sent: int
+    jobs_queued: int
     errors: list[str] = field(default_factory=list)
 
 
@@ -39,7 +37,7 @@ def send_bulk_announcement(
 
     student_ids = db.execute(select(Student.id).where(*student_filters)).scalars().all()
     if not student_ids:
-        return AnnouncementResult(recipient_count=0, emails_sent=0, sms_sent=0)
+        return AnnouncementResult(recipient_count=0, jobs_queued=0)
 
     guardian_ids = (
         db.execute(
@@ -58,30 +56,30 @@ def send_bulk_announcement(
     email_body = f"Dear Parent/Guardian,\n\n{message}\n\nThank you,\n{school_name}"
     sms_text = f"{school_name}: {message}"
 
-    emails_sent = 0
-    sms_sent = 0
-    errors: list[str] = []
+    # Queued as durable jobs rather than sent synchronously: a broadcast can
+    # reach hundreds of guardians, and looping SMTP/SMS calls inside the
+    # request would hold the connection open for minutes and abandon whatever
+    # hadn't sent yet if the request timed out or the worker restarted.
+    # dedupe_key ties each job to THIS specific announcement (content-hashed),
+    # so retrying the request after a timeout can't double-message anyone.
+    from app.core.idempotency import natural_key  # local import — avoids a cycle at module load time
 
+    batch_key = natural_key(school_id, subject, message, sorted(guardian_ids))
+    jobs_queued = 0
     for guardian_id in guardian_ids:
-        guardian = db.get(User, guardian_id)
-        if not guardian:
-            continue
-        outcome = send_message_to_guardian(
-            guardian_email=guardian.email,
-            guardian_phone=guardian.phone,
+        jobs_queued += enqueue_guardian_message(
+            db,
+            school_id=school_id,
+            guardian_id=guardian_id,
             email_subject=email_subject,
             email_body=email_body,
             sms_text=sms_text,
+            dedupe_prefix=f"announce:{batch_key}",
         )
-        if outcome.email_sent:
-            emails_sent += 1
-        if outcome.sms_sent:
-            sms_sent += 1
-        errors.extend(outcome.errors)
+    errors: list[str] = []
 
     return AnnouncementResult(
         recipient_count=len(guardian_ids),
-        emails_sent=emails_sent,
-        sms_sent=sms_sent,
+        jobs_queued=jobs_queued,
         errors=errors,
     )

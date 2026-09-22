@@ -44,6 +44,8 @@ A few decisions worth knowing before you touch the code:
 - **The ML features are honest about data volume.** Risk scoring and anomaly detection are rules-based/statistical by design, not black-box ML trained on too little data — but every scored invoice is logged (`invoice_risk_snapshots` + `invoice_outcomes`) so a real trained model becomes possible once a school has enough resolved invoices to learn from.
 - **Both AI assistants are tool-calling, not free-generation.** The bursar and parent assistants can only answer from data they actually queried this turn — they can't fabricate a balance, and the one action either can take (sending a reminder / previewing — never creating — a payment plan) is narrow and logged.
 
+See [`backend/SCALING.md`](backend/SCALING.md) for running more than one instance behind a load balancer.
+
 ## Project structure
 
 ```
