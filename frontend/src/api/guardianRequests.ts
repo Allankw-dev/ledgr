@@ -28,6 +28,7 @@ export interface PendingGuardianRequest {
   student_name: string;
   parent_name: string;
   parent_email: string;
+  parent_phone: string | null;
   relationship_type: string;
   requested_at: string;
 }

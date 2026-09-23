@@ -84,6 +84,7 @@ export function GuardianRequestsPage() {
                       {req.parent_name} <span className="text-ink-400 font-normal">({req.relationship_type})</span>
                     </p>
                     <p className="text-xs text-ink-600">{req.parent_email}</p>
+                    {req.parent_phone && <p className="text-xs text-ink-600">{req.parent_phone}</p>}
                     <p className="text-xs text-ink-600 mt-0.5">
                       requesting access to <span className="font-medium text-ink-900">{req.student_name}</span>
                     </p>
