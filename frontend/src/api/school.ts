@@ -20,6 +20,10 @@ interface CreateStudentPayload {
   full_name: string;
   class_id?: string;
   date_of_birth?: string;
+  guardian_full_name?: string;
+  guardian_email?: string;
+  guardian_phone?: string;
+  guardian_relationship_type?: string;
 }
 
 export async function createStudent(payload: CreateStudentPayload): Promise<Student> {

@@ -9,7 +9,7 @@ import { lookupStudent, requestLink, type StudentLookupResult } from '../api/gua
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
-type Stage = 'entry' | 'loading' | 'found' | 'not-found' | 'confirming' | 'pending' | 'error';
+type Stage = 'entry' | 'loading' | 'found' | 'not-found' | 'confirming' | 'pending' | 'connected' | 'error';
 
 export function VerifyChildPage() {
   const location = useLocation();
@@ -61,7 +61,7 @@ export function VerifyChildPage() {
     setStage('confirming');
     try {
       await requestLink(student.student_id, relationship);
-      setStage('pending');
+      setStage(student.pre_authorized ? 'connected' : 'pending');
     } catch {
       setError('Could not send your request. Try again.');
       setStage('found');
@@ -128,6 +128,14 @@ export function VerifyChildPage() {
                 {student.class_name || 'Class not set'} · {student.school_name}
               </p>
 
+              {student.pre_authorized && (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-md bg-emerald-100 text-emerald-700 text-xs">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  The school already has your email on file for this student — confirming connects you right
+                  away, no waiting on approval.
+                </div>
+              )}
+
               <div className="mb-4">
                 <SelectField
                   label="Your relationship to this student"
@@ -153,6 +161,17 @@ export function VerifyChildPage() {
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {stage === 'connected' && student && (
+          <div className="bg-panel border border-ink-200 rounded-lg p-6 text-center">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-3" strokeWidth={1.5} />
+            <h1 className="font-display text-xl text-ink-900 mb-2">You're connected</h1>
+            <p className="text-sm text-ink-600 mb-6">
+              You can see {student.full_name}'s fee balance and payment history right away.
+            </p>
+            <Button onClick={() => navigate('/parent/dashboard')}>Go to my dashboard</Button>
           </div>
         )}
 

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Button } from './ui/Button';
 import { TextField } from './ui/TextField';
 import { SelectField } from './ui/SelectField';
-import { linkGuardian } from '../api/parent';
+import { linkGuardian, type GuardianResponse } from '../api/parent';
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
@@ -12,7 +12,6 @@ const schema = z.object({
   email: z.string().email('Enter a valid email'),
   full_name: z.string().min(2, 'Enter the parent\'s full name'),
   phone: z.string().optional(),
-  password: z.string().min(8, 'At least 8 characters — this is only used if the parent doesn\'t have an account yet'),
   relationship_type: z.enum(RELATIONSHIPS),
 });
 
@@ -20,7 +19,7 @@ type FormValues = z.infer<typeof schema>;
 
 interface LinkGuardianFormProps {
   studentId: string;
-  onSuccess: () => void;
+  onSuccess: (result: GuardianResponse) => void;
   onCancel: () => void;
 }
 
@@ -34,8 +33,8 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
 
   async function onSubmit(values: FormValues) {
     try {
-      await linkGuardian(studentId, values);
-      onSuccess();
+      const result = await linkGuardian(studentId, values);
+      onSuccess(result);
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
@@ -47,9 +46,9 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
       <p className="text-xs text-ink-600">
-        This gives the parent their own login to view this child's balance and payment history. If the email is
-        already registered as a parent, they'll just be linked to this child too — their existing password stays
-        unchanged.
+        If this email already has a parent account (e.g. another child at this school), they're linked right
+        away. Otherwise we just save these details — the parent gets connected automatically, with their own
+        password, the moment they sign up using this same email.
       </p>
 
       <TextField label="Parent's email" type="email" error={errors.email?.message} {...register('email')} />
@@ -60,13 +59,6 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
         placeholder="e.g. +254712345678"
         error={errors.phone?.message}
         {...register('phone')}
-      />
-      <TextField
-        label="Temporary password"
-        type="text"
-        placeholder="Share this with the parent to log in"
-        error={errors.password?.message}
-        {...register('password')}
       />
       <SelectField
         label="Relationship"
@@ -86,7 +78,7 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Linking…' : 'Link guardian'}
+          {isSubmitting ? 'Saving…' : 'Save parent'}
         </Button>
       </div>
     </form>

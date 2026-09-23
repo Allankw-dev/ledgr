@@ -11,6 +11,7 @@ import { LinkGuardianForm } from '../components/LinkGuardianForm';
 import { useStudents } from '../hooks/useStudents';
 import { useClasses } from '../hooks/useSchoolSetup';
 import { deactivateStudent, updateStudentClass } from '../api/school';
+import type { GuardianResponse } from '../api/parent';
 import type { Student } from '../types';
 
 export function StudentsPage() {
@@ -43,8 +44,12 @@ export function StudentsPage() {
     refetch();
   }
 
-  function handleGuardianLinked() {
-    setLinkedNotice(`Parent account linked to ${guardianTarget?.full_name}. Share the temporary password with them.`);
+  function handleGuardianLinked(result: GuardianResponse) {
+    setLinkedNotice(
+      result.status === 'linked'
+        ? `${result.full_name} is linked to ${guardianTarget?.full_name} and can log in now.`
+        : `Saved. When ${result.full_name} signs up at ${result.email}, they'll be connected to ${guardianTarget?.full_name} automatically.`
+    );
     setGuardianTarget(null);
   }
 

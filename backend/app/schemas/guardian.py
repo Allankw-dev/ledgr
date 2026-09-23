@@ -3,24 +3,27 @@ from pydantic import BaseModel, EmailStr, Field
 
 class LinkGuardianRequest(BaseModel):
     """
-    Links a parent account to a student. If a user with this email already
-    exists (e.g. linking a second child to the same parent), we reuse that
-    account and ignore the password field — we never silently overwrite an
-    existing password.
+    Records a parent's details against a student. If a user with this email
+    already exists (e.g. linking a second child to the same parent), that
+    account is linked immediately. Otherwise no account is created here —
+    the parent isn't given a password by the bursar; instead their details
+    are held as an invite so that when THEY sign up (choosing their own
+    password) with this same email, they're connected to this student
+    automatically rather than waiting on approval.
     """
     email: EmailStr
     full_name: str = Field(min_length=2)
     phone: str | None = Field(default=None, description="e.g. +254712345678")
-    password: str = Field(min_length=8, description="Only used if this email doesn't have an account yet")
     relationship_type: str = Field(min_length=2, examples=["mother", "father", "guardian"])
     is_primary: bool = True
 
 
 class GuardianResponse(BaseModel):
     id: str
-    user_id: str
+    user_id: str | None = None
     full_name: str
     email: str
     phone: str | None
     relationship_type: str
     is_primary: bool
+    status: str  # "linked" (has an account already) or "invited" (waiting for them to sign up)

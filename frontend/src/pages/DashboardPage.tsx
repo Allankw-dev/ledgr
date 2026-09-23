@@ -108,6 +108,16 @@ export function DashboardPage() {
           />
         </div>
 
+        {analytics && analytics.collection_by_term.length > 0 && (
+          <div className="bg-panel border border-ink-200 rounded-lg p-5 mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
+              <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
+            </div>
+            <CollectionChart points={analytics.collection_by_term} />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4 mb-8 items-start">
             <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
               <div className="px-5 py-4 border-b border-ink-200 flex items-center justify-between">
@@ -181,16 +191,6 @@ export function DashboardPage() {
               )}
             </div>
           </div>
-
-        {analytics && analytics.collection_by_term.length > 0 && (
-          <div className="bg-panel border border-ink-200 rounded-lg p-5 mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
-              <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
-            </div>
-            <CollectionChart points={analytics.collection_by_term} />
-          </div>
-        )}
 
         {anomalies.length > 0 && (
           <div className="bg-panel border border-clay-600/30 rounded-lg overflow-hidden mb-8">

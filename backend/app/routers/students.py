@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
-from app.core.security import hash_password
 from app.core.rate_limit import limiter
 from app.schemas.student import CreateStudentRequest, StudentResponse, UpdateStudentClassRequest, UpdateStudentRequest
 from app.schemas.pagination import Page, PageMeta
@@ -15,7 +14,7 @@ from app.schemas.guardian_request import (
     PendingGuardianRequest,
     GuardianReviewResponse,
 )
-from app.models.student import Student, StudentGuardian, Term, SchoolClass
+from app.models.student import Student, StudentGuardian, GuardianInvite, Term, SchoolClass
 from app.models.invoice import Invoice
 from app.models.payment import Payment
 from app.models.school import User, School
@@ -78,6 +77,86 @@ def get_student(
     return student
 
 
+def _link_or_invite_guardian(
+    db: Session,
+    school_id: str,
+    student_id: str,
+    *,
+    email: str,
+    full_name: str,
+    phone: str | None,
+    relationship_type: str,
+    is_primary: bool,
+) -> GuardianResponse:
+    """Shared by both 'add student + parent in one form' and the standalone
+    'Link parent' action. Never sets a password: if the email already has a
+    parent account, it's linked (and trusted — a bursar entered it —  so it
+    skips the PENDING review a parent's own self-service request would need).
+    If not, the details are held as a GuardianInvite for when that person
+    signs up themselves."""
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+
+    if user:
+        if user.role != UserRole.PARENT or user.school_id != school_id:
+            raise HTTPException(409, "This email is already registered with a different role or school")
+
+        existing_link = db.execute(
+            select(StudentGuardian).where(
+                StudentGuardian.student_id == student_id, StudentGuardian.user_id == user.id
+            )
+        ).scalar_one_or_none()
+        if existing_link:
+            raise HTTPException(409, "This parent is already linked to this student")
+
+        guardian = StudentGuardian(
+            student_id=student_id, user_id=user.id, relationship_type=relationship_type, is_primary=is_primary
+        )
+        db.add(guardian)
+        db.commit()
+        db.refresh(guardian)
+        return GuardianResponse(
+            id=guardian.id,
+            user_id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            phone=user.phone,
+            relationship_type=guardian.relationship_type,
+            is_primary=guardian.is_primary,
+            status="linked",
+        )
+
+    existing_invite = db.execute(
+        select(GuardianInvite).where(
+            GuardianInvite.student_id == student_id, func.lower(GuardianInvite.email) == email.lower()
+        )
+    ).scalar_one_or_none()
+    if existing_invite:
+        raise HTTPException(409, "A parent with this email is already invited to this student")
+
+    invite = GuardianInvite(
+        school_id=school_id,
+        student_id=student_id,
+        email=email,
+        full_name=full_name,
+        phone=phone,
+        relationship_type=relationship_type,
+        is_primary=is_primary,
+    )
+    db.add(invite)
+    db.commit()
+    db.refresh(invite)
+    return GuardianResponse(
+        id=invite.id,
+        user_id=None,
+        full_name=invite.full_name,
+        email=invite.email,
+        phone=invite.phone,
+        relationship_type=invite.relationship_type,
+        is_primary=invite.is_primary,
+        status="invited",
+    )
+
+
 @router.post("", response_model=StudentResponse, status_code=201)
 def create_student(
     data: CreateStudentRequest,
@@ -85,10 +164,29 @@ def create_student(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
-    student = Student(school_id=school_id, **data.model_dump())
+    fields = data.model_dump()
+    guardian_email = fields.pop("guardian_email", None)
+    guardian_full_name = fields.pop("guardian_full_name", None)
+    guardian_phone = fields.pop("guardian_phone", None)
+    guardian_relationship_type = fields.pop("guardian_relationship_type", None)
+
+    student = Student(school_id=school_id, **fields)
     db.add(student)
     db.commit()
     db.refresh(student)
+
+    if guardian_email:
+        _link_or_invite_guardian(
+            db,
+            school_id,
+            student.id,
+            email=guardian_email,
+            full_name=guardian_full_name or "",
+            phone=guardian_phone,
+            relationship_type=guardian_relationship_type or "guardian",
+            is_primary=True,
+        )
+
     return student
 
 
@@ -185,10 +283,11 @@ def link_guardian(
     _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     """
-    Links a parent account to a student, granting that parent portal access
-    to this child's fee data. Reuses an existing user by email if one exists
-    (e.g. adding a second child to the same parent) rather than creating a
-    duplicate account or touching that user's existing password.
+    Records a parent's details against a student. If the email already has
+    a parent account (e.g. adding a second child to the same parent), it's
+    linked immediately. Otherwise, no account or password is created here —
+    the details are saved as an invite so the parent is connected the
+    moment they sign up themselves with this same email.
     """
     student = db.execute(
         select(Student).where(Student.id == student_id, Student.school_id == school_id)
@@ -196,46 +295,15 @@ def link_guardian(
     if not student:
         raise HTTPException(404, "Student not found")
 
-    user = db.execute(select(User).where(User.email == data.email)).scalar_one_or_none()
-    if user:
-        if user.role != UserRole.PARENT or user.school_id != school_id:
-            raise HTTPException(409, "This email is already registered with a different role or school")
-    else:
-        user = User(
-            school_id=school_id,
-            email=data.email,
-            password_hash=hash_password(data.password),
-            role=UserRole.PARENT,
-            full_name=data.full_name,
-            phone=data.phone,
-        )
-        db.add(user)
-        db.flush()
-
-    existing_link = db.execute(
-        select(StudentGuardian).where(StudentGuardian.student_id == student_id, StudentGuardian.user_id == user.id)
-    ).scalar_one_or_none()
-    if existing_link:
-        raise HTTPException(409, "This parent is already linked to this student")
-
-    guardian = StudentGuardian(
-        student_id=student_id,
-        user_id=user.id,
+    return _link_or_invite_guardian(
+        db,
+        school_id,
+        student_id,
+        email=data.email,
+        full_name=data.full_name,
+        phone=data.phone,
         relationship_type=data.relationship_type,
         is_primary=data.is_primary,
-    )
-    db.add(guardian)
-    db.commit()
-    db.refresh(guardian)
-
-    return GuardianResponse(
-        id=guardian.id,
-        user_id=user.id,
-        full_name=user.full_name,
-        email=user.email,
-        phone=user.phone,
-        relationship_type=guardian.relationship_type,
-        is_primary=guardian.is_primary,
     )
 
 
@@ -276,11 +344,25 @@ def lookup_student(
 
     school = db.get(SchoolModel, school_id)
 
+    current_user = db.get(User, user.user_id)
+    pre_authorized = False
+    if current_user:
+        pre_authorized = (
+            db.execute(
+                select(GuardianInvite.id).where(
+                    GuardianInvite.student_id == student.id,
+                    func.lower(GuardianInvite.email) == current_user.email.lower(),
+                )
+            ).scalar_one_or_none()
+            is not None
+        )
+
     return StudentLookupResult(
         student_id=student.id,
         full_name=student.full_name,
         class_name=student.school_class.name if student.school_class else None,
         school_name=school.name if school else "",
+        pre_authorized=pre_authorized,
     )
 
 
@@ -296,10 +378,13 @@ def request_link(
 ):
     """
     A parent's self-service request to be linked to a child, found via the
-    lookup endpoint above. Always created as PENDING — this does NOT grant
-    portal access on its own. A bursar must approve it (see
-    /api/guardian-requests/{id}/approve) before get_my_children will
-    return anything for this link.
+    lookup endpoint above. Normally created as PENDING — this does NOT grant
+    portal access on its own; a bursar must approve it (see
+    /api/guardian-requests/{id}/approve) before get_my_children will return
+    anything for this link. The one exception: if a bursar already recorded
+    this exact email against this student (a GuardianInvite — created via
+    "Add student" or "Link parent"), that's treated as pre-approval, so the
+    link is created APPROVED immediately and the invite is consumed.
     """
     if user.role != "PARENT":
         raise HTTPException(403, "This endpoint is for parent accounts only")
@@ -318,18 +403,29 @@ def request_link(
     if existing_link:
         raise HTTPException(409, "You've already requested (or been granted) a link to this student")
 
+    db_user = db.get(User, user.user_id)
+
+    invite = None
+    if db_user:
+        invite = db.execute(
+            select(GuardianInvite).where(
+                GuardianInvite.student_id == student_id,
+                func.lower(GuardianInvite.email) == db_user.email.lower(),
+            )
+        ).scalar_one_or_none()
+
     guardian = StudentGuardian(
         student_id=student_id,
         user_id=user.user_id,
         relationship_type=data.relationship_type,
         is_primary=True,
-        status=GuardianLinkStatus.PENDING,
+        status=GuardianLinkStatus.APPROVED if invite else GuardianLinkStatus.PENDING,
     )
     db.add(guardian)
+    if invite:
+        db.delete(invite)
     db.commit()
     db.refresh(guardian)
-
-    db_user = db.get(User, user.user_id)
 
     return GuardianResponse(
         id=guardian.id,
@@ -339,6 +435,7 @@ def request_link(
         phone=db_user.phone if db_user else None,
         relationship_type=guardian.relationship_type,
         is_primary=guardian.is_primary,
+        status="linked" if invite else "pending",
     )
 
 

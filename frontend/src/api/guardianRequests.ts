@@ -5,6 +5,7 @@ export interface StudentLookupResult {
   full_name: string;
   class_name: string | null;
   school_name: string;
+  pre_authorized: boolean;
 }
 
 export async function lookupStudent(admissionNumber: string): Promise<StudentLookupResult> {

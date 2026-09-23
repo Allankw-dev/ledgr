@@ -17,6 +17,10 @@ class StudentLookupResult(BaseModel):
     full_name: str
     class_name: str | None
     school_name: str
+    # True when the school already has this signed-in user's email on file
+    # as this student's guardian — confirming will connect them right away
+    # instead of going to the bursar for review.
+    pre_authorized: bool = False
 
 
 class RequestLinkPayload(BaseModel):

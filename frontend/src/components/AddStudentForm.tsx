@@ -7,14 +7,44 @@ import { SelectField } from './ui/SelectField';
 import { createStudent } from '../api/school';
 import { useClasses } from '../hooks/useSchoolSetup';
 
+const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
+
 // Mirrors the backend's CreateStudentRequest Pydantic schema, so a mismatch
 // gets caught here in the browser before the request ever leaves the machine.
-const schema = z.object({
-  admission_number: z.string().min(1, 'Admission number is required'),
-  full_name: z.string().min(2, 'Enter the student\'s full name'),
-  class_id: z.string().optional(),
-  date_of_birth: z.string().optional(),
-});
+// The guardian_* fields are optional as a group, but if any is filled in,
+// full_name + email are required together — a name with no email (or vice
+// versa) can't be matched against the parent's own signup later.
+const schema = z
+  .object({
+    admission_number: z.string().min(1, 'Admission number is required'),
+    full_name: z.string().min(2, 'Enter the student\'s full name'),
+    class_id: z.string().optional(),
+    date_of_birth: z.string().optional(),
+    guardian_full_name: z.string().optional(),
+    guardian_email: z.string().optional(),
+    guardian_phone: z.string().optional(),
+    guardian_relationship_type: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    const wantsGuardian =
+      values.guardian_full_name || values.guardian_email || values.guardian_phone;
+    if (!wantsGuardian) return;
+
+    if (!values.guardian_full_name || values.guardian_full_name.trim().length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guardian_full_name'],
+        message: "Enter the parent's full name",
+      });
+    }
+    if (!values.guardian_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.guardian_email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guardian_email'],
+        message: 'Enter a valid email',
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -30,7 +60,7 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
     handleSubmit,
     formState: { errors, isSubmitting },
     setError,
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { guardian_relationship_type: 'guardian' } });
 
   async function onSubmit(values: FormValues) {
     try {
@@ -39,6 +69,10 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
         full_name: values.full_name,
         class_id: values.class_id || undefined,
         date_of_birth: values.date_of_birth ? new Date(values.date_of_birth).toISOString() : undefined,
+        guardian_full_name: values.guardian_email ? values.guardian_full_name : undefined,
+        guardian_email: values.guardian_email || undefined,
+        guardian_phone: values.guardian_email ? values.guardian_phone || undefined : undefined,
+        guardian_relationship_type: values.guardian_email ? values.guardian_relationship_type : undefined,
       });
       onSuccess();
     } catch (err: unknown) {
@@ -75,6 +109,41 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
         type="date"
         error={errors.date_of_birth?.message}
         {...register('date_of_birth')}
+      />
+
+      <div className="pt-2 mt-1 border-t border-ink-200">
+        <p className="text-sm font-medium text-ink-900 mb-1">Parent / guardian (optional)</p>
+        <p className="text-xs text-ink-600 mb-4">
+          Fill this in and the parent gets connected to this child automatically the moment they sign up with
+          this email — they choose their own password, you're not setting one for them.
+        </p>
+      </div>
+
+      <TextField
+        label="Parent's full name"
+        placeholder="e.g. Wanjiru Otieno"
+        error={errors.guardian_full_name?.message}
+        {...register('guardian_full_name')}
+      />
+      <TextField
+        label="Parent's email"
+        type="email"
+        placeholder="e.g. wanjiru@example.com"
+        error={errors.guardian_email?.message}
+        {...register('guardian_email')}
+      />
+      <TextField
+        label="Phone number (optional)"
+        type="tel"
+        placeholder="e.g. +254712345678"
+        error={errors.guardian_phone?.message}
+        {...register('guardian_phone')}
+      />
+      <SelectField
+        label="Relationship"
+        error={errors.guardian_relationship_type?.message}
+        options={RELATIONSHIPS.map((r) => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+        {...register('guardian_relationship_type')}
       />
 
       {errors.root && (
