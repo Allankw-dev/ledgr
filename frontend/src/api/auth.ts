@@ -55,7 +55,7 @@ export async function disable2FA(password: string): Promise<{ enabled: boolean }
   return data;
 }
 
-export async function registerParent(payload: { full_name: string; email: string; password: string }): Promise<LoginResponse> {
+export async function registerParent(payload: { full_name: string; email: string; phone: string; password: string; admission_number: string }): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>('/api/auth/register-parent', payload);
   return data;
 }

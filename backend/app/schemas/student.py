@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class CreateStudentRequest(BaseModel):
@@ -9,14 +9,14 @@ class CreateStudentRequest(BaseModel):
     full_name: str = Field(min_length=2)
     date_of_birth: datetime | None = None
 
-    # Optional — fill these in alongside the student so their parent is
-    # connected automatically the moment they sign up, instead of needing a
-    # separate "Link parent" step later. No password is collected here: the
-    # parent sets their own when they self-register.
-    guardian_full_name: str | None = Field(default=None, min_length=2)
-    guardian_email: EmailStr | None = None
-    guardian_phone: str | None = None
-    guardian_relationship_type: str | None = Field(default=None, examples=["mother", "father", "guardian"])
+    # Required — every student needs a parent on file so they're connected
+    # automatically the moment that parent signs up. No password is
+    # collected here: the parent sets their own when they self-register.
+    # No email either — bursars reliably have a parent's phone, not
+    # always their email, and phone is what matching runs on.
+    guardian_full_name: str = Field(min_length=2)
+    guardian_phone: str = Field(min_length=7)
+    guardian_relationship_type: str = Field(default="guardian", examples=["mother", "father", "guardian"])
 
 
 class UpdateStudentClassRequest(BaseModel):

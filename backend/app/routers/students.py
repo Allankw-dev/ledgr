@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.rate_limit import limiter
+from app.core.phone import normalize_phone
 from app.schemas.student import CreateStudentRequest, StudentResponse, UpdateStudentClassRequest, UpdateStudentRequest
 from app.schemas.pagination import Page, PageMeta
 from app.schemas.guardian import LinkGuardianRequest, GuardianResponse
@@ -20,6 +21,7 @@ from app.models.payment import Payment
 from app.models.school import User, School
 from app.models.enums import UserRole, GuardianLinkStatus, PaymentStatus
 from app.services.statement_service import generate_fee_statement_pdf
+from app.services.guardian_service import normalize_name, link_or_request_guardian, find_active_student_by_admission
 
 router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
 
@@ -82,23 +84,22 @@ def _link_or_invite_guardian(
     school_id: str,
     student_id: str,
     *,
-    email: str,
+    phone: str,
     full_name: str,
-    phone: str | None,
     relationship_type: str,
     is_primary: bool,
 ) -> GuardianResponse:
     """Shared by both 'add student + parent in one form' and the standalone
-    'Link parent' action. Never sets a password: if the email already has a
-    parent account, it's linked (and trusted — a bursar entered it —  so it
-    skips the PENDING review a parent's own self-service request would need).
-    If not, the details are held as a GuardianInvite for when that person
-    signs up themselves."""
-    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    'Link parent' action. Never sets a password: if this phone number
+    already has a parent account, it's linked (and trusted — a bursar
+    entered it — so it skips the PENDING review a parent's own
+    self-service request would need). If not, the name + phone are held
+    as a GuardianInvite for when that person signs up themselves."""
+    user = db.execute(select(User).where(User.phone == phone)).scalars().first()
 
     if user:
         if user.role != UserRole.PARENT or user.school_id != school_id:
-            raise HTTPException(409, "This email is already registered with a different role or school")
+            raise HTTPException(409, "This phone number is already registered with a different role or school")
 
         existing_link = db.execute(
             select(StudentGuardian).where(
@@ -126,17 +127,14 @@ def _link_or_invite_guardian(
         )
 
     existing_invite = db.execute(
-        select(GuardianInvite).where(
-            GuardianInvite.student_id == student_id, func.lower(GuardianInvite.email) == email.lower()
-        )
+        select(GuardianInvite).where(GuardianInvite.student_id == student_id, GuardianInvite.phone == phone)
     ).scalar_one_or_none()
     if existing_invite:
-        raise HTTPException(409, "A parent with this email is already invited to this student")
+        raise HTTPException(409, "A parent with this phone number is already invited to this student")
 
     invite = GuardianInvite(
         school_id=school_id,
         student_id=student_id,
-        email=email,
         full_name=full_name,
         phone=phone,
         relationship_type=relationship_type,
@@ -149,7 +147,7 @@ def _link_or_invite_guardian(
         id=invite.id,
         user_id=None,
         full_name=invite.full_name,
-        email=invite.email,
+        email=None,
         phone=invite.phone,
         relationship_type=invite.relationship_type,
         is_primary=invite.is_primary,
@@ -165,27 +163,28 @@ def create_student(
     _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     fields = data.model_dump()
-    guardian_email = fields.pop("guardian_email", None)
-    guardian_full_name = fields.pop("guardian_full_name", None)
-    guardian_phone = fields.pop("guardian_phone", None)
-    guardian_relationship_type = fields.pop("guardian_relationship_type", None)
+    guardian_full_name = fields.pop("guardian_full_name")
+    guardian_phone = fields.pop("guardian_phone")
+    guardian_relationship_type = fields.pop("guardian_relationship_type")
+
+    normalized_phone = normalize_phone(guardian_phone)
+    if not normalized_phone:
+        raise HTTPException(422, "That parent phone number doesn't look valid — e.g. 0712 345 678 or +254712345678")
 
     student = Student(school_id=school_id, **fields)
     db.add(student)
     db.commit()
     db.refresh(student)
 
-    if guardian_email:
-        _link_or_invite_guardian(
-            db,
-            school_id,
-            student.id,
-            email=guardian_email,
-            full_name=guardian_full_name or "",
-            phone=guardian_phone,
-            relationship_type=guardian_relationship_type or "guardian",
-            is_primary=True,
-        )
+    _link_or_invite_guardian(
+        db,
+        school_id,
+        student.id,
+        phone=normalized_phone,
+        full_name=guardian_full_name,
+        relationship_type=guardian_relationship_type,
+        is_primary=True,
+    )
 
     return student
 
@@ -283,11 +282,12 @@ def link_guardian(
     _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     """
-    Records a parent's details against a student. If the email already has
-    a parent account (e.g. adding a second child to the same parent), it's
-    linked immediately. Otherwise, no account or password is created here —
-    the details are saved as an invite so the parent is connected the
-    moment they sign up themselves with this same email.
+    Records a parent's details against a student. If an account with this
+    phone number already exists (e.g. adding a second child to the same
+    parent), it's linked immediately. Otherwise, no account or password is
+    created here — the details are saved as an invite so the parent is
+    connected the moment they sign up themselves with this same phone
+    number and name.
     """
     student = db.execute(
         select(Student).where(Student.id == student_id, Student.school_id == school_id)
@@ -295,13 +295,16 @@ def link_guardian(
     if not student:
         raise HTTPException(404, "Student not found")
 
+    normalized_phone = normalize_phone(data.phone)
+    if not normalized_phone:
+        raise HTTPException(422, "That phone number doesn't look valid — e.g. 0712 345 678 or +254712345678")
+
     return _link_or_invite_guardian(
         db,
         school_id,
         student_id,
-        email=data.email,
+        phone=normalized_phone,
         full_name=data.full_name,
-        phone=data.phone,
         relationship_type=data.relationship_type,
         is_primary=data.is_primary,
     )
@@ -327,13 +330,7 @@ def lookup_student(
     if user.role != "PARENT":
         raise HTTPException(403, "This endpoint is for parent accounts only")
 
-    student = db.execute(
-        select(Student).where(
-            func.lower(Student.admission_number) == admission_number.strip().lower(),
-            Student.school_id == school_id,
-            Student.is_active == True,  # noqa: E712
-        )
-    ).scalar_one_or_none()
+    student = find_active_student_by_admission(db, school_id, admission_number)
 
     if not student:
         # Deliberately generic — doesn't confirm or deny whether a number
@@ -346,15 +343,15 @@ def lookup_student(
 
     current_user = db.get(User, user.user_id)
     pre_authorized = False
-    if current_user:
-        pre_authorized = (
-            db.execute(
-                select(GuardianInvite.id).where(
-                    GuardianInvite.student_id == student.id,
-                    func.lower(GuardianInvite.email) == current_user.email.lower(),
-                )
-            ).scalar_one_or_none()
-            is not None
+    if current_user and current_user.phone:
+        invite = db.execute(
+            select(GuardianInvite).where(
+                GuardianInvite.student_id == student.id,
+                GuardianInvite.phone == current_user.phone,
+            )
+        ).scalar_one_or_none()
+        pre_authorized = invite is not None and normalize_name(invite.full_name) == normalize_name(
+            current_user.full_name
         )
 
     return StudentLookupResult(
@@ -382,9 +379,10 @@ def request_link(
     portal access on its own; a bursar must approve it (see
     /api/guardian-requests/{id}/approve) before get_my_children will return
     anything for this link. The one exception: if a bursar already recorded
-    this exact email against this student (a GuardianInvite — created via
-    "Add student" or "Link parent"), that's treated as pre-approval, so the
-    link is created APPROVED immediately and the invite is consumed.
+    this exact name + phone against this student (a GuardianInvite —
+    created via "Add student" or "Link parent"), that's treated as
+    pre-approval, so the link is created APPROVED immediately and the
+    invite is consumed.
     """
     if user.role != "PARENT":
         raise HTTPException(403, "This endpoint is for parent accounts only")
@@ -405,25 +403,14 @@ def request_link(
 
     db_user = db.get(User, user.user_id)
 
-    invite = None
-    if db_user:
-        invite = db.execute(
-            select(GuardianInvite).where(
-                GuardianInvite.student_id == student_id,
-                func.lower(GuardianInvite.email) == db_user.email.lower(),
-            )
-        ).scalar_one_or_none()
-
-    guardian = StudentGuardian(
+    guardian, auto_approved = link_or_request_guardian(
+        db,
         student_id=student_id,
         user_id=user.user_id,
+        full_name=db_user.full_name if db_user else "",
+        phone=db_user.phone if db_user else None,
         relationship_type=data.relationship_type,
-        is_primary=True,
-        status=GuardianLinkStatus.APPROVED if invite else GuardianLinkStatus.PENDING,
     )
-    db.add(guardian)
-    if invite:
-        db.delete(invite)
     db.commit()
     db.refresh(guardian)
 
@@ -431,11 +418,11 @@ def request_link(
         id=guardian.id,
         user_id=user.user_id,
         full_name=db_user.full_name if db_user else "",
-        email=db_user.email if db_user else "",
-        phone=db_user.phone if db_user else None,
+        email=db_user.email if db_user else None,
+        phone=(db_user.phone if db_user else None) or "",
         relationship_type=guardian.relationship_type,
         is_primary=guardian.is_primary,
-        status="linked" if invite else "pending",
+        status="linked" if auto_approved else "pending",
     )
 
 
@@ -471,6 +458,7 @@ def list_pending_requests(
                 student_name=student.full_name,
                 parent_name=parent.full_name,
                 parent_email=parent.email,
+                parent_phone=parent.phone,
                 relationship_type=link.relationship_type,
                 requested_at=link.created_at,
             )

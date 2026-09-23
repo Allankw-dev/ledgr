@@ -68,25 +68,27 @@ class StudentGuardian(Base):
 
 
 class GuardianInvite(Base):
-    """A parent's expected email + details, captured by a bursar — either
-    while adding the student, or later via 'Link parent' — for a parent who
-    doesn't have an account yet. No password is ever set here; the bursar
-    is only vouching that this email belongs to this student's parent.
+    """A parent's expected name + phone, captured by a bursar — either while
+    adding the student, or later via 'Link parent' — for a parent who
+    doesn't have an account yet. No password (and no email) is ever set
+    here; the bursar is only vouching that this name and phone belong to
+    this student's parent.
 
-    When someone later self-registers (choosing their own password) and
-    links to this student using the SAME email, the self-service link is
-    auto-approved instead of sitting in the bursar's review queue, and this
-    row is consumed (deleted). If they sign up with a different email, the
-    normal PENDING review flow applies untouched."""
+    When someone later self-registers (choosing their own email and
+    password) and links to this student, matching this SAME phone number
+    AND full name, the self-service link is auto-approved instead of
+    sitting in the bursar's review queue, and this row is consumed
+    (deleted). If either doesn't match, the normal PENDING review flow
+    applies untouched — a phone number alone is too easy to mistype or
+    guess to grant access on its own."""
 
     __tablename__ = "guardian_invites"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
-    email: Mapped[str] = mapped_column(String, nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
-    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str] = mapped_column(String, nullable=False, index=True)  # normalized E.164, e.g. +254712345678
     relationship_type: Mapped[str] = mapped_column(String, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

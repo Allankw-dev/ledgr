@@ -6,6 +6,7 @@ import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
 import { OtpInput } from '../components/ui/OtpInput';
 import { login, verifyTwoFactorLogin, googleAuth, registerParent } from '../api/auth';
+import { listMyChildren } from '../api/parent';
 import { getErrorMessage } from '../api/client';
 import { getLoginOptions, verifyLogin } from '../api/webauthn';
 import { isPlatformAuthenticatorAvailable, performAuthentication } from '../lib/webauthnBrowser';
@@ -214,6 +215,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
   // ---- Signup state --------------------------------------------------
   const [suFullName, setSuFullName] = useState('');
   const [suEmail, setSuEmail] = useState('');
+  const [suPhone, setSuPhone] = useState('');
   const [suPassword, setSuPassword] = useState('');
   const [suAdmissionNumber, setSuAdmissionNumber] = useState('');
   const [suError, setSuError] = useState<string | null>(null);
@@ -221,6 +223,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
 
   function validateSignup(): string | null {
     if (suFullName.trim().length < 2) return 'Enter your full name.';
+    if (suPhone.trim().length < 7) return 'Enter a valid phone number.';
     if (suPassword.length < 8) return 'Password must be at least 8 characters.';
     if (suAdmissionNumber.trim().length < 1) return "Enter your child's admission number.";
     return null;
@@ -239,10 +242,20 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       const { token, user, refresh_token } = await registerParent({
         full_name: suFullName.trim(),
         email: suEmail.trim(),
+        phone: suPhone.trim(),
         password: suPassword,
+        admission_number: suAdmissionNumber.trim(),
       });
       setSession(token, user, refresh_token);
-      navigate('/verify-child', { state: { admissionNumber: suAdmissionNumber.trim() } });
+      // If the school already had this parent's name + phone on file for
+      // that admission number, they're linked right now — skip straight
+      // to the dashboard instead of the verify-child screen.
+      const children = await listMyChildren().catch(() => []);
+      if (children.length > 0) {
+        navigate('/parent/dashboard');
+      } else {
+        navigate('/verify-child', { state: { admissionNumber: suAdmissionNumber.trim() } });
+      }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       setSuError(
@@ -462,6 +475,16 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   className="neu-input"
                   required
                 />
+                <TextField
+                  label="Phone number"
+                  type="tel"
+                  autoComplete="tel"
+                  value={suPhone}
+                  onChange={(e) => setSuPhone(e.target.value)}
+                  placeholder="e.g. 0712 345 678"
+                  className="neu-input"
+                  required
+                />
                 <PasswordField
                   label="Password"
                   autoComplete="new-password"
@@ -479,6 +502,10 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   className="neu-input"
                   required
                 />
+                <p className="text-xs text-ink-400 -mt-2">
+                  If your school already has your name and phone number on file for this admission number,
+                  you'll get access right away — no waiting on approval.
+                </p>
 
                 {suError && (
                   <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">

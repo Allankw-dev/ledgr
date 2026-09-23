@@ -18,9 +18,8 @@ export async function requestMpesaPayment(invoiceId: string, phoneNumber: string
 }
 
 interface LinkGuardianPayload {
-  email: string;
   full_name: string;
-  phone?: string;
+  phone: string;
   relationship_type: string;
   is_primary?: boolean;
 }
@@ -29,8 +28,8 @@ export interface GuardianResponse {
   id: string;
   user_id: string | null;
   full_name: string;
-  email: string;
-  phone: string | null;
+  email: string | null;
+  phone: string;
   relationship_type: string;
   is_primary: boolean;
   status: 'linked' | 'invited';

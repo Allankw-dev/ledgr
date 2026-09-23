@@ -6,7 +6,9 @@ from pydantic import BaseModel, EmailStr, Field
 class RegisterParentRequest(BaseModel):
     full_name: str = Field(min_length=2)
     email: EmailStr
+    phone: str = Field(min_length=7, description="e.g. 0712 345 678 or +254712345678")
     password: str = Field(min_length=8)
+    admission_number: str = Field(min_length=1, description="Your child's admission number")
 
 
 class StudentLookupResult(BaseModel):
@@ -17,9 +19,9 @@ class StudentLookupResult(BaseModel):
     full_name: str
     class_name: str | None
     school_name: str
-    # True when the school already has this signed-in user's email on file
-    # as this student's guardian — confirming will connect them right away
-    # instead of going to the bursar for review.
+    # True when the school already has this signed-in user's name + phone
+    # on file as this student's guardian — confirming will connect them
+    # right away instead of going to the bursar for review.
     pre_authorized: bool = False
 
 
@@ -33,6 +35,7 @@ class PendingGuardianRequest(BaseModel):
     student_name: str
     parent_name: str
     parent_email: str
+    parent_phone: str | None
     relationship_type: str
     requested_at: datetime
 
