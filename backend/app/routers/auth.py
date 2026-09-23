@@ -54,6 +54,7 @@ from app.schemas.auth import (
     EmailChangeConfirmRequest,
 )
 from app.models.school import School, User
+from app.models.student import GuardianInvite
 from app.models.enums import UserRole
 
 from app.schemas.guardian_request import RegisterParentRequest
@@ -83,21 +84,57 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     """
     Public self-signup for a parent. Deliberately creates ONLY the account
     here — no student link yet. Linking happens as a separate, explicit
-    step (POST /api/students/{id}/request-link) that starts PENDING and
-    needs a bursar's approval, because a parent typing in an admission
-    number they saw on a report card or uniform is a much weaker proof of
-    identity than a bursar creating the link from the actual student record.
+    step (POST /api/students/{id}/request-link) after they type in their
+    child's admission number.
+
+    Which SCHOOL this parent belongs to is resolved, in order:
+      1. A GuardianInvite matching this email (a bursar already entered
+         this parent's details via "Add student" or "Link parent") — trust
+         it, since the school itself told us this email belongs to them.
+         This is the normal case once bursars use that feature: signup
+         just works, with no ambiguity.
+      2. No invite anywhere for this email, but only one school exists in
+         this deployment at all — use it. Most deployments are one school.
+      3. Otherwise we refuse to guess. This used to silently grab
+         `School.first()`, which could (and did) attach a parent to the
+         wrong school the moment a second school existed — same admission
+         number, wrong tenant, "student not found" with no clue why.
     """
-    school = db.query(School).first()
-    if not school:
-        raise HTTPException(503, "This school hasn't been set up yet. Contact the school office.")
+    invite_school_ids = [
+        row[0]
+        for row in db.query(GuardianInvite.school_id)
+        .filter(func.lower(GuardianInvite.email) == data.email.lower())
+        .distinct()
+        .all()
+    ]
+
+    if len(invite_school_ids) == 1:
+        school_id = invite_school_ids[0]
+    elif len(invite_school_ids) > 1:
+        raise HTTPException(
+            409,
+            "This email is expected by more than one school. Contact the school office to confirm which one "
+            "you should sign up with.",
+        )
+    else:
+        schools = db.query(School.id).limit(2).all()
+        if len(schools) == 1:
+            school_id = schools[0][0]
+        elif len(schools) == 0:
+            raise HTTPException(503, "This school hasn't been set up yet. Contact the school office.")
+        else:
+            raise HTTPException(
+                409,
+                "We couldn't tell which school you belong to. Ask the school office to add you as your child's "
+                "parent first (they'll just need your email), then sign up again with that same email.",
+            )
 
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise HTTPException(409, "An account with this email already exists")
 
     parent = User(
-        school_id=school.id,
+        school_id=school_id,
         email=data.email,
         password_hash=hash_password(data.password),
         role=UserRole.PARENT,

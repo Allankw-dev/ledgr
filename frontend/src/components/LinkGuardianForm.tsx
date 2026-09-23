@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 import { TextField } from './ui/TextField';
 import { SelectField } from './ui/SelectField';
 import { linkGuardian, type GuardianResponse } from '../api/parent';
+import { getErrorMessage } from '../api/client';
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
@@ -36,10 +37,7 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
       const result = await linkGuardian(studentId, values);
       onSuccess(result);
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        'Could not link this guardian. Check the details and try again.';
-      setError('root', { message });
+      setError('root', { message: getErrorMessage(err, 'Could not link this guardian. Check the details and try again.') });
     }
   }
 

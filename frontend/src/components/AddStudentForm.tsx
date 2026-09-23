@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 import { TextField } from './ui/TextField';
 import { SelectField } from './ui/SelectField';
 import { createStudent } from '../api/school';
+import { getErrorMessage } from '../api/client';
 import { useClasses } from '../hooks/useSchoolSetup';
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
@@ -76,10 +77,7 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
       });
       onSuccess();
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        'Could not add this student. Check the details and try again.';
-      setError('root', { message });
+      setError('root', { message: getErrorMessage(err, 'Could not add this student. Check the details and try again.') });
     }
   }
 

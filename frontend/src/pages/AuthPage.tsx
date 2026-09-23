@@ -6,6 +6,7 @@ import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
 import { OtpInput } from '../components/ui/OtpInput';
 import { login, verifyTwoFactorLogin, googleAuth, registerParent } from '../api/auth';
+import { getErrorMessage } from '../api/client';
 import { getLoginOptions, verifyLogin } from '../api/webauthn';
 import { isPlatformAuthenticatorAvailable, performAuthentication } from '../lib/webauthnBrowser';
 import { useAuthStore } from '../store/authStore';
@@ -246,8 +247,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       setSuError(
         status === 409
-          ? 'An account with this email already exists. Try signing in instead.'
-          : 'Could not create your account. Check your details and try again.'
+          ? getErrorMessage(err, 'An account with this email already exists. Try signing in instead.')
+          : getErrorMessage(err, 'Could not create your account. Check your details and try again.')
       );
     } finally {
       setSuLoading(false);
