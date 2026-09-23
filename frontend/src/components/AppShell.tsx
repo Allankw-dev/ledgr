@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X , MessagesSquare, Flag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
@@ -34,6 +34,7 @@ const teacherNavItems = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const notif = useUnreadNotifications();
   const bell = (
     <NotificationBell
@@ -131,6 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex bg-paper relative">
       <div className="glow-violet" />
       <div className="glow-cyan" />
+      <div className="glow-emerald" />
 
       {/* Mobile top bar — the fixed sidebar only fits from md up, so
          anything narrower gets a hamburger that opens the same nav as a
@@ -174,7 +176,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <BackButton />
           {bell}
         </div>
-        {children}
+        <div key={location.pathname} className="page-enter">
+          {children}
+        </div>
       </main>
       {!isTeacher && <AssistantFab to="/assistant" />}
     </div>

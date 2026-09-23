@@ -19,12 +19,12 @@ export function Modal({ title, onClose, children }: ModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-ink-950/40" onClick={onClose} aria-hidden="true" />
+      <div className="modal-backdrop-in absolute inset-0 bg-ink-950/40" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-panel rounded-lg border border-ink-200 shadow-lg w-full max-w-md max-h-[90vh] flex flex-col"
+        className="modal-panel-in neu-surface relative bg-panel rounded-lg border border-ink-200 w-full max-w-md max-h-[90vh] flex flex-col"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink-200 shrink-0">
           <h2 id="modal-title" className="font-display text-lg text-ink-900 font-medium">

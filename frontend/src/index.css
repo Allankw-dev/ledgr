@@ -106,7 +106,12 @@
 @layer components {
   /* Soft ambient light washes behind hero/header areas — the "exciting
      background" without ever touching text itself. Fixed + pointer-events
-     none so they sit behind content and never block clicks or scroll. */
+     none so they sit behind content and never block clicks or scroll.
+     Each orb drifts on its own slow, independent loop (different duration
+     AND easing shape) so the two/three never fall into a synchronized
+     pulse — that desync is what reads as organic ambient light rather
+     than a mechanical repeating effect. Transform + opacity only, so it's
+     compositor-only and costs nothing on scroll/interaction. */
   .glow-violet {
     position: fixed;
     top: -220px;
@@ -118,6 +123,7 @@
     filter: blur(10px);
     pointer-events: none;
     z-index: 0;
+    animation: drift-a 24s ease-in-out infinite;
   }
 
   .glow-cyan {
@@ -131,6 +137,38 @@
     filter: blur(10px);
     pointer-events: none;
     z-index: 0;
+    animation: drift-b 31s ease-in-out infinite;
+  }
+
+  /* A third, faint money-green wash — low enough opacity to read as
+     ambient light rather than a status color, keeping green's meaning
+     ("paid", "good") reserved for actual data elsewhere. */
+  .glow-emerald {
+    position: fixed;
+    top: 40%;
+    left: 48%;
+    width: 700px;
+    height: 700px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(57, 255, 136, 0.05) 0%, rgba(57, 255, 136, 0) 70%);
+    filter: blur(10px);
+    pointer-events: none;
+    z-index: 0;
+    animation: drift-c 38s ease-in-out infinite;
+  }
+
+  @keyframes drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(-42px, 34px) scale(1.08); }
+    66% { transform: translate(26px, -22px) scale(0.95); }
+  }
+  @keyframes drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-54px, -38px) scale(1.1); }
+  }
+  @keyframes drift-c {
+    0%, 100% { transform: translate(-50%, -40%) scale(1); opacity: 1; }
+    50% { transform: translate(-46%, -44%) scale(1.15); opacity: 0.5; }
   }
 
   /* Faint structural ruling on data-bearing surfaces — same idea as before,
@@ -470,11 +508,11 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
-  /* Neumorphic "pressed in" treatment for inputs inside the auth card —
-     scoped to .neu-input so the rest of the app's flat TextField/
-     PasswordField styling elsewhere is untouched. !important is needed
-     because Tailwind's utility layer (border-*, bg-panel) loads after
-     this components-layer rule and would otherwise win on specificity ties. */
+  /* Neumorphic "pressed in" treatment — now the DEFAULT look for every
+     text input, select, and textarea in the app (not just the auth card).
+     !important is needed because Tailwind's utility layer (border-*,
+     bg-panel) loads after this components-layer rule and would otherwise
+     win on specificity ties. */
   .neu-input {
     border-color: transparent !important;
     background: var(--color-neu-recess) !important;
@@ -489,6 +527,142 @@
       inset -4px -4px 9px rgba(255, 255, 255, 0.07),
       0 0 0 2px var(--color-green-200) !important;
   }
+  .neu-input.neu-input-error {
+    box-shadow:
+      inset 5px 5px 10px rgba(0, 0, 0, 0.7),
+      inset -4px -4px 9px rgba(255, 92, 122, 0.1),
+      0 0 0 1.5px var(--color-clay-600) !important;
+  }
+
+  /* Neumorphic "raised" treatment — the tactile counterpart to
+     .neu-input's carved-in look, for anything that gets PRESSED (buttons,
+     the hero stat card). Same shadow language and darkness/opacity as
+     .auth-card so the whole app reads as one consistent light source, just
+     scaled down for smaller surfaces. :active swaps to an inset pair —
+     the same trick real neumorphism uses to sell "this went down" — and
+     nudges the surface a physical pixel, so a click reads as a press, not
+     just a color change. */
+  .neu-raised {
+    box-shadow:
+      6px 6px 14px rgba(0, 0, 0, 0.55),
+      -4px -4px 10px rgba(255, 255, 255, 0.05);
+    transition: box-shadow 0.12s ease, transform 0.12s ease, filter 0.12s ease;
+  }
+  .neu-raised:hover {
+    filter: brightness(1.06);
+  }
+  .neu-raised:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.5),
+      inset -2px -2px 6px rgba(255, 255, 255, 0.04);
+  }
+
+  /* Same raised depth as .neu-raised, but for STATIC surfaces (modal
+     panels, the hero stat card) — no hover brighten, no :active press,
+     since those only make sense on something the person actually clicks. */
+  .neu-surface {
+    box-shadow:
+      6px 6px 14px rgba(0, 0, 0, 0.55),
+      -4px -4px 10px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Modal entrance — a quick backdrop fade behind a slightly-scaled panel
+     settling into place, rather than an instant pop. Enter-only: React
+     unmounts the modal immediately on close, so there's nothing to
+     animate out without extra state, and an enter-only motion is the one
+     that actually matters for "did something just open". */
+  @keyframes modal-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes modal-panel-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  .modal-backdrop-in { animation: modal-backdrop-in 0.16s ease-out both; }
+  .modal-panel-in { animation: modal-panel-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* Combined neumorphic + colored-glow shadow for buttons that need BOTH —
+     a plain .neu-raised class stacked alongside a Tailwind shadow-[...]
+     utility would lose this fight (utilities layer loads after components
+     and wins box-shadow outright, it doesn't merge), so primary/danger get
+     their full shadow state defined in one place instead. */
+  .btn-neu-primary {
+    box-shadow:
+      6px 6px 14px rgba(0, 0, 0, 0.55),
+      -4px -4px 10px rgba(255, 255, 255, 0.05),
+      0 8px 24px -6px rgba(57, 255, 136, 0.4);
+    transition: box-shadow 0.12s ease, transform 0.12s ease, filter 0.12s ease;
+  }
+  .btn-neu-primary:hover { filter: brightness(1.1); }
+  .btn-neu-primary:active {
+    transform: translateY(1px);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.5),
+      inset -2px -2px 6px rgba(255, 255, 255, 0.04),
+      0 4px 14px -6px rgba(57, 255, 136, 0.3);
+  }
+  .btn-neu-primary:disabled { box-shadow: none; transform: none; filter: none; }
+
+  .btn-neu-danger {
+    box-shadow: 6px 6px 14px rgba(0, 0, 0, 0.55), -4px -4px 10px rgba(255, 255, 255, 0.05);
+    transition: box-shadow 0.12s ease, transform 0.12s ease, filter 0.12s ease;
+  }
+  .btn-neu-danger:hover { filter: brightness(1.1); }
+  .btn-neu-danger:active {
+    transform: translateY(1px);
+    box-shadow: inset 3px 3px 7px rgba(0, 0, 0, 0.5), inset -2px -2px 6px rgba(255, 255, 255, 0.04);
+  }
+  .btn-neu-danger:disabled { box-shadow: none; transform: none; filter: none; }
+
+  /* The floating assistant button — same combined-shadow reasoning as the
+     btn-neu-* classes above (a shadow-[...] utility would win the fight
+     against a plain .neu-raised). A slow, subtle breathing pulse on the
+     glow only (not the button itself moving) is the one non-user-triggered
+     motion on this element, deliberately — it's a floating call-to-action
+     whose entire job is to catch the eye, so earning that attention is the
+     point, not decoration for its own sake. */
+  .fab-neu {
+    box-shadow:
+      6px 6px 14px rgba(0, 0, 0, 0.5),
+      -4px -4px 10px rgba(255, 255, 255, 0.05),
+      0 8px 28px -6px rgba(57, 255, 136, 0.55);
+    transition: box-shadow 0.12s ease, transform 0.12s ease, filter 0.12s ease;
+    animation: fab-breathe 3.6s ease-in-out infinite;
+  }
+  .fab-neu:hover { filter: brightness(1.1); animation-play-state: paused; }
+  .fab-neu:active {
+    transform: translateY(1px) scale(0.97);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.45),
+      inset -2px -2px 6px rgba(255, 255, 255, 0.04),
+      0 4px 16px -6px rgba(57, 255, 136, 0.4);
+  }
+  @keyframes fab-breathe {
+    0%, 100% {
+      box-shadow:
+        6px 6px 14px rgba(0, 0, 0, 0.5),
+        -4px -4px 10px rgba(255, 255, 255, 0.05),
+        0 8px 28px -6px rgba(57, 255, 136, 0.55);
+    }
+    50% {
+      box-shadow:
+        6px 6px 14px rgba(0, 0, 0, 0.5),
+        -4px -4px 10px rgba(255, 255, 255, 0.05),
+        0 10px 34px -4px rgba(57, 255, 136, 0.75);
+    }
+  }
+
+  /* Route-change transition — a single, consistent settle-in applied at
+     the app shell level (keyed by pathname) rather than hand-tuned per
+     page, so navigating anywhere in the app feels like the same product
+     instead of some pages animating and others popping instantly. */
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  .page-enter { animation: page-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
   /* Below this width there's no room for a form panel AND a sliding
      overlay side by side without the overlay covering part of the

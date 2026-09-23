@@ -80,6 +80,7 @@ export function DashboardPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
+            index={0}
             label="Collected this term"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_collected))}
             trend={collectedTrend}
@@ -88,6 +89,7 @@ export function DashboardPage() {
             highlight
           />
           <StatCard
+            index={1}
             label="Outstanding balance"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_outstanding))}
             trend={!!analytics && Number(analytics.total_outstanding) > 0 ? 'Needs follow-up' : undefined}
@@ -95,6 +97,7 @@ export function DashboardPage() {
             icon={<Receipt className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
+            index={2}
             label="Overdue invoices"
             value={!analytics ? '—' : String(analytics.overdue_count)}
             trend={!!analytics && analytics.overdue_count > 0 ? 'Review and remind' : 'All on track'}
@@ -102,6 +105,7 @@ export function DashboardPage() {
             icon={<AlertCircle className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
+            index={3}
             label="Active students"
             value={!analytics ? '—' : String(analytics.active_student_count)}
             icon={<Users className="w-5 h-5" strokeWidth={1.75} />}

@@ -21,8 +21,8 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
             ref={ref}
             id={fieldId}
             type={visible ? 'text' : 'password'}
-            className={`w-full px-3.5 py-2.5 pr-10 rounded-md border bg-panel text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 ${
-              error ? 'border-clay-600' : 'border-ink-200'
+            className={`neu-input w-full px-3.5 py-2.5 pr-10 rounded-md border bg-panel text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 ${
+              error ? 'neu-input-error' : ''
             } ${className}`}
             aria-invalid={!!error}
             {...props}

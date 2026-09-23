@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
@@ -28,6 +28,7 @@ function NavBadge({ count }: { count: number }) {
 
 export function ParentShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
   const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
   const badgeCounts = { unreadMessages, unreadClassGroups, unreadDirect };
@@ -39,7 +40,13 @@ export function ParentShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-paper relative">
-      <div className="glow-violet" style={{ top: '-260px', left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '900px', height: '620px' }} />
+      {/* Centered via margin-left (not transform) — the drift animation on
+         .glow-violet now owns `transform`, and a CSS animation always wins
+         over an inline transform for the property it's animating, which
+         would otherwise snap this back to an uncentered position the
+         instant the animation started. */}
+      <div className="glow-violet" style={{ top: '-260px', left: '50%', right: 'auto', marginLeft: '-450px', width: '900px', height: '620px' }} />
+      <div className="glow-emerald" style={{ top: '30%', left: '50%' }} />
 
       <header className="relative z-10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -81,7 +88,11 @@ export function ParentShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </header>
-      <main className="max-w-3xl mx-auto px-6 py-8 relative z-10">{children}</main>
+      <main className="max-w-3xl mx-auto px-6 py-8 relative z-10">
+        <div key={location.pathname} className="page-enter">
+          {children}
+        </div>
+      </main>
       <AssistantFab to="/parent/assistant" />
     </div>
   );
