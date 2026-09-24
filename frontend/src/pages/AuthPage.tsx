@@ -532,6 +532,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
           {/* ---------------- SLIDING ACCENT OVERLAY (desktop only) ---------------- */}
           <div className="auth-overlay-track">
             <div className="auth-overlay">
+              <div className="auth-overlay-arc auth-overlay-arc--tr" aria-hidden="true" />
+              <div className="auth-overlay-arc auth-overlay-arc--bl" aria-hidden="true" />
               <div className="auth-overlay-panel auth-overlay-panel--signup-cta">
                 <h2 className="font-display text-2xl text-white mb-3">New to Ledgr?</h2>
                 <p className="text-sm text-white/85 leading-relaxed mb-6">
