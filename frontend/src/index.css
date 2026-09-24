@@ -411,7 +411,7 @@
   .auth-form-inner {
     width: 100%;
     max-width: 392px;
-    padding: 56px 48px;
+    padding: 44px 48px;
   }
   .auth-form-panel--login .auth-form-inner {
     margin-right: auto;
@@ -723,7 +723,7 @@
     .auth-form-inner {
       max-width: none;
       margin: 0 auto;
-      padding: 48px 24px 32px;
+      padding: 36px 24px 28px;
     }
     .auth-overlay-track {
       display: none;
