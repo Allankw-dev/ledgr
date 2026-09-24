@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X , MessagesSquare, Flag } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X , MessagesSquare, Flag, Pencil } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
 import { NotificationBell } from './NotificationBell';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
+import { Modal } from './ui/Modal';
+import { EditStaffProfileForm } from './EditStaffProfileForm';
 
 const staffNavItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
@@ -34,7 +36,6 @@ const teacherNavItems = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const location = useLocation();
   const notif = useUnreadNotifications();
   const bell = (
     <NotificationBell
@@ -50,6 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Chat reports are for the school admin only (the bursar doesn't see them).
   const navItems = isTeacher ? teacherNavItems : staffNavItems.filter((i) => i.to !== '/chat-reports' || user?.role === 'SCHOOL_ADMIN');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   function handleLogout() {
     logout();
@@ -113,10 +115,19 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <div className="px-3 py-4 border-t border-ink-200">
-        <div className="px-3 py-2 mb-1">
-          <p className="text-sm font-medium truncate text-ink-900">{user?.full_name || user?.email}</p>
-          <p className="text-xs text-ink-400 capitalize">{user?.role.toLowerCase().replace('_', ' ')}</p>
-        </div>
+        <button
+          onClick={() => {
+            setEditProfileOpen(true);
+            setMobileNavOpen(false);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 mb-1 rounded-md text-left hover:bg-ink-100 transition-colors group"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium truncate text-ink-900">{user?.full_name || user?.email}</span>
+            <span className="block text-xs text-ink-400 capitalize">{user?.role.toLowerCase().replace('_', ' ')}</span>
+          </span>
+          <Pencil className="w-3.5 h-3.5 text-ink-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" strokeWidth={2} />
+        </button>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors"
@@ -132,7 +143,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex bg-paper relative">
       <div className="glow-violet" />
       <div className="glow-cyan" />
-      <div className="glow-emerald" />
 
       {/* Mobile top bar — the fixed sidebar only fits from md up, so
          anything narrower gets a hamburger that opens the same nav as a
@@ -176,11 +186,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           <BackButton />
           {bell}
         </div>
-        <div key={location.pathname} className="page-enter">
-          {children}
-        </div>
+        {children}
       </main>
       {!isTeacher && <AssistantFab to="/assistant" />}
+
+      {editProfileOpen && (
+        <Modal title="Edit your details" onClose={() => setEditProfileOpen(false)}>
+          <EditStaffProfileForm onSuccess={() => setEditProfileOpen(false)} onCancel={() => setEditProfileOpen(false)} />
+        </Modal>
+      )}
     </div>
   );
 }

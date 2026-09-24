@@ -48,7 +48,7 @@ export function StudentsPage() {
     setLinkedNotice(
       result.status === 'linked'
         ? `${result.full_name} is linked to ${guardianTarget?.full_name} and can log in now.`
-        : `Saved. When ${result.full_name} signs up with this same name and phone (${result.phone}), they'll be connected to ${guardianTarget?.full_name} automatically.`
+        : `Saved. When ${result.full_name} signs up with ${result.phone}, they'll be connected to ${guardianTarget?.full_name} automatically.`
     );
     setGuardianTarget(null);
   }

@@ -5,6 +5,7 @@ collected" or "top risk" mean, so the chatbot's answers can never drift
 from what the dashboard shows."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -36,6 +37,8 @@ class TermCollection:
     term_name: str
     total_billed: Decimal
     total_paid: Decimal
+    start_date: datetime
+    end_date: datetime
 
 
 @dataclass
@@ -77,13 +80,20 @@ def get_collection_by_term(db: Session, school_id: str) -> list[TermCollection]:
             Term.name,
             func.coalesce(func.sum(Invoice.total_amount), 0),
             func.coalesce(func.sum(Invoice.amount_paid), 0),
+            Term.start_date,
+            Term.end_date,
         )
         .outerjoin(Invoice, Invoice.term_id == Term.id)
         .where(Term.school_id == school_id)
-        .group_by(Term.id, Term.name, Term.start_date)
+        .group_by(Term.id, Term.name, Term.start_date, Term.end_date)
         .order_by(Term.start_date)
     ).all()
-    return [TermCollection(term_id=tid, term_name=name, total_billed=billed, total_paid=paid) for tid, name, billed, paid in rows]
+    return [
+        TermCollection(
+            term_id=tid, term_name=name, total_billed=billed, total_paid=paid, start_date=start, end_date=end
+        )
+        for tid, name, billed, paid, start, end in rows
+    ]
 
 
 def get_top_risk_invoices(db: Session, school_id: str, limit: int = 5, class_id: str | None = None) -> list[RiskInvoice]:

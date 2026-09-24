@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -8,6 +9,8 @@ class TermCollectionPoint(BaseModel):
     term_name: str
     total_billed: Decimal
     total_paid: Decimal
+    start_date: datetime
+    end_date: datetime
 
 
 class TopRiskInvoice(BaseModel):

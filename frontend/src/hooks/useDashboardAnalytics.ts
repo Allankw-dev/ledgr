@@ -6,6 +6,8 @@ export interface TermCollectionPoint {
   term_name: string;
   total_billed: string;
   total_paid: string;
+  start_date: string;
+  end_date: string;
 }
 
 export interface TopRiskInvoice {

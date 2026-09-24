@@ -10,8 +10,9 @@ import { getErrorMessage } from '../api/client';
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
 const schema = z.object({
-  full_name: z.string().min(2, "Enter the parent's full name"),
   phone: z.string().min(7, 'Enter a valid phone number'),
+  full_name: z.string().min(2, 'Enter the parent\'s full name'),
+  email: z.string().email('Enter a valid email').optional().or(z.literal('')),
   relationship_type: z.enum(RELATIONSHIPS),
 });
 
@@ -33,7 +34,7 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
 
   async function onSubmit(values: FormValues) {
     try {
-      const result = await linkGuardian(studentId, values);
+      const result = await linkGuardian(studentId, { ...values, email: values.email || undefined });
       onSuccess(result);
     } catch (err: unknown) {
       setError('root', { message: getErrorMessage(err, 'Could not link this guardian. Check the details and try again.') });
@@ -45,16 +46,22 @@ export function LinkGuardianForm({ studentId, onSuccess, onCancel }: LinkGuardia
       <p className="text-xs text-ink-600">
         If this phone number already has a parent account (e.g. another child at this school), they're linked
         right away. Otherwise we just save these details — the parent gets connected automatically, with their
-        own password, the moment they sign up using this same name and phone number.
+        own password, the moment they sign up using this same phone number.
       </p>
 
-      <TextField label="Parent's full name" error={errors.full_name?.message} {...register('full_name')} />
       <TextField
         label="Parent's phone number"
         type="tel"
-        placeholder="e.g. 0712 345 678"
+        placeholder="e.g. +254712345678"
         error={errors.phone?.message}
         {...register('phone')}
+      />
+      <TextField label="Parent's full name" error={errors.full_name?.message} {...register('full_name')} />
+      <TextField
+        label="Email (optional)"
+        type="email"
+        error={errors.email?.message}
+        {...register('email')}
       />
       <SelectField
         label="Relationship"

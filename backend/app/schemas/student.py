@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
 
 
 class CreateStudentRequest(BaseModel):
@@ -9,14 +9,28 @@ class CreateStudentRequest(BaseModel):
     full_name: str = Field(min_length=2)
     date_of_birth: datetime | None = None
 
-    # Required — every student needs a parent on file so they're connected
-    # automatically the moment that parent signs up. No password is
-    # collected here: the parent sets their own when they self-register.
-    # No email either — bursars reliably have a parent's phone, not
-    # always their email, and phone is what matching runs on.
-    guardian_full_name: str = Field(min_length=2)
-    guardian_phone: str = Field(min_length=7)
-    guardian_relationship_type: str = Field(default="guardian", examples=["mother", "father", "guardian"])
+    # Optional AS A GROUP — fill these in alongside the student so their
+    # parent is connected automatically the moment they sign up, instead of
+    # needing a separate "Link parent" step later. No password is collected
+    # here: the parent sets their own when they self-register. But if any
+    # guardian field is given at all, guardian_full_name + guardian_phone
+    # become required together: phone is what a returning parent's signup
+    # gets matched against (see _link_or_invite_guardian), so a name with no
+    # phone can't be matched to anyone later. Email stays optional.
+    guardian_full_name: str | None = Field(default=None, min_length=2)
+    guardian_phone: str | None = Field(default=None, description="e.g. +254712345678")
+    guardian_email: EmailStr | None = None
+    guardian_relationship_type: str | None = Field(default=None, examples=["mother", "father", "guardian"])
+
+    @model_validator(mode="after")
+    def _guardian_group_requires_phone(self) -> "CreateStudentRequest":
+        wants_guardian = self.guardian_full_name or self.guardian_phone or self.guardian_email
+        if wants_guardian:
+            if not self.guardian_full_name or len(self.guardian_full_name.strip()) < 2:
+                raise ValueError("Enter the parent's full name")
+            if not self.guardian_phone:
+                raise ValueError("Enter the parent's phone number")
+        return self
 
 
 class UpdateStudentClassRequest(BaseModel):

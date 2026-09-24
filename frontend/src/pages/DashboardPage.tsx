@@ -52,10 +52,22 @@ export function DashboardPage() {
   // For the "Term collection" progress panel — the current term's own
   // billed/paid totals, so the percentage reflects this term specifically
   // rather than the all-time total_collected figure used in the hero stat.
-  const currentTermPoint =
-    analytics && analytics.collection_by_term.length > 0
-      ? analytics.collection_by_term[analytics.collection_by_term.length - 1]
-      : null;
+  //
+  // "Current" means the term whose date range actually contains today —
+  // NOT just the last entry in the array. Bursars often generate invoices
+  // for the next term ahead of time, so the chronologically-last term can
+  // be a future one that hasn't started collecting yet, which made this
+  // panel show a flat 0% even in a term that's actively collecting money.
+  const now = new Date();
+  const termsByStart = analytics?.collection_by_term ?? [];
+  let currentTermPoint =
+    termsByStart.find((t) => new Date(t.start_date) <= now && now <= new Date(t.end_date)) ?? null;
+  if (!currentTermPoint) {
+    // Between terms (a holiday gap) — the most recently started term is
+    // still more relevant than one that hasn't begun yet.
+    const started = termsByStart.filter((t) => new Date(t.start_date) <= now);
+    currentTermPoint = started.length > 0 ? started[started.length - 1] : (termsByStart[0] ?? null);
+  }
   const termBilled = currentTermPoint ? Number(currentTermPoint.total_billed) : 0;
   const termPaid = currentTermPoint ? Number(currentTermPoint.total_paid) : 0;
   const termPaidPct = termBilled > 0 ? Math.min(100, Math.round((termPaid / termBilled) * 100)) : 0;
@@ -80,7 +92,6 @@ export function DashboardPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
-            index={0}
             label="Collected this term"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_collected))}
             trend={collectedTrend}
@@ -89,7 +100,6 @@ export function DashboardPage() {
             highlight
           />
           <StatCard
-            index={1}
             label="Outstanding balance"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_outstanding))}
             trend={!!analytics && Number(analytics.total_outstanding) > 0 ? 'Needs follow-up' : undefined}
@@ -97,7 +107,6 @@ export function DashboardPage() {
             icon={<Receipt className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
-            index={2}
             label="Overdue invoices"
             value={!analytics ? '—' : String(analytics.overdue_count)}
             trend={!!analytics && analytics.overdue_count > 0 ? 'Review and remind' : 'All on track'}
@@ -105,22 +114,40 @@ export function DashboardPage() {
             icon={<AlertCircle className="w-5 h-5" strokeWidth={1.75} />}
           />
           <StatCard
-            index={3}
             label="Active students"
             value={!analytics ? '—' : String(analytics.active_student_count)}
             icon={<Users className="w-5 h-5" strokeWidth={1.75} />}
           />
         </div>
 
-        {analytics && analytics.collection_by_term.length > 0 && (
-          <div className="bg-panel border border-ink-200 rounded-lg p-5 mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
-              <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4 mb-8 items-start">
+          {analytics && analytics.collection_by_term.length > 0 && (
+            <div className="bg-panel border border-ink-200 rounded-lg p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-ink-600" strokeWidth={2} />
+                <h2 className="font-display text-base text-ink-900 font-medium">Collection by term</h2>
+              </div>
+              <CollectionChart points={analytics.collection_by_term} />
             </div>
-            <CollectionChart points={analytics.collection_by_term} />
-          </div>
-        )}
+          )}
+
+          {currentTermPoint && (
+            <div className="bg-panel border border-ink-200 rounded-lg p-5">
+              <h2 className="font-display text-base text-ink-900 font-medium mb-4">Term collection</h2>
+              <div className="h-1.5 w-full rounded-full bg-ink-200 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-800 to-emerald-700"
+                  style={{ width: `${termPaidPct}%`, boxShadow: '0 0 12px rgba(57,255,136,0.35)' }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-ink-600 mt-2.5">
+                <span>{formatCurrency(termPaid)} collected</span>
+                <span className="figure">{termPaidPct}%</span>
+              </div>
+              <p className="text-xs text-ink-400 mt-3">{currentTermPoint.term_name}</p>
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4 mb-8 items-start">
             <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
@@ -168,22 +195,6 @@ export function DashboardPage() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {currentTermPoint && (
-                <div className="bg-panel border border-ink-200 rounded-lg p-5">
-                  <h2 className="font-display text-base text-ink-900 font-medium mb-4">Term collection</h2>
-                  <div className="h-1.5 w-full rounded-full bg-ink-200 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-800 to-emerald-700"
-                      style={{ width: `${termPaidPct}%`, boxShadow: '0 0 12px rgba(57,255,136,0.35)' }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-ink-600 mt-2.5">
-                    <span>{formatCurrency(termPaid)} collected</span>
-                    <span className="figure">{termPaidPct}%</span>
-                  </div>
-                </div>
-              )}
-
               {analytics && analytics.top_risk.length > 0 && (
                 <div className="bg-panel border border-ink-200 rounded-lg p-5">
                   <div className="flex items-center gap-2 mb-1">

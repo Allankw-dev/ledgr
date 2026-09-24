@@ -4,7 +4,7 @@ import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
@@ -55,7 +55,6 @@ from app.schemas.auth import (
 )
 from app.models.school import School, User
 from app.models.student import GuardianInvite
-from app.services.guardian_service import find_active_student_by_admission, link_or_request_guardian
 from app.models.enums import UserRole
 
 from app.schemas.guardian_request import RegisterParentRequest
@@ -89,24 +88,32 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     child's admission number.
 
     Which SCHOOL this parent belongs to is resolved, in order:
-      1. A GuardianInvite matching this phone number (a bursar already
-         entered this parent's name + phone via "Add student" or "Link
-         parent") — trust it, since the school itself told us this number
-         belongs to them. This is the normal case once bursars use that
-         feature: signup just works, with no ambiguity.
-      2. No invite anywhere for this phone, but only one school exists in
-         this deployment at all — use it. Most deployments are one school.
+      1. A GuardianInvite matching this phone number OR this email (a
+         bursar already entered this parent's details via "Add student" or
+         "Link parent") — trust it, since the school itself told us this
+         contact belongs to them. Phone is the field bursars are always
+         expected to have on file, so this is the normal case once bursars
+         use that feature: signup just works, with no ambiguity.
+      2. No invite anywhere for this phone or email, but only one school
+         exists in this deployment at all — use it. Most deployments are
+         one school.
       3. Otherwise we refuse to guess. This used to silently grab
          `School.first()`, which could (and did) attach a parent to the
          wrong school the moment a second school existed — same admission
          number, wrong tenant, "student not found" with no clue why.
     """
-    phone = normalize_phone(data.phone)
-    if not phone:
-        raise HTTPException(422, "That phone number doesn't look valid — e.g. 0712 345 678 or +254712345678")
+    normalized_phone = normalize_phone(data.phone)
+    if not normalized_phone:
+        raise HTTPException(400, "Enter a valid phone number")
+
+    match_filters = [func.lower(GuardianInvite.email) == data.email.lower()]
+    key = phone_key(normalized_phone)
+    if key:
+        match_filters.append(func.ledgr_phone_key(GuardianInvite.phone) == key)
 
     invite_school_ids = [
-        row[0] for row in db.query(GuardianInvite.school_id).filter(GuardianInvite.phone == phone).distinct().all()
+        row[0]
+        for row in db.query(GuardianInvite.school_id).filter(or_(*match_filters)).distinct().all()
     ]
 
     if len(invite_school_ids) == 1:
@@ -114,8 +121,8 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     elif len(invite_school_ids) > 1:
         raise HTTPException(
             409,
-            "This phone number is expected by more than one school. Contact the school office to confirm which "
-            "one you should sign up with.",
+            "This phone number or email is expected by more than one school. Contact the school office to "
+            "confirm which one you should sign up with.",
         )
     else:
         schools = db.query(School.id).limit(2).all()
@@ -127,8 +134,7 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
             raise HTTPException(
                 409,
                 "We couldn't tell which school you belong to. Ask the school office to add you as your child's "
-                "parent first (they'll just need your name and phone number), then sign up again with that "
-                "same phone number.",
+                "parent first (they'll just need your phone number), then sign up again with that same number.",
             )
 
     existing = db.query(User).filter(User.email == data.email).first()
@@ -138,7 +144,7 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     parent = User(
         school_id=school_id,
         email=data.email,
-        phone=phone,
+        phone=normalized_phone,
         password_hash=hash_password(data.password),
         role=UserRole.PARENT,
         full_name=data.full_name,
@@ -146,23 +152,6 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     db.add(parent)
     db.commit()
     db.refresh(parent)
-
-    # Immediately try to connect them to their child — this is the whole
-    # point of collecting the admission number here instead of as a
-    # separate step. Silently skipped (not an error) if the admission
-    # number doesn't match anyone: the account still gets created either
-    # way, and they can retry the number afterwards from their dashboard.
-    student = find_active_student_by_admission(db, school_id, data.admission_number)
-    if student:
-        link_or_request_guardian(
-            db,
-            student_id=student.id,
-            user_id=parent.id,
-            full_name=parent.full_name,
-            phone=parent.phone,
-            relationship_type="guardian",
-        )
-        db.commit()
 
     return _build_token_response(db, parent)
 

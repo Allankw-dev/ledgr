@@ -6,7 +6,6 @@ import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
 import { OtpInput } from '../components/ui/OtpInput';
 import { login, verifyTwoFactorLogin, googleAuth, registerParent } from '../api/auth';
-import { listMyChildren } from '../api/parent';
 import { getErrorMessage } from '../api/client';
 import { getLoginOptions, verifyLogin } from '../api/webauthn';
 import { isPlatformAuthenticatorAvailable, performAuthentication } from '../lib/webauthnBrowser';
@@ -244,18 +243,9 @@ export function AuthPage({ initialMode }: AuthPageProps) {
         email: suEmail.trim(),
         phone: suPhone.trim(),
         password: suPassword,
-        admission_number: suAdmissionNumber.trim(),
       });
       setSession(token, user, refresh_token);
-      // If the school already had this parent's name + phone on file for
-      // that admission number, they're linked right now — skip straight
-      // to the dashboard instead of the verify-child screen.
-      const children = await listMyChildren().catch(() => []);
-      if (children.length > 0) {
-        navigate('/parent/dashboard');
-      } else {
-        navigate('/verify-child', { state: { admissionNumber: suAdmissionNumber.trim() } });
-      }
+      navigate('/verify-child', { state: { admissionNumber: suAdmissionNumber.trim() } });
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       setSuError(
@@ -328,9 +318,9 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   )}
 
                   <h1 className="font-display text-xl text-ink-900 mb-1">Sign in</h1>
-                  <p className="text-sm text-ink-600 mb-4">Access your school's fee dashboard.</p>
+                  <p className="text-sm text-ink-600 mb-6">Access your school's fee dashboard.</p>
 
-                  <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-3" noValidate>
+                  <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4" noValidate>
                     <TextField
                       label="Email or phone number"
                       type="text"
@@ -360,13 +350,13 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                       </p>
                     )}
 
-                    <Button type="submit" disabled={loginLoading} className="mt-1 flex items-center justify-center gap-2">
+                    <Button type="submit" disabled={loginLoading} className="mt-2 flex items-center justify-center gap-2">
                       {loginLoading && <span className="orbit-spinner" />}
                       {loginLoading ? 'Signing in…' : 'Sign in'}
                     </Button>
                   </form>
 
-                  <div className="flex items-center gap-3 my-4">
+                  <div className="flex items-center gap-3 my-5">
                     <div className="h-px bg-ink-200 flex-1" />
                     <span className="text-xs text-ink-400">or</span>
                     <div className="h-px bg-ink-200 flex-1" />
@@ -376,7 +366,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                     <GoogleSignInButton onCredential={handleLoginGoogleCredential} text="signin_with" />
                   </div>
 
-                  <p className="text-center text-sm text-ink-600 mt-4 md:hidden">
+                  <p className="text-center text-sm text-ink-600 mt-6 md:hidden">
                     New here?{' '}
                     <button type="button" onClick={() => toggle('signup')} className="text-ink-900 font-medium underline underline-offset-2">
                       Create an account
@@ -445,45 +435,43 @@ export function AuthPage({ initialMode }: AuthPageProps) {
             <div className="auth-form-panel auth-form-panel--signup" data-hidden={mode !== 'signup'} ref={signupPanelRef} inert={mode !== 'signup'}>
               <div className="auth-form-inner">
               <h1 className="font-display text-xl text-ink-900 mb-1">Parent sign up</h1>
-              <p className="text-sm text-ink-600 mb-4">Create your account, then we'll verify your child's details.</p>
+              <p className="text-sm text-ink-600 mb-6">Create your account, then we'll verify your child's details.</p>
 
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-5">
                 <GoogleSignInButton onCredential={handleSignupGoogleCredential} text="signup_with" />
               </div>
 
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-5">
                 <div className="h-px bg-ink-200 flex-1" />
                 <span className="text-xs text-ink-400">or</span>
                 <div className="h-px bg-ink-200 flex-1" />
               </div>
 
-              <form onSubmit={handleSignupSubmit} className="flex flex-col gap-3" noValidate>
-                <div className="grid grid-cols-2 gap-3">
-                  <TextField
-                    label="Full name"
-                    value={suFullName}
-                    onChange={(e) => setSuFullName(e.target.value)}
-                    placeholder="e.g. Jane Wambui"
-                    className="neu-input"
-                    required
-                  />
-                  <TextField
-                    label="Phone number"
-                    type="tel"
-                    autoComplete="tel"
-                    value={suPhone}
-                    onChange={(e) => setSuPhone(e.target.value)}
-                    placeholder="0712 345 678"
-                    className="neu-input"
-                    required
-                  />
-                </div>
+              <form onSubmit={handleSignupSubmit} className="flex flex-col gap-4" noValidate>
+                <TextField
+                  label="Your full name"
+                  value={suFullName}
+                  onChange={(e) => setSuFullName(e.target.value)}
+                  placeholder="e.g. Jane Wambui"
+                  className="neu-input"
+                  required
+                />
                 <TextField
                   label="Email"
                   type="email"
                   autoComplete="email"
                   value={suEmail}
                   onChange={(e) => setSuEmail(e.target.value)}
+                  className="neu-input"
+                  required
+                />
+                <TextField
+                  label="Phone number"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="e.g. +254712345678"
+                  value={suPhone}
+                  onChange={(e) => setSuPhone(e.target.value)}
                   className="neu-input"
                   required
                 />
@@ -495,18 +483,15 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   className="neu-input"
                   required
                 />
+                <hr className="border-ink-100 my-1" />
                 <TextField
                   label="Child's admission number"
                   value={suAdmissionNumber}
                   onChange={(e) => setSuAdmissionNumber(e.target.value)}
                   placeholder="e.g. GA-2026-014"
-                  className="neu-input mt-1"
+                  className="neu-input"
                   required
                 />
-                <p className="text-xs text-ink-400 leading-snug">
-                  If your school already has your name and phone number on file for this admission number,
-                  you'll get access right away — no waiting on approval.
-                </p>
 
                 {suError && (
                   <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">
@@ -514,13 +499,13 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   </p>
                 )}
 
-                <Button type="submit" disabled={suLoading} className="mt-1 flex items-center justify-center gap-2">
+                <Button type="submit" disabled={suLoading} className="mt-2 flex items-center justify-center gap-2">
                   {suLoading && <span className="orbit-spinner" />}
                   {suLoading ? 'Creating account…' : 'Continue'}
                 </Button>
               </form>
 
-              <p className="text-center text-sm text-ink-600 mt-4 md:hidden">
+              <p className="text-center text-sm text-ink-600 mt-6 md:hidden">
                 Already have an account?{' '}
                 <button type="button" onClick={() => toggle('login')} className="text-ink-900 font-medium underline underline-offset-2">
                   Sign in
@@ -533,8 +518,6 @@ export function AuthPage({ initialMode }: AuthPageProps) {
           {/* ---------------- SLIDING ACCENT OVERLAY (desktop only) ---------------- */}
           <div className="auth-overlay-track">
             <div className="auth-overlay">
-              <div className="auth-overlay-arc auth-overlay-arc--tr" aria-hidden="true" />
-              <div className="auth-overlay-arc auth-overlay-arc--bl" aria-hidden="true" />
               <div className="auth-overlay-panel auth-overlay-panel--signup-cta">
                 <h2 className="font-display text-2xl text-white mb-3">New to Ledgr?</h2>
                 <p className="text-sm text-white/85 leading-relaxed mb-6">

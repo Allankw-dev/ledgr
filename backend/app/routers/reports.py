@@ -94,7 +94,12 @@ def dashboard_analytics(
 
         collection_by_term = [
             TermCollectionPoint(
-                term_id=t.term_id, term_name=t.term_name, total_billed=t.total_billed, total_paid=t.total_paid
+                term_id=t.term_id,
+                term_name=t.term_name,
+                total_billed=t.total_billed,
+                total_paid=t.total_paid,
+                start_date=t.start_date,
+                end_date=t.end_date,
             )
             for t in get_collection_by_term(db, school_id)
         ]

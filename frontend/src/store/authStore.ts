@@ -13,6 +13,10 @@ interface AuthState {
   setSession: (token: string, user: AuthUser, refreshToken?: string | null) => void;
   // Used by the API client after a silent refresh — keeps the same user.
   setTokens: (token: string, refreshToken: string) => void;
+  // Merges a partial patch into the current user — used after a self-service
+  // profile edit so the sidebar reflects the new name/phone immediately,
+  // without forcing a re-login just to refresh the JWT's cached claims.
+  updateUser: (patch: Partial<AuthUser>) => void;
   logout: () => void;
 }
 
@@ -24,6 +28,10 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       setSession: (token, user, refreshToken = null) => set({ token, user, refreshToken }),
       setTokens: (token, refreshToken) => set({ token, refreshToken }),
+      updateUser: (patch) => {
+        const { user } = get();
+        if (user) set({ user: { ...user, ...patch } });
+      },
       logout: () => {
         const { refreshToken } = get();
         set({ token: null, refreshToken: null, user: null });

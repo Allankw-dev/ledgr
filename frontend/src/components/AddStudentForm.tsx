@@ -10,18 +10,50 @@ import { useClasses } from '../hooks/useSchoolSetup';
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
-// Mirrors the backend's CreateStudentRequest Pydantic schema. Parent name +
-// phone are required alongside the student, not optional extras — that's
-// what lets the parent be connected automatically the moment they sign up.
-const schema = z.object({
-  admission_number: z.string().min(1, 'Admission number is required'),
-  full_name: z.string().min(2, "Enter the student's full name"),
-  class_id: z.string().optional(),
-  date_of_birth: z.string().optional(),
-  guardian_full_name: z.string().min(2, "Enter the parent's full name"),
-  guardian_phone: z.string().min(7, 'Enter a valid phone number'),
-  guardian_relationship_type: z.string().min(1),
-});
+// Mirrors the backend's CreateStudentRequest Pydantic schema, so a mismatch
+// gets caught here in the browser before the request ever leaves the machine.
+// The guardian_* fields are optional as a group, but if any is filled in,
+// full_name + phone are required together — a name with no phone number
+// can't be matched against the parent's own signup later. Email stays
+// optional even within the group.
+const schema = z
+  .object({
+    admission_number: z.string().min(1, 'Admission number is required'),
+    full_name: z.string().min(2, 'Enter the student\'s full name'),
+    class_id: z.string().optional(),
+    date_of_birth: z.string().optional(),
+    guardian_full_name: z.string().optional(),
+    guardian_phone: z.string().optional(),
+    guardian_email: z.string().optional(),
+    guardian_relationship_type: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    const wantsGuardian =
+      values.guardian_full_name || values.guardian_phone || values.guardian_email;
+    if (!wantsGuardian) return;
+
+    if (!values.guardian_full_name || values.guardian_full_name.trim().length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guardian_full_name'],
+        message: "Enter the parent's full name",
+      });
+    }
+    if (!values.guardian_phone || values.guardian_phone.trim().length < 7) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guardian_phone'],
+        message: 'Enter a valid phone number',
+      });
+    }
+    if (values.guardian_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.guardian_email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guardian_email'],
+        message: 'Enter a valid email',
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -46,9 +78,10 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
         full_name: values.full_name,
         class_id: values.class_id || undefined,
         date_of_birth: values.date_of_birth ? new Date(values.date_of_birth).toISOString() : undefined,
-        guardian_full_name: values.guardian_full_name,
-        guardian_phone: values.guardian_phone,
-        guardian_relationship_type: values.guardian_relationship_type,
+        guardian_full_name: values.guardian_phone ? values.guardian_full_name : undefined,
+        guardian_phone: values.guardian_phone || undefined,
+        guardian_email: values.guardian_phone ? values.guardian_email || undefined : undefined,
+        guardian_relationship_type: values.guardian_phone ? values.guardian_relationship_type : undefined,
       });
       onSuccess();
     } catch (err: unknown) {
@@ -85,10 +118,10 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
       />
 
       <div className="pt-2 mt-1 border-t border-ink-200">
-        <p className="text-sm font-medium text-ink-900 mb-1">Parent / guardian</p>
+        <p className="text-sm font-medium text-ink-900 mb-1">Parent / guardian (optional)</p>
         <p className="text-xs text-ink-600 mb-4">
-          The parent gets connected to this child automatically the moment they sign up with this same name and
-          phone number — they choose their own password, you're not setting one for them.
+          Fill this in and the parent gets connected to this child automatically the moment they sign up with
+          this phone number — they choose their own password, you're not setting one for them.
         </p>
       </div>
 
@@ -101,9 +134,16 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
       <TextField
         label="Parent's phone number"
         type="tel"
-        placeholder="e.g. 0712 345 678"
+        placeholder="e.g. +254712345678"
         error={errors.guardian_phone?.message}
         {...register('guardian_phone')}
+      />
+      <TextField
+        label="Email (optional)"
+        type="email"
+        placeholder="e.g. wanjiru@example.com"
+        error={errors.guardian_email?.message}
+        {...register('guardian_email')}
       />
       <SelectField
         label="Relationship"

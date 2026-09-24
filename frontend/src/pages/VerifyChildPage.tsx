@@ -131,8 +131,8 @@ export function VerifyChildPage() {
               {student.pre_authorized && (
                 <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-md bg-emerald-100 text-emerald-700 text-xs">
                   <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                  The school already has your email on file for this student — confirming connects you right
-                  away, no waiting on approval.
+                  The school already has your phone number (or email) on file for this student — confirming
+                  connects you right away, no waiting on approval.
                 </div>
               )}
 
