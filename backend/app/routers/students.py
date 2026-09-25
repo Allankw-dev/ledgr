@@ -63,6 +63,78 @@ def list_students(
     )
 
 
+# Registered BEFORE /{student_id} deliberately: FastAPI/Starlette matches GET
+# routes in registration order, and /{student_id} is a catch-all that would
+# otherwise swallow a request to /lookup — treating the literal string
+# "lookup" as if it were a student_id — and 404 on its own without this
+# handler ever running. Static/literal paths must come before dynamic
+# path-parameter routes that could shadow them.
+@router.get("/lookup", response_model=StudentLookupResult)
+@limiter.limit("10/minute")
+def lookup_student(
+    request: Request,
+    admission_number: str,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Used right after a parent signs up: they type in their child's
+    admission number and get back just enough to recognize them (name,
+    class, school) — never balance or any financial detail, since an
+    admission number alone is weak proof of identity. Rate-limited per
+    caller specifically to blunt someone trying to enumerate valid numbers
+    by trial and error now that they at least need a real account to try.
+    """
+    if user.role != "PARENT":
+        raise HTTPException(403, "This endpoint is for parent accounts only")
+
+    student = db.execute(
+        select(Student).where(
+            func.lower(Student.admission_number) == admission_number.strip().lower(),
+            Student.school_id == school_id,
+            Student.is_active == True,  # noqa: E712
+        )
+    ).scalar_one_or_none()
+
+    if not student:
+        # Deliberately generic — doesn't confirm or deny whether a number
+        # format is "close" to a real one.
+        raise HTTPException(404, "We couldn't find a student with that admission number.")
+
+    from app.models.school import School as SchoolModel
+
+    school = db.get(SchoolModel, school_id)
+
+    current_user = db.get(User, user.user_id)
+    pre_authorized = False
+    if current_user:
+        match_filters = []
+        key = phone_key(current_user.phone) if current_user.phone else None
+        if key:
+            match_filters.append(func.ledgr_phone_key(GuardianInvite.phone) == key)
+        if current_user.email:
+            match_filters.append(func.lower(GuardianInvite.email) == current_user.email.lower())
+
+        pre_authorized = bool(match_filters) and (
+            db.execute(
+                select(GuardianInvite.id).where(
+                    GuardianInvite.student_id == student.id,
+                    or_(*match_filters),
+                )
+            ).scalar_one_or_none()
+            is not None
+        )
+
+    return StudentLookupResult(
+        student_id=student.id,
+        full_name=student.full_name,
+        class_name=student.school_class.name if student.school_class else None,
+        school_name=school.name if school else "",
+        pre_authorized=pre_authorized,
+    )
+
+
 @router.get("/{student_id}", response_model=StudentResponse)
 def get_student(
     student_id: str,
@@ -334,72 +406,6 @@ def link_guardian(
         full_name=data.full_name,
         relationship_type=data.relationship_type,
         is_primary=data.is_primary,
-    )
-
-
-@router.get("/lookup", response_model=StudentLookupResult)
-@limiter.limit("10/minute")
-def lookup_student(
-    request: Request,
-    admission_number: str,
-    school_id: str = Depends(get_school_scope),
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    """
-    Used right after a parent signs up: they type in their child's
-    admission number and get back just enough to recognize them (name,
-    class, school) — never balance or any financial detail, since an
-    admission number alone is weak proof of identity. Rate-limited per
-    caller specifically to blunt someone trying to enumerate valid numbers
-    by trial and error now that they at least need a real account to try.
-    """
-    if user.role != "PARENT":
-        raise HTTPException(403, "This endpoint is for parent accounts only")
-
-    student = db.execute(
-        select(Student).where(
-            func.lower(Student.admission_number) == admission_number.strip().lower(),
-            Student.school_id == school_id,
-            Student.is_active == True,  # noqa: E712
-        )
-    ).scalar_one_or_none()
-
-    if not student:
-        # Deliberately generic — doesn't confirm or deny whether a number
-        # format is "close" to a real one.
-        raise HTTPException(404, "We couldn't find a student with that admission number.")
-
-    from app.models.school import School as SchoolModel
-
-    school = db.get(SchoolModel, school_id)
-
-    current_user = db.get(User, user.user_id)
-    pre_authorized = False
-    if current_user:
-        match_filters = []
-        key = phone_key(current_user.phone) if current_user.phone else None
-        if key:
-            match_filters.append(func.ledgr_phone_key(GuardianInvite.phone) == key)
-        if current_user.email:
-            match_filters.append(func.lower(GuardianInvite.email) == current_user.email.lower())
-
-        pre_authorized = bool(match_filters) and (
-            db.execute(
-                select(GuardianInvite.id).where(
-                    GuardianInvite.student_id == student.id,
-                    or_(*match_filters),
-                )
-            ).scalar_one_or_none()
-            is not None
-        )
-
-    return StudentLookupResult(
-        student_id=student.id,
-        full_name=student.full_name,
-        class_name=student.school_class.name if student.school_class else None,
-        school_name=school.name if school else "",
-        pre_authorized=pre_authorized,
     )
 
 
