@@ -1,6 +1,6 @@
 # Ledgr
 
-A school fee management platform for Kenyan schools — built for two audiences at once: bursars and admins who need to track collections and chase overdue fees, and parents who just want to know what they owe and pay it without a phone call.
+A school fee management platform for Kenyan schools — built for two audiences at once: bursars and admins who need to track collections and chase overdue fees, and parents who just want to know what they owe and pay it without a phone call..
 
 ## What it does
 
