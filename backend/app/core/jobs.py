@@ -126,6 +126,8 @@ def _finish(job_id: str, ok: bool, attempts: int, max_attempts: int, error: str 
                 {"id": job_id},
             )
         elif attempts >= max_attempts:
+            # ERROR level => Sentry alert. A dead job is a notification/reminder that never went out.
+            logger.error("Job %s gave up after %s attempts: %s", job_id, attempts, (error or "")[:300])
             db.execute(
                 text("UPDATE jobs SET status='dead', finished_at=now(), locked_at=NULL, last_error=:e WHERE id=:id"),
                 {"id": job_id, "e": (error or "")[:2000]},

@@ -1,5 +1,7 @@
 import logging
+import secrets
 import threading
+import time
 from contextlib import asynccontextmanager
 
 import anyio.to_thread
@@ -18,6 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core import background
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.observability import RequestLogMiddleware, init_sentry, setup_logging
 from app.core.database import SystemSessionLocal, engine
 from app.core.locks import try_advisory_lock
 from app.core.jobs import worker_loop
@@ -27,18 +30,11 @@ from app.routers import auth, students, invoices, invoice_documents, payments, t
 from app.routers.students import guardian_requests_router
 from app.services.overdue_automation_service import run_overdue_reminder_sweep
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Optional error monitoring — only active when SENTRY_DSN is set.
-if settings.sentry_dsn:
-    import sentry_sdk
-
-    sentry_sdk.init(
-        dsn=settings.sentry_dsn,
-        environment=settings.environment,
-        traces_sample_rate=0.05,  # sample 5% of requests for performance traces
-        send_default_pii=False,  # this is a financial app — never ship user data to third parties
-    )
+init_sentry()
 
 scheduler = BackgroundScheduler()
 
@@ -51,6 +47,18 @@ scheduler = BackgroundScheduler()
 # that queue work should scale independently of the API).
 _job_worker_stop = threading.Event()
 _job_worker_thread: threading.Thread | None = None
+
+
+def _ping_sweep_heartbeat() -> None:
+    """Tell the external heartbeat monitor (Healthchecks.io etc.) the sweep ran."""
+    if not settings.sweep_heartbeat_url:
+        return
+    try:
+        import httpx
+
+        httpx.get(settings.sweep_heartbeat_url, timeout=5)
+    except Exception:  # noqa: BLE001 — monitoring must never break the sweep
+        logger.warning("Could not ping sweep heartbeat URL")
 
 
 def run_daily_overdue_sweep() -> None:
@@ -84,6 +92,7 @@ def run_daily_overdue_sweep() -> None:
                 except Exception:  # noqa: BLE001 — one school's failure shouldn't stop the rest
                     logger.exception("Overdue reminder sweep failed for school %s", school_id)
                     db.rollback()  # leave the session usable for the next school
+            _ping_sweep_heartbeat()
         finally:
             db.close()
 
@@ -174,6 +183,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Added last = outermost: sees every request, including CORS preflights.
+app.add_middleware(RequestLogMiddleware)
 
 
 @app.exception_handler(OperationalError)
@@ -192,7 +203,8 @@ async def database_unavailable_handler(request: Request, exc: Exception):  # noq
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):  # noqa: ARG001
-    # Never leak stack traces or internals to the client
+    # Never leak stack traces or internals to the client — but DO keep them in the logs.
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
@@ -243,3 +255,56 @@ def health_ready():
     except Exception:  # noqa: BLE001
         return JSONResponse(status_code=503, content={"status": "database unavailable"})
     return {"status": "ok"}
+
+
+@app.get("/health/status")
+def health_status(token: str = ""):
+    """Deep check for an uptime monitor's keyword/status alert. Hidden (404)
+    unless MONITOR_TOKEN is set and matches. Returns 503 when something needs
+    attention: DB down, jobs stuck or dead, scheduler/worker not running."""
+    if not settings.monitor_token or not secrets.compare_digest(
+        token.encode(), settings.monitor_token.encode()
+    ):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+    checks: dict = {}
+    problems: list[str] = []
+    try:
+        start = time.perf_counter()
+        with SystemSessionLocal() as db:
+            row = db.execute(
+                text(
+                    "SELECT "
+                    "count(*) FILTER (WHERE status = 'pending') AS pending, "
+                    "count(*) FILTER (WHERE status = 'running') AS running, "
+                    "count(*) FILTER (WHERE status = 'dead' AND finished_at > now() - interval '24 hours') AS dead_24h, "
+                    "coalesce(extract(epoch FROM (now() - min(run_at) "
+                    "FILTER (WHERE status = 'pending' AND run_at <= now()))), 0) AS oldest_pending_s "
+                    "FROM jobs"
+                )
+            ).one()
+        checks["db_ms"] = round((time.perf_counter() - start) * 1000)
+        checks["jobs_pending"] = row.pending
+        checks["jobs_running"] = row.running
+        checks["jobs_dead_24h"] = row.dead_24h
+        checks["oldest_pending_s"] = round(float(row.oldest_pending_s))
+        if row.dead_24h > 0:
+            problems.append(f"{row.dead_24h} job(s) exhausted retries in the last 24h")
+        if float(row.oldest_pending_s) > 600:
+            problems.append("job queue backlog: oldest pending job is over 10 minutes old")
+    except Exception:  # noqa: BLE001
+        logger.exception("Status check could not query the database")
+        problems.append("database unavailable")
+
+    if settings.run_job_worker:
+        alive = _job_worker_thread is not None and _job_worker_thread.is_alive()
+        checks["job_worker_alive"] = alive
+        if not alive:
+            problems.append("job worker thread is not running")
+    if settings.run_scheduler:
+        checks["scheduler_running"] = scheduler.running
+        if not scheduler.running:
+            problems.append("scheduler is not running")
+
+    body = {"status": "degraded" if problems else "ok", "problems": problems, "checks": checks}
+    return JSONResponse(status_code=503 if problems else 200, content=body)

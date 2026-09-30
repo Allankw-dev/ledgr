@@ -1,11 +1,33 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import * as Sentry from '@sentry/react'
 import App from './App.tsx'
 import './index.css'
 
+// Error tracking is off unless VITE_SENTRY_DSN is set (Vercel env var). Errors only —
+// no tracing/session replay, and no personal data is sent.
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: import.meta.env.MODE,
+    // Flaky mobile networks and browser quirks aren't bugs in Ledgr.
+    ignoreErrors: ['Network Error', 'Request aborted', 'ResizeObserver loop'],
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Sentry.ErrorBoundary
+      fallback={
+        <div style={{ padding: '3rem 1.5rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
+          <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Something went wrong</h1>
+          <p style={{ fontSize: '0.9rem', color: '#555' }}>Please refresh the page. If it keeps happening, tell the school office.</p>
+        </div>
+      }
+    >
+      <App />
+    </Sentry.ErrorBoundary>
   </StrictMode>,
 )
 

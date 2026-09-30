@@ -159,7 +159,16 @@ class Settings(BaseSettings):
 
     # Optional error monitoring (https://sentry.io) — unset = disabled.
     sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.05
     environment: str = "development"
+
+    # Monitoring
+    log_level: str = "INFO"
+    slow_request_ms: int = 1500
+    # Enables GET /health/status?token=... (queue backlog, dead jobs, scheduler). Unset = endpoint hidden.
+    monitor_token: str | None = None
+    # Healthchecks.io-style URL pinged after each daily reminder sweep, so a sweep that silently never runs alerts you.
+    sweep_heartbeat_url: str | None = None
 
     @model_validator(mode="after")
     def _production_sanity_checks(self):
