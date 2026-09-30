@@ -7,6 +7,7 @@ import { SelectField } from './ui/SelectField';
 import { createStudent } from '../api/school';
 import { getErrorMessage } from '../api/client';
 import { useClasses } from '../hooks/useSchoolSetup';
+import type { Student } from '../types';
 
 const RELATIONSHIPS = ['mother', 'father', 'guardian'] as const;
 
@@ -58,22 +59,24 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 interface AddStudentFormProps {
-  onSuccess: () => void;
+  onSuccess: (student: Student) => void;
   onCancel: () => void;
+  /** Pre-select a grade (e.g. when adding from inside a class cluster). */
+  defaultClassId?: string;
 }
 
-export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
+export function AddStudentForm({ onSuccess, onCancel, defaultClassId }: AddStudentFormProps) {
   const { classes } = useClasses();
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     setError,
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { guardian_relationship_type: 'guardian' } });
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { guardian_relationship_type: 'guardian', class_id: defaultClassId ?? '' } });
 
   async function onSubmit(values: FormValues) {
     try {
-      await createStudent({
+      const created = await createStudent({
         admission_number: values.admission_number,
         full_name: values.full_name,
         class_id: values.class_id || undefined,
@@ -83,7 +86,7 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
         guardian_email: values.guardian_phone ? values.guardian_email || undefined : undefined,
         guardian_relationship_type: values.guardian_phone ? values.guardian_relationship_type : undefined,
       });
-      onSuccess();
+      onSuccess(created);
     } catch (err: unknown) {
       setError('root', { message: getErrorMessage(err, 'Could not add this student. Check the details and try again.') });
     }

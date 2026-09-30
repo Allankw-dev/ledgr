@@ -1,10 +1,9 @@
-import { Fragment, useState } from 'react';
-import { UserPlus, Users, UserCog, UserMinus, Pencil } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { MultiGradeSelect } from '../components/ui/MultiGradeSelect';
 import { Modal } from '../components/ui/Modal';
-import { PaginationControls } from '../components/ui/PaginationControls';
 import { AddStudentForm } from '../components/AddStudentForm';
 import { EditStudentForm } from '../components/EditStudentForm';
 import { LinkGuardianForm } from '../components/LinkGuardianForm';
@@ -16,9 +15,12 @@ import type { Student } from '../types';
 
 export function StudentsPage() {
   const [classFilter, setClassFilter] = useState<string[]>([]);
-  const { students, meta, setPage, loading, error, refetch } = useStudents(classFilter);
+  const { students, loading, error, refetch } = useStudents(classFilter);
   const { classes } = useClasses();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addClassId, setAddClassId] = useState<string | undefined>(undefined);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [guardianTarget, setGuardianTarget] = useState<Student | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Student | null>(null);
@@ -43,10 +45,50 @@ export function StudentsPage() {
   const groupLabel = (classId: string | null) =>
     classId ? classNameById.get(classId) ?? 'Unknown grade' : 'Unassigned';
 
-  function handleAdded() {
+  // One cluster per grade, in the order the API returns them (Grade 1 … 9, Unassigned last).
+  const clusters = useMemo(() => {
+    const map = new Map<string, Student[]>();
+    for (const st of students) {
+      const key = st.class_id ?? '';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(st);
+    }
+    return Array.from(map.entries()).map(([key, items]) => ({ key, classId: key || null, items }));
+  }, [students]);
+
+  function toggleCluster(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function openAdd(classId?: string) {
+    setAddClassId(classId);
+    setShowAddModal(true);
+  }
+
+  // After adding: open the new student's cluster, scroll to them and flash the row.
+  function handleAdded(created: Student) {
     setShowAddModal(false);
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.delete(created.class_id ?? '');
+      return next;
+    });
+    setHighlightId(created.id);
     refetch();
   }
+
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    const el = document.getElementById(`student-${highlightId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightId, loading, students]);
 
   function handleGuardianLinked(result: GuardianResponse) {
     setLinkedNotice(
@@ -79,7 +121,7 @@ export function StudentsPage() {
           <div>
             <h1 className="font-display text-2xl text-ink-900 font-medium">Students</h1>
             <p className="text-sm text-ink-600 mt-1">
-              {loading ? 'Loading…' : `${meta?.total ?? students.length} student${(meta?.total ?? students.length) === 1 ? '' : 's'} enrolled`}
+              {loading ? 'Loading…' : `${students.length} student${students.length === 1 ? '' : 's'} in ${clusters.length} grade group${clusters.length === 1 ? '' : 's'}`}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -90,10 +132,9 @@ export function StudentsPage() {
               allLabel="All grades"
               onChange={(ids) => {
                 setClassFilter(ids);
-                setPage(1);
               }}
             />
-            <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
+            <Button onClick={() => openAdd(classFilter.length === 1 ? classFilter[0] : undefined)} className="flex items-center gap-2">
               <UserPlus className="w-4 h-4" strokeWidth={2} />
               Add student
             </Button>
@@ -112,103 +153,131 @@ export function StudentsPage() {
           </div>
         )}
 
-        <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
-          {loading ? (
-            <div className="px-5 py-16 text-center text-sm text-ink-600">Loading students…</div>
-          ) : students.length === 0 ? (
-            <div className="px-5 py-16 text-center">
-              <Users className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />
-              <p className="text-sm text-ink-900 font-medium">No students yet</p>
-              <p className="text-xs text-ink-600 mt-1 mb-4">Add your first student to start tracking their fees.</p>
-              <Button variant="secondary" onClick={() => setShowAddModal(true)}>
-                Add student
-              </Button>
-            </div>
-          ) : (
-            <div className="ledger-lines overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-ink-600">
-                    <th className="px-5 py-2 font-medium">Admission no.</th>
-                    <th className="px-5 py-2 font-medium">Name</th>
-                    <th className="px-5 py-2 font-medium">Grade</th>
-                    <th className="px-5 py-2 font-medium">Status</th>
-                    <th className="px-5 py-2 font-medium"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((s, i) => (
-                    <Fragment key={s.id}>
-                    {(i === 0 || students[i - 1].class_id !== s.class_id) && (
-                      <tr className="bg-ink-100">
-                        <td colSpan={5} className="px-5 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
-                          {groupLabel(s.class_id)}
-                        </td>
-                      </tr>
-                    )}
-                    <tr className="h-9 text-ink-900">
-                      <td className="px-5 figure text-ink-600">{s.admission_number}</td>
-                      <td className="px-5">{s.full_name}</td>
-                      <td className="px-5">
-                        <select
-                          value={s.class_id || ''}
-                          onChange={(e) => handleClassChange(s, e.target.value)}
-                          disabled={classUpdatingId === s.id}
-                          className="px-2 py-1 rounded-md border border-ink-200 bg-panel text-ink-900 text-xs focus-visible:outline-2 focus-visible:outline-ink-600 disabled:opacity-50"
-                        >
-                          <option value="">Unassigned</option>
-                          {classes.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
+        {loading ? (
+          <div className="bg-panel border border-ink-200 rounded-lg px-5 py-16 text-center text-sm text-ink-600">Loading students…</div>
+        ) : students.length === 0 ? (
+          <div className="bg-panel border border-ink-200 rounded-lg px-5 py-16 text-center">
+            <Users className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />
+            <p className="text-sm text-ink-900 font-medium">No students yet</p>
+            <p className="text-xs text-ink-600 mt-1 mb-4">Add your first student to start tracking their fees.</p>
+            <Button variant="secondary" onClick={() => openAdd()}>
+              Add student
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {clusters.map((cluster) => {
+              const isCollapsed = collapsed.has(cluster.key);
+              return (
+                <section key={cluster.key || 'unassigned'} className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 px-5 py-3 bg-ink-100">
+                    <button
+                      onClick={() => toggleCluster(cluster.key)}
+                      aria-expanded={!isCollapsed}
+                      className="flex items-center gap-2 text-left"
+                    >
+                      {isCollapsed ? <ChevronRight className="w-4 h-4 text-ink-600" /> : <ChevronDown className="w-4 h-4 text-ink-600" />}
+                      <span className="text-sm font-semibold text-ink-900">{groupLabel(cluster.classId)}</span>
+                      <span className="text-xs text-ink-600">
+                        {cluster.items.length} student{cluster.items.length === 1 ? '' : 's'}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => openAdd(cluster.classId ?? undefined)}
+                      className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      {cluster.classId ? `Add to ${groupLabel(cluster.classId)}` : 'Add student'}
+                    </button>
+                  </div>
+                  {!isCollapsed && (
+                    <div className="ledger-lines overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-ink-600">
+                            <th className="px-5 py-2 font-medium">Admission no.</th>
+                            <th className="px-5 py-2 font-medium">Name</th>
+                            <th className="px-5 py-2 font-medium">Grade</th>
+                            <th className="px-5 py-2 font-medium">Status</th>
+                            <th className="px-5 py-2 font-medium"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cluster.items.map((s) => (
+                            <tr
+                              key={s.id}
+                              id={`student-${s.id}`}
+                              className={`h-9 text-ink-900 transition-colors ${highlightId === s.id ? 'bg-emerald-100' : ''}`}
+                            >
+                              <td className="px-5 figure text-ink-600">{s.admission_number}</td>
+                              <td className="px-5">
+                                {s.full_name}
+                                {highlightId === s.id && (
+                                  <span className="ml-2 text-xs font-medium text-emerald-700">Just added</span>
+                                )}
+                              </td>
+                              <td className="px-5">
+                                <select
+                                  value={s.class_id || ''}
+                                  onChange={(e) => handleClassChange(s, e.target.value)}
+                                  disabled={classUpdatingId === s.id}
+                                  className="px-2 py-1 rounded-md border border-ink-200 bg-panel text-ink-900 text-xs focus-visible:outline-2 focus-visible:outline-ink-600 disabled:opacity-50"
+                                >
+                                  <option value="">Unassigned</option>
+                                  {classes.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-5">
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                                    s.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-ink-100 text-ink-400'
+                                  }`}
+                                >
+                                  {s.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="px-5 text-right">
+                                <div className="flex items-center justify-end gap-3">
+                                  <button
+                                    onClick={() => setEditTarget(s)}
+                                    className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => setGuardianTarget(s)}
+                                    className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
+                                  >
+                                    <UserCog className="w-3.5 h-3.5" /> Link parent
+                                  </button>
+                                  <button
+                                    onClick={() => setRemoveTarget(s)}
+                                    className="text-xs font-medium text-clay-700 hover:underline underline-offset-2 flex items-center gap-1"
+                                  >
+                                    <UserMinus className="w-3.5 h-3.5" /> Remove
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
                           ))}
-                        </select>
-                      </td>
-                      <td className="px-5">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                            s.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-ink-100 text-ink-400'
-                          }`}
-                        >
-                          {s.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-5 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => setEditTarget(s)}
-                            className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
-                          >
-                            <Pencil className="w-3.5 h-3.5" /> Edit
-                          </button>
-                          <button
-                            onClick={() => setGuardianTarget(s)}
-                            className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
-                          >
-                            <UserCog className="w-3.5 h-3.5" /> Link parent
-                          </button>
-                          <button
-                            onClick={() => setRemoveTarget(s)}
-                            className="text-xs font-medium text-clay-700 hover:underline underline-offset-2 flex items-center gap-1"
-                          >
-                            <UserMinus className="w-3.5 h-3.5" /> Remove
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {meta && <PaginationControls meta={meta} onPageChange={setPage} />}
-        </div>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {showAddModal && (
         <Modal title="Add student" onClose={() => setShowAddModal(false)}>
-          <AddStudentForm onSuccess={handleAdded} onCancel={() => setShowAddModal(false)} />
+          <AddStudentForm onSuccess={handleAdded} onCancel={() => setShowAddModal(false)} defaultClassId={addClassId} />
         </Modal>
       )}
 
