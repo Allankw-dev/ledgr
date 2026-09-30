@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronDown, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { MultiGradeSelect } from '../components/ui/MultiGradeSelect';
@@ -21,6 +21,7 @@ export function StudentsPage() {
   const [addClassId, setAddClassId] = useState<string | undefined>(undefined);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [guardianTarget, setGuardianTarget] = useState<Student | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Student | null>(null);
@@ -45,16 +46,28 @@ export function StudentsPage() {
   const groupLabel = (classId: string | null) =>
     classId ? classNameById.get(classId) ?? 'Unknown grade' : 'Unassigned';
 
+  // Search by name or admission number (every student is already loaded, so this is instant).
+  const searchTerms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const searching = searchTerms.length > 0;
+  const visibleStudents = useMemo(() => {
+    if (!searching) return students;
+    return students.filter((st) => {
+      const hay = `${st.full_name} ${st.admission_number}`.toLowerCase();
+      return searchTerms.every((t) => hay.includes(t));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, query]);
+
   // One cluster per grade, in the order the API returns them (Grade 1 … 9, Unassigned last).
   const clusters = useMemo(() => {
     const map = new Map<string, Student[]>();
-    for (const st of students) {
+    for (const st of visibleStudents) {
       const key = st.class_id ?? '';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(st);
     }
     return Array.from(map.entries()).map(([key, items]) => ({ key, classId: key || null, items }));
-  }, [students]);
+  }, [visibleStudents]);
 
   function toggleCluster(key: string) {
     setCollapsed((prev) => {
@@ -78,6 +91,7 @@ export function StudentsPage() {
       next.delete(created.class_id ?? '');
       return next;
     });
+    setQuery('');
     setHighlightId(created.id);
     refetch();
   }
@@ -121,7 +135,11 @@ export function StudentsPage() {
           <div>
             <h1 className="font-display text-2xl text-ink-900 font-medium">Students</h1>
             <p className="text-sm text-ink-600 mt-1">
-              {loading ? 'Loading…' : `${students.length} student${students.length === 1 ? '' : 's'} in ${clusters.length} grade group${clusters.length === 1 ? '' : 's'}`}
+              {loading
+                ? 'Loading…'
+                : searching
+                  ? `${visibleStudents.length} of ${students.length} student${students.length === 1 ? '' : 's'} match`
+                  : `${students.length} student${students.length === 1 ? '' : 's'} in ${clusters.length} grade group${clusters.length === 1 ? '' : 's'}`}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -153,6 +171,29 @@ export function StudentsPage() {
           </div>
         )}
 
+        {!loading && students.length > 0 && (
+          <div className="relative mb-5">
+            <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or admission number"
+              aria-label="Search students"
+              className="w-full pl-9 pr-9 py-2.5 rounded-md border border-ink-200 bg-panel text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-900"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div className="bg-panel border border-ink-200 rounded-lg px-5 py-16 text-center text-sm text-ink-600">Loading students…</div>
         ) : students.length === 0 ? (
@@ -164,10 +205,19 @@ export function StudentsPage() {
               Add student
             </Button>
           </div>
+        ) : visibleStudents.length === 0 ? (
+          <div className="bg-panel border border-ink-200 rounded-lg px-5 py-12 text-center">
+            <p className="text-sm text-ink-900 font-medium">No student matches “{query.trim()}”</p>
+            <p className="text-xs text-ink-600 mt-1 mb-4">Check the spelling or try part of the admission number.</p>
+            <Button variant="secondary" onClick={() => setQuery('')}>
+              Clear search
+            </Button>
+          </div>
         ) : (
           <div className="flex flex-col gap-5">
             {clusters.map((cluster) => {
-              const isCollapsed = collapsed.has(cluster.key);
+              // While searching, always show the matches even inside a folded grade.
+              const isCollapsed = !searching && collapsed.has(cluster.key);
               return (
                 <section key={cluster.key || 'unassigned'} className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
                   <div className="flex items-center justify-between gap-3 px-5 py-3 bg-ink-100">
