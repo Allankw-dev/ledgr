@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { UserPlus, Users, UserCog, UserMinus, Pencil } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
@@ -38,6 +38,10 @@ export function StudentsPage() {
       setClassUpdatingId(null);
     }
   }
+
+  const classNameById = new Map(classes.map((c) => [c.id, c.name]));
+  const groupLabel = (classId: string | null) =>
+    classId ? classNameById.get(classId) ?? 'Unknown grade' : 'Unassigned';
 
   function handleAdded() {
     setShowAddModal(false);
@@ -133,8 +137,16 @@ export function StudentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((s) => (
-                    <tr key={s.id} className="h-9 text-ink-900">
+                  {students.map((s, i) => (
+                    <Fragment key={s.id}>
+                    {(i === 0 || students[i - 1].class_id !== s.class_id) && (
+                      <tr className="bg-ink-100">
+                        <td colSpan={5} className="px-5 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700">
+                          {groupLabel(s.class_id)}
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="h-9 text-ink-900">
                       <td className="px-5 figure text-ink-600">{s.admission_number}</td>
                       <td className="px-5">{s.full_name}</td>
                       <td className="px-5">
@@ -184,6 +196,7 @@ export function StudentsPage() {
                         </div>
                       </td>
                     </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

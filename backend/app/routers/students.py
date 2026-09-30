@@ -48,8 +48,17 @@ def list_students(
     items = (
         db.execute(
             select(Student)
+            .outerjoin(SchoolClass, SchoolClass.id == Student.class_id)
             .where(*filters)
-            .order_by(Student.full_name)
+            # Grouped by grade (Grade 2 before Grade 10, unassigned last),
+            # then alphabetical inside each grade. Student.id keeps paging stable.
+            .order_by(
+                SchoolClass.id.is_(None),
+                func.length(SchoolClass.name),
+                SchoolClass.name,
+                Student.full_name,
+                Student.id,
+            )
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
