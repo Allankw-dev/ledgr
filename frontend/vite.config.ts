@@ -5,6 +5,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // IPv4 explicitly: on Windows, Node can bind only to IPv6 (::1) and the browser then can't connect.
+    host: '127.0.0.1',
     port: 5173,
     // Fail loudly instead of silently bumping to 5174/5175 if 5173 is
     // already taken by a stray dev server from an earlier session — that
