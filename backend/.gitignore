@@ -7,3 +7,8 @@ __pycache__/
 node_modules/
 
 uploads/
+
+# database backups contain personal data - never commit them
+backups/
+*.dump
+*.dump.partial

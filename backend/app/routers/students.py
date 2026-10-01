@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.rate_limit import limiter
 from app.core.phone import normalize_phone, phone_key
+from app.services.audit_service import log_audit
 from app.schemas.student import (
     CreateStudentRequest,
     GuardianDetail,
@@ -261,6 +262,7 @@ def _link_or_invite_guardian(
     full_name: str,
     relationship_type: str,
     is_primary: bool,
+    actor_user_id: str | None = None,
 ) -> GuardianResponse:
     """Shared by both 'add student + parent in one form' and the standalone
     'Link parent' action. Never sets a password: if the phone number (or
@@ -313,6 +315,16 @@ def _link_or_invite_guardian(
             student_id=student_id, user_id=user.id, relationship_type=relationship_type, is_primary=is_primary
         )
         db.add(guardian)
+        db.flush()
+        log_audit(
+            db,
+            school_id=school_id,
+            action="GUARDIAN_LINKED",
+            entity_type="Student",
+            entity_id=student_id,
+            user_id=actor_user_id,
+            metadata={"parent_user_id": user.id, "relationship": relationship_type, "is_primary": is_primary},
+        )
         db.commit()
         db.refresh(guardian)
         return GuardianResponse(
@@ -345,6 +357,16 @@ def _link_or_invite_guardian(
         is_primary=is_primary,
     )
     db.add(invite)
+    db.flush()
+    log_audit(
+        db,
+        school_id=school_id,
+        action="GUARDIAN_INVITED",
+        entity_type="Student",
+        entity_id=student_id,
+        user_id=actor_user_id,
+        metadata={"invite_id": invite.id, "relationship": relationship_type, "is_primary": is_primary},
+    )
     db.commit()
     db.refresh(invite)
     return GuardianResponse(
@@ -374,6 +396,16 @@ def create_student(
 
     student = Student(school_id=school_id, **fields)
     db.add(student)
+    db.flush()
+    log_audit(
+        db,
+        school_id=school_id,
+        action="STUDENT_CREATED",
+        entity_type="Student",
+        entity_id=student.id,
+        user_id=_user.user_id,
+        metadata={"admission_number": student.admission_number, "class_id": student.class_id},
+    )
     db.commit()
     db.refresh(student)
 
@@ -387,6 +419,7 @@ def create_student(
             full_name=guardian_full_name or "",
             relationship_type=guardian_relationship_type or "guardian",
             is_primary=True,
+            actor_user_id=_user.user_id,
         )
 
     return student
@@ -409,8 +442,22 @@ def update_student(
     if not student:
         raise HTTPException(404, "Student not found")
 
+    changes = {}
     for field, value in data.model_dump(exclude_unset=True).items():
+        old = getattr(student, field)
+        if old != value:
+            changes[field] = {"from": str(old) if old is not None else None, "to": str(value) if value is not None else None}
         setattr(student, field, value)
+    if changes:
+        log_audit(
+            db,
+            school_id=school_id,
+            action="STUDENT_UPDATED",
+            entity_type="Student",
+            entity_id=student.id,
+            user_id=_user.user_id,
+            metadata={"changes": changes},
+        )
 
     db.commit()
     db.refresh(student)
@@ -442,7 +489,18 @@ def update_student_class(
         if not school_class:
             raise HTTPException(404, "Class not found")
 
+    old_class = student.class_id
     student.class_id = data.class_id
+    if old_class != data.class_id:
+        log_audit(
+            db,
+            school_id=school_id,
+            action="STUDENT_CLASS_CHANGED",
+            entity_type="Student",
+            entity_id=student.id,
+            user_id=_user.user_id,
+            metadata={"from_class_id": old_class, "to_class_id": data.class_id},
+        )
     db.commit()
     db.refresh(student)
     return student
@@ -470,7 +528,18 @@ def deactivate_student(
     if not student:
         raise HTTPException(404, "Student not found")
 
+    was_active = student.is_active
     student.is_active = False
+    if was_active:
+        log_audit(
+            db,
+            school_id=school_id,
+            action="STUDENT_DEACTIVATED",
+            entity_type="Student",
+            entity_id=student.id,
+            user_id=_user.user_id,
+            metadata={"admission_number": student.admission_number},
+        )
     db.commit()
     db.refresh(student)
     return student
@@ -507,6 +576,7 @@ def link_guardian(
         full_name=data.full_name,
         relationship_type=data.relationship_type,
         is_primary=data.is_primary,
+        actor_user_id=_user.user_id,
     )
 
 
@@ -577,6 +647,16 @@ def request_link(
     db.add(guardian)
     if invite:
         db.delete(invite)
+    db.flush()
+    log_audit(
+        db,
+        school_id=school_id,
+        action="GUARDIAN_LINK_AUTO_APPROVED" if invite else "GUARDIAN_LINK_REQUESTED",
+        entity_type="Student",
+        entity_id=student_id,
+        user_id=user.user_id,
+        metadata={"link_id": guardian.id, "relationship": data.relationship_type, "matched_bursar_invite": bool(invite)},
+    )
     db.commit()
     db.refresh(guardian)
 
@@ -647,6 +727,15 @@ def approve_request(
         raise HTTPException(404, "Request not found")
 
     link.status = GuardianLinkStatus.APPROVED
+    log_audit(
+        db,
+        school_id=school_id,
+        action="GUARDIAN_LINK_APPROVED",
+        entity_type="Student",
+        entity_id=link.student_id,
+        user_id=_user.user_id,
+        metadata={"link_id": link.id, "parent_user_id": link.user_id},
+    )
     db.commit()
     return GuardianReviewResponse(status="approved")
 
@@ -667,6 +756,15 @@ def reject_request(
         raise HTTPException(404, "Request not found")
 
     link.status = GuardianLinkStatus.REJECTED
+    log_audit(
+        db,
+        school_id=school_id,
+        action="GUARDIAN_LINK_REJECTED",
+        entity_type="Student",
+        entity_id=link.student_id,
+        user_id=_user.user_id,
+        metadata={"link_id": link.id, "parent_user_id": link.user_id},
+    )
     db.commit()
     return GuardianReviewResponse(status="rejected")
 

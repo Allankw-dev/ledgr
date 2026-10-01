@@ -215,6 +215,41 @@ def _authenticate(db: Session, identifier: str, password: str) -> User | None:
     return matches[0] if len(matches) == 1 else None
 
 
+def _audit_failed_login(db: Session, identifier: str, request: Request) -> None:
+    """Records a failed sign-in against a real STAFF account (bursar, school
+    admin, teacher) so repeated guessing shows up in the audit log. Parent
+    accounts and unknown identifiers aren't logged — there's no school to
+    file the entry under for the latter, and parent typos would just be
+    noise. Never raises: auditing must not change what the user sees."""
+    try:
+        identifier = identifier.strip()
+        if "@" in identifier:
+            user = db.query(User).filter(User.email == identifier).first()
+        else:
+            key = phone_key(identifier)
+            users = (
+                db.query(User).filter(func.ledgr_phone_key(User.phone) == key, User.role != UserRole.PARENT).limit(2).all()
+                if key
+                else []
+            )
+            user = users[0] if len(users) == 1 else None
+        if not user or user.role == UserRole.PARENT or not user.school_id:
+            return
+        log_audit(
+            db,
+            school_id=user.school_id,
+            action="LOGIN_FAILED",
+            entity_type="User",
+            entity_id=user.id,
+            user_id=user.id,
+            metadata={"role": user.role.value, "ip": request.client.host if request.client else None},
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.warning("Could not record failed-login audit entry", exc_info=True)
+
+
 def _token_response(user: User, refresh_token: str, school_name: str | None = None) -> TokenResponse:
     token = create_access_token(user.id, user.school_id, user.role.value, user.token_version or 0)
     return TokenResponse(
@@ -299,6 +334,7 @@ def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRe
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_system_db)):
     user = _authenticate(db, data.email, data.password)
     if not user:
+        _audit_failed_login(db, data.email, request)
         raise HTTPException(401, "Invalid email/phone or password")
 
     return _complete_login(user, db)

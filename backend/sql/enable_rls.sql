@@ -176,10 +176,9 @@ CREATE POLICY tenant_isolation ON payments FOR ALL TO ledgr_app
   USING (school_id = (select current_setting('app.current_school_id', true))::text)
   WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
 
-DROP POLICY IF EXISTS tenant_isolation ON audit_logs;
-CREATE POLICY tenant_isolation ON audit_logs FOR ALL TO ledgr_app
-  USING (school_id = (select current_setting('app.current_school_id', true))::text)
-  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+-- audit_logs is append-only: its policies (read + insert only), the privilege
+-- REVOKE and the immutability trigger are applied at the very end of this file
+-- (they must come after the GRANTs above and the table-wide policy loop).
 
 DROP POLICY IF EXISTS tenant_isolation ON payment_plans;
 CREATE POLICY tenant_isolation ON payment_plans FOR ALL TO ledgr_app
@@ -413,3 +412,32 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- ---- audit_logs: append-only (kept in sync with audit_log_append_only.sql) ----
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM ledgr_app;
+
+DROP POLICY IF EXISTS tenant_isolation ON audit_logs;
+DROP POLICY IF EXISTS tenant_read ON audit_logs;
+DROP POLICY IF EXISTS tenant_insert ON audit_logs;
+CREATE POLICY tenant_read ON audit_logs FOR SELECT TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text);
+CREATE POLICY tenant_insert ON audit_logs FOR INSERT TO ledgr_app
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
+CREATE OR REPLACE FUNCTION ledgr_audit_log_immutable() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_logs is append-only: % is not allowed', TG_OP
+    USING ERRCODE = '42501';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS audit_logs_no_update_delete ON audit_logs;
+CREATE TRIGGER audit_logs_no_update_delete
+  BEFORE UPDATE OR DELETE ON audit_logs
+  FOR EACH ROW EXECUTE FUNCTION ledgr_audit_log_immutable();
+
+DROP TRIGGER IF EXISTS audit_logs_no_truncate ON audit_logs;
+CREATE TRIGGER audit_logs_no_truncate
+  BEFORE TRUNCATE ON audit_logs
+  FOR EACH STATEMENT EXECUTE FUNCTION ledgr_audit_log_immutable();
