@@ -346,6 +346,35 @@
     overflow: hidden;
   }
 
+  /* Decorative arches behind the card — anchored to the bottom centre, wide
+     enough to bleed off both sides on small screens. */
+  .auth-arches {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: max(1200px, 100%);
+    height: 100%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 0;
+    animation: arch-breathe 14s ease-in-out infinite;
+    transform-origin: 50% 100%;
+  }
+  @keyframes arch-breathe {
+    0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.65; transform: translateX(-50%) scale(1.025); }
+  }
+
+  /* Soft arches inside the sliding accent panel, sitting under its text. */
+  .auth-overlay-arches {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 78%;
+    pointer-events: none;
+  }
+
   .auth-card {
     position: relative;
     width: 840px;

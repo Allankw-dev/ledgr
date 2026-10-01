@@ -11,6 +11,7 @@ import { getLoginOptions, verifyLogin } from '../api/webauthn';
 import { isPlatformAuthenticatorAvailable, performAuthentication } from '../lib/webauthnBrowser';
 import { useAuthStore } from '../store/authStore';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { AuthArches, OverlayArches } from '../components/AuthArches';
 
 type Mode = 'login' | 'signup';
 
@@ -282,6 +283,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     <div className="auth-shell">
       <div className="glow-violet" />
       <div className="glow-cyan" />
+      <AuthArches />
 
       <div className="relative z-10 flex flex-col items-center">
         <div className="flex items-center gap-2.5 mb-8">
@@ -518,6 +520,9 @@ export function AuthPage({ initialMode }: AuthPageProps) {
           {/* ---------------- SLIDING ACCENT OVERLAY (desktop only) ---------------- */}
           <div className="auth-overlay-track">
             <div className="auth-overlay">
+              <div className="auth-overlay-arc auth-overlay-arc--tr" />
+              <div className="auth-overlay-arc auth-overlay-arc--bl" />
+              <OverlayArches />
               <div className="auth-overlay-panel auth-overlay-panel--signup-cta">
                 <h2 className="font-display text-2xl text-white mb-3">New to Ledgr?</h2>
                 <p className="text-sm text-white/85 leading-relaxed mb-6">
