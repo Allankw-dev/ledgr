@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronDown, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { MultiGradeSelect } from '../components/ui/MultiGradeSelect';
 import { Modal } from '../components/ui/Modal';
+import { StudentDetailsPanel } from '../components/StudentDetailsPanel';
 import { AddStudentForm } from '../components/AddStudentForm';
 import { EditStudentForm } from '../components/EditStudentForm';
 import { LinkGuardianForm } from '../components/LinkGuardianForm';
@@ -22,6 +23,8 @@ export function StudentsPage() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [openDetails, setOpenDetails] = useState<Set<string>>(new Set());
+  const autoOpened = useRef<string | null>(null);
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [guardianTarget, setGuardianTarget] = useState<Student | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Student | null>(null);
@@ -68,6 +71,28 @@ export function StudentsPage() {
     }
     return Array.from(map.entries()).map(([key, items]) => ({ key, classId: key || null, items }));
   }, [visibleStudents]);
+
+  function toggleDetails(id: string) {
+    setOpenDetails((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Searching down to exactly one student: show their details straight away.
+  useEffect(() => {
+    if (searching && visibleStudents.length === 1) {
+      const only = visibleStudents[0].id;
+      if (autoOpened.current !== only) {
+        autoOpened.current = only;
+        setOpenDetails((prev) => new Set(prev).add(only));
+      }
+    } else if (!searching) {
+      autoOpened.current = null;
+    }
+  }, [searching, visibleStudents]);
 
   function toggleCluster(key: string) {
     setCollapsed((prev) => {
@@ -254,8 +279,8 @@ export function StudentsPage() {
                         </thead>
                         <tbody>
                           {cluster.items.map((s) => (
+                            <Fragment key={s.id}>
                             <tr
-                              key={s.id}
                               id={`student-${s.id}`}
                               className={`h-9 text-ink-900 transition-colors ${highlightId === s.id ? 'bg-emerald-100' : ''}`}
                             >
@@ -293,6 +318,13 @@ export function StudentsPage() {
                               <td className="px-5 text-right">
                                 <div className="flex items-center justify-end gap-3">
                                   <button
+                                    onClick={() => toggleDetails(s.id)}
+                                    aria-expanded={openDetails.has(s.id)}
+                                    className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
+                                  >
+                                    {openDetails.has(s.id) ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Details
+                                  </button>
+                                  <button
                                     onClick={() => setEditTarget(s)}
                                     className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
                                   >
@@ -313,6 +345,14 @@ export function StudentsPage() {
                                 </div>
                               </td>
                             </tr>
+                            {openDetails.has(s.id) && (
+                              <tr>
+                                <td colSpan={5} className="bg-ink-800 border-y border-ink-200 p-0">
+                                  <StudentDetailsPanel studentId={s.id} />
+                                </td>
+                              </tr>
+                            )}
+                            </Fragment>
                           ))}
                         </tbody>
                       </table>

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Student, InvoiceListItem, Page, Term, SchoolClass, FeeStructure, FeeCategory } from '../types';
+import type { Student, StudentDetails, InvoiceListItem, Page, Term, SchoolClass, FeeStructure, FeeCategory } from '../types';
 
 export async function listStudents(page = 1, pageSize = 25, classIds?: string[]): Promise<Page<Student>> {
   const { data } = await apiClient.get<Page<Student>>('/api/students', {
@@ -7,6 +7,11 @@ export async function listStudents(page = 1, pageSize = 25, classIds?: string[])
     // class_ids=a&class_ids=b (axios' default would send class_ids[]=a)
     paramsSerializer: { indexes: null },
   });
+  return data;
+}
+
+export async function getStudentDetails(studentId: string): Promise<StudentDetails> {
+  const { data } = await apiClient.get<StudentDetails>(`/api/students/${studentId}/details`);
   return data;
 }
 

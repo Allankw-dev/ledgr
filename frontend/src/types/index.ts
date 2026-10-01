@@ -262,3 +262,28 @@ export interface ChatReportDetail extends ChatReportSummary {
     deleted_before_report: boolean;
   }[];
 }
+
+export interface GuardianDetail {
+  name: string;
+  phone: string | null;
+  email: string | null;
+  relationship_type: string;
+  is_primary: boolean;
+  /** APPROVED | PENDING (awaiting bursar approval) | INVITED (recorded, hasn't signed up yet) */
+  status: 'APPROVED' | 'PENDING' | 'INVITED';
+  has_account: boolean;
+}
+
+export interface StudentDetails {
+  id: string;
+  admission_number: string;
+  full_name: string;
+  class_name: string | null;
+  date_of_birth: string | null;
+  is_active: boolean;
+  created_at: string;
+  guardians: GuardianDetail[];
+  total_billed: string;
+  total_paid: string;
+  balance_due: string;
+}

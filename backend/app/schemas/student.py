@@ -58,3 +58,31 @@ class StudentResponse(BaseModel):
     full_name: str
     is_active: bool
     created_at: datetime
+
+
+class GuardianDetail(BaseModel):
+    """One parent/guardian as shown on a student's detail card. Either a real
+    account linked to the student, or a parent the bursar has recorded who
+    hasn't signed up yet (has_account=False, status='INVITED')."""
+
+    name: str
+    phone: str | None
+    email: str | None
+    relationship_type: str
+    is_primary: bool
+    status: str  # APPROVED | PENDING | INVITED
+    has_account: bool
+
+
+class StudentDetails(BaseModel):
+    id: str
+    admission_number: str
+    full_name: str
+    class_name: str | None
+    date_of_birth: datetime | None
+    is_active: bool
+    created_at: datetime
+    guardians: list[GuardianDetail]
+    total_billed: str
+    total_paid: str
+    balance_due: str

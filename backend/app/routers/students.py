@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
@@ -6,7 +8,14 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
 from app.core.rate_limit import limiter
 from app.core.phone import normalize_phone, phone_key
-from app.schemas.student import CreateStudentRequest, StudentResponse, UpdateStudentClassRequest, UpdateStudentRequest
+from app.schemas.student import (
+    CreateStudentRequest,
+    GuardianDetail,
+    StudentDetails,
+    StudentResponse,
+    UpdateStudentClassRequest,
+    UpdateStudentRequest,
+)
 from app.schemas.pagination import Page, PageMeta
 from app.schemas.guardian import LinkGuardianRequest, GuardianResponse
 from app.schemas.guardian_request import (
@@ -19,7 +28,7 @@ from app.models.student import Student, StudentGuardian, GuardianInvite, Term, S
 from app.models.invoice import Invoice
 from app.models.payment import Payment
 from app.models.school import User, School
-from app.models.enums import UserRole, GuardianLinkStatus, PaymentStatus
+from app.models.enums import UserRole, GuardianLinkStatus, PaymentStatus, InvoiceStatus
 from app.services.statement_service import generate_fee_statement_pdf
 
 router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
@@ -157,6 +166,89 @@ def get_student(
     if not student:
         raise HTTPException(404, "Student not found")
     return student
+
+
+@router.get("/{student_id}/details", response_model=StudentDetails)
+def get_student_details(
+    student_id: str,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+):
+    """Everything staff need on one student: basics, the parents' contact
+    details (linked accounts AND parents recorded but not yet signed up), and
+    a fee summary. Staff-only — this is personal contact data."""
+    student = db.execute(
+        select(Student).where(Student.id == student_id, Student.school_id == school_id)
+    ).scalar_one_or_none()
+    if not student:
+        raise HTTPException(404, "Student not found")
+
+    guardians: list[GuardianDetail] = []
+
+    linked = db.execute(
+        select(StudentGuardian, User)
+        .join(User, User.id == StudentGuardian.user_id)
+        .where(
+            StudentGuardian.student_id == student.id,
+            StudentGuardian.status != GuardianLinkStatus.REJECTED,
+        )
+        .order_by(StudentGuardian.created_at)
+    ).all()
+    for link, parent in linked:
+        guardians.append(
+            GuardianDetail(
+                name=parent.full_name or parent.email,
+                phone=parent.phone,
+                email=parent.email,
+                relationship_type=link.relationship_type,
+                is_primary=link.is_primary,
+                status=link.status.value,
+                has_account=True,
+            )
+        )
+
+    invites = db.execute(
+        select(GuardianInvite).where(GuardianInvite.student_id == student.id).order_by(GuardianInvite.created_at)
+    ).scalars().all()
+    for inv in invites:
+        guardians.append(
+            GuardianDetail(
+                name=inv.full_name,
+                phone=inv.phone,
+                email=inv.email,
+                relationship_type=inv.relationship_type,
+                is_primary=inv.is_primary,
+                status="INVITED",
+                has_account=False,
+            )
+        )
+
+    billed, paid, balance = Decimal("0"), Decimal("0"), Decimal("0")
+    invoices = db.execute(
+        select(Invoice.total_amount, Invoice.amount_paid).where(
+            Invoice.student_id == student.id,
+            Invoice.status.notin_([InvoiceStatus.DRAFT, InvoiceStatus.CANCELLED]),
+        )
+    ).all()
+    for total, amount_paid in invoices:
+        billed += total
+        paid += amount_paid
+        balance += max(total - amount_paid, Decimal("0"))
+
+    return StudentDetails(
+        id=student.id,
+        admission_number=student.admission_number,
+        full_name=student.full_name,
+        class_name=student.school_class.name if student.school_class else None,
+        date_of_birth=student.date_of_birth,
+        is_active=student.is_active,
+        created_at=student.created_at,
+        guardians=guardians,
+        total_billed=str(billed),
+        total_paid=str(paid),
+        balance_due=str(balance),
+    )
 
 
 def _link_or_invite_guardian(
