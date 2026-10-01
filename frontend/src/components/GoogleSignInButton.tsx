@@ -45,6 +45,9 @@ export function GoogleSignInButton({ onCredential, text = 'signin_with' }: Googl
         size: 'large',
         width: 320,
         text: textRef.current,
+        // Google otherwise follows the browser language (it showed "Inloggen met Google"
+        // on a Dutch-language browser). The whole app is English, so pin the button to English.
+        locale: 'en',
       });
     }
 
