@@ -238,6 +238,15 @@ app.include_router(direct_messages.router)
 app.include_router(webauthn_auth.router)
 
 
+@app.get("/")
+@app.head("/")
+def root():
+    """No real content lives here — this only exists so a platform-level
+    port/liveness probe hitting bare `/` (Render, uptime bots, etc.) gets a
+    cheap 200 instead of a 404. Real health checks belong on /health below."""
+    return {"service": "ledgr-api", "status": "ok"}
+
+
 @app.get("/health")
 def health():
     """Liveness — is the process up? Cheap, never touches the database."""
