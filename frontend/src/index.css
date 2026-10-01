@@ -338,12 +338,20 @@
 
   .auth-shell {
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
-    align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: 0.5rem 1rem;
     position: relative;
-    overflow: hidden;
+    overflow-x: hidden;
+    /* Scroll only as a last resort: useFitToViewport shrinks the card to fit
+       first, and this covers a browser too old for CSS zoom. */
+    overflow-y: auto;
+  }
+  /* margin:auto centres in both directions AND stays reachable if the card
+     is taller than the window (align-items:center would clip the top). */
+  .auth-fit {
+    margin: auto;
   }
 
   /* Decorative arches behind the card — anchored to the bottom centre, wide
@@ -440,7 +448,7 @@
   .auth-form-inner {
     width: 100%;
     max-width: 392px;
-    padding: 44px 48px;
+    padding: 34px 48px;
   }
   .auth-form-panel--login .auth-form-inner {
     margin-right: auto;
@@ -752,7 +760,7 @@
     .auth-form-inner {
       max-width: none;
       margin: 0 auto;
-      padding: 36px 24px 28px;
+      padding: 28px 24px 22px;
     }
     .auth-overlay-track {
       display: none;

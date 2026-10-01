@@ -12,6 +12,7 @@ import { isPlatformAuthenticatorAvailable, performAuthentication } from '../lib/
 import { useAuthStore } from '../store/authStore';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { AuthArches, OverlayArches } from '../components/AuthArches';
+import { useFitToViewport } from '../hooks/useFitToViewport';
 
 type Mode = 'login' | 'signup';
 
@@ -279,14 +280,18 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     }
   }
 
+  // Keep the whole card (logo + forms) inside the window — no scrolling up and down.
+  const fitRef = useRef<HTMLDivElement>(null);
+  useFitToViewport(fitRef);
+
   return (
     <div className="auth-shell">
       <div className="glow-violet" />
       <div className="glow-cyan" />
       <AuthArches />
 
-      <div className="relative z-10 flex flex-col items-center">
-        <div className="flex items-center gap-2.5 mb-8">
+      <div ref={fitRef} className="auth-fit relative z-10 flex flex-col items-center">
+        <div className="flex items-center gap-2.5 mb-5">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center">
             <BookOpen className="w-5 h-5 text-[#06110B]" strokeWidth={2} />
           </div>
@@ -320,7 +325,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   )}
 
                   <h1 className="font-display text-xl text-ink-900 mb-1">Sign in</h1>
-                  <p className="text-sm text-ink-600 mb-6">Access your school's fee dashboard.</p>
+                  <p className="text-sm text-ink-600 mb-4">Access your school's fee dashboard.</p>
 
                   <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4" noValidate>
                     <TextField
@@ -437,7 +442,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
             <div className="auth-form-panel auth-form-panel--signup" data-hidden={mode !== 'signup'} ref={signupPanelRef} inert={mode !== 'signup'}>
               <div className="auth-form-inner">
               <h1 className="font-display text-xl text-ink-900 mb-1">Parent sign up</h1>
-              <p className="text-sm text-ink-600 mb-6">Create your account, then we'll verify your child's details.</p>
+              <p className="text-sm text-ink-600 mb-4">Create your account, then we'll verify your child's details.</p>
 
               <div className="flex justify-center mb-5">
                 <GoogleSignInButton onCredential={handleSignupGoogleCredential} text="signup_with" />
