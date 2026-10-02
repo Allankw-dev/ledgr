@@ -13,6 +13,7 @@ import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
 import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { RecentActivityFeed } from '../components/RecentActivityFeed';
 import { PaymentPlanCard } from '../components/PaymentPlanCard';
+import { AnimatedAmount } from '../components/AnimatedAmount';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { useAuthStore } from '../store/authStore';
 import { getMyProfile } from '../api/user';
@@ -121,7 +122,7 @@ export function ParentDashboardPage() {
               <div key={child.id}>
                 {/* Hero balance card — the one number that matters most for this
                    child, with the M-Pesa CTA right where the eye lands first. */}
-                <div className="relative overflow-hidden rounded-2xl border border-ink-200 bg-gradient-to-b from-ink-100 to-panel p-5 sm:p-7">
+                <div className="sheen relative overflow-hidden rounded-2xl border border-ink-200 bg-gradient-to-b from-ink-100 to-panel p-5 sm:p-7 shadow-[0_20px_50px_-24px_rgba(57,255,136,0.35)]">
                   <div
                     className="absolute -top-20 -right-20 w-56 h-56 rounded-full pointer-events-none"
                     style={{ background: 'radial-gradient(circle, rgba(57,255,136,0.28) 0%, rgba(57,255,136,0) 70%)' }}
@@ -130,7 +131,7 @@ export function ParentDashboardPage() {
                     <div>
                       <p className="text-sm text-ink-600">{child.full_name} · Balance due</p>
                       <p className={`figure text-3xl sm:text-4xl font-medium mt-1.5 ${balance > 0 ? 'text-ink-900' : 'text-emerald-700'}`}>
-                        {formatCurrency(balance)}
+                        <AnimatedAmount value={balance} format={formatCurrency} />
                       </p>
                     </div>
                     {balance > 0 && unpaidInvoice ? (

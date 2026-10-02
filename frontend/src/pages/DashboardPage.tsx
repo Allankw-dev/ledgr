@@ -94,6 +94,8 @@ export function DashboardPage() {
           <StatCard
             label="Collected this term"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_collected))}
+            amount={analytics ? Number(analytics.total_collected) : undefined}
+            format={(n) => formatCurrency(n)}
             trend={collectedTrend}
             trendDirection={collectedTrendDirection}
             icon={<Wallet className="w-5 h-5" strokeWidth={1.75} />}
@@ -102,6 +104,8 @@ export function DashboardPage() {
           <StatCard
             label="Outstanding balance"
             value={!analytics ? '—' : formatCurrency(Number(analytics.total_outstanding))}
+            amount={analytics ? Number(analytics.total_outstanding) : undefined}
+            format={(n) => formatCurrency(n)}
             trend={!!analytics && Number(analytics.total_outstanding) > 0 ? 'Needs follow-up' : undefined}
             trendDirection="down"
             icon={<Receipt className="w-5 h-5" strokeWidth={1.75} />}
@@ -109,6 +113,8 @@ export function DashboardPage() {
           <StatCard
             label="Overdue invoices"
             value={!analytics ? '—' : String(analytics.overdue_count)}
+            amount={analytics ? analytics.overdue_count : undefined}
+            format={(n) => String(n)}
             trend={!!analytics && analytics.overdue_count > 0 ? 'Review and remind' : 'All on track'}
             trendDirection={!!analytics && analytics.overdue_count > 0 ? 'down' : 'up'}
             icon={<AlertCircle className="w-5 h-5" strokeWidth={1.75} />}
@@ -116,6 +122,8 @@ export function DashboardPage() {
           <StatCard
             label="Active students"
             value={!analytics ? '—' : String(analytics.active_student_count)}
+            amount={analytics ? analytics.active_student_count : undefined}
+            format={(n) => String(n)}
             icon={<Users className="w-5 h-5" strokeWidth={1.75} />}
           />
         </div>

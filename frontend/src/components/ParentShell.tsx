@@ -1,11 +1,13 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, LogOut, Sparkles } from 'lucide-react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { BookOpen, FileText, Home, LogOut, MessageCircle, Receipt, Sparkles, UserRound } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { BackButton } from './BackButton';
 import { NotificationBell } from './NotificationBell';
+import { BottomNav, type BottomNavItem } from './BottomNav';
+import { BottomSheet } from './BottomSheet';
 
 const navItems = [
   { to: '/parent/dashboard', label: 'Dashboard', badgeKey: 'unreadMessages' as const },
@@ -17,12 +19,60 @@ const navItems = [
   { to: '/parent/profile', label: 'Profile' },
 ];
 
-function NavBadge({ count }: { count: number }) {
+function TabBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-700 text-[#06110B] text-[10px] font-semibold leading-none">
+    <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-green text-[#06110B] text-[10px] font-bold leading-none">
       {count > 9 ? '9+' : count}
     </span>
+  );
+}
+
+/** Desktop tabs: one glowing pill glides to whichever tab is current. */
+function DesktopTabs({ counts }: { counts: Record<string, number> }) {
+  const { pathname } = useLocation();
+  const refs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const [glider, setGlider] = useState({ left: 0, width: 0, ready: false });
+  const activeIdx = navItems.findIndex((i) => pathname.startsWith(i.to));
+  const sig = JSON.stringify(counts);
+
+  useLayoutEffect(() => {
+    function measure() {
+      const el = refs.current[activeIdx];
+      setGlider(el ? { left: el.offsetLeft, width: el.offsetWidth, ready: true } : (g) => ({ ...g, ready: false }));
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [activeIdx, sig]);
+
+  return (
+    <nav aria-label="Main" className="relative inline-flex items-center gap-0.5 p-1 rounded-full bg-ink-100/70 ring-1 ring-white/5">
+      <span
+        aria-hidden="true"
+        className="tab-glider absolute top-1 bottom-1 rounded-full bg-emerald-100 ring-1 ring-green/25 shadow-[0_0_18px_-4px_rgba(57,255,136,0.5)]"
+        style={{ left: glider.left, width: glider.width, opacity: glider.ready ? 1 : 0 }}
+      />
+      {navItems.map(({ to, label, badgeKey }, i) => {
+        const active = i === activeIdx;
+        return (
+          <Link
+            key={to}
+            to={to}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            aria-current={active ? 'page' : undefined}
+            className={`relative z-10 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex items-center transition-colors ${
+              active ? 'text-green' : 'text-ink-600 hover:text-ink-900'
+            }`}
+          >
+            {label}
+            {badgeKey && <TabBadge count={counts[badgeKey] ?? 0} />}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -31,91 +81,101 @@ export function ParentShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
-  const badgeCounts = { unreadMessages, unreadClassGroups, unreadDirect };
-  const navRef = useRef<HTMLElement>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   function handleLogout() {
+    setSheetOpen(false);
     logout();
     navigate('/login');
   }
 
-  // On a phone the tab row scrolls sideways; make sure the current tab is
-  // always in view instead of hiding off the right edge.
-  useEffect(() => {
-    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
-    active?.scrollIntoView({ inline: 'center', block: 'nearest' });
-  }, [location.pathname]);
+  const displayName = user?.full_name || user?.email || '';
+  const initial = displayName.trim().charAt(0).toUpperCase() || '?';
 
-  const onAssistant = location.pathname === '/parent/assistant';
+  const bottomItems: BottomNavItem[] = [
+    { label: 'Home', to: '/parent/dashboard', icon: Home, badge: unreadMessages },
+    { label: 'Invoices', to: '/parent/invoices', icon: FileText },
+    { label: 'Ask', to: '/parent/assistant', icon: Sparkles, center: true },
+    { label: 'Chats', to: '/parent/class-group', also: ['/parent/chats'], icon: MessageCircle, badge: unreadClassGroups + unreadDirect },
+    { label: 'Receipts', to: '/parent/receipts', icon: Receipt },
+  ];
 
   return (
     <div className="min-h-dvh relative">
       <header className="relative z-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center">
-              <BookOpen className="w-4 h-4 text-[#06110B]" strokeWidth={2} />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center shadow-[0_6px_18px_-4px_rgba(57,255,136,0.55)]">
+              <BookOpen className="w-4 h-4 text-[#06110B]" strokeWidth={2.25} />
             </div>
-            <span className="font-display text-lg font-semibold">Ledgr</span>
+            <span className="font-display text-lg font-semibold tracking-tight">Ledgr</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <BackButton className="!px-3 !py-1.5" />
-            {!onAssistant && (
-              <Link
-                to="/parent/assistant"
-                aria-label="Ask Ledgr"
-                title="Ask Ledgr"
-                className="md:hidden w-9 h-9 rounded-full border border-ink-200 bg-panel/80 flex items-center justify-center text-emerald-700"
-              >
-                <Sparkles className="w-4.5 h-4.5" strokeWidth={1.75} />
-              </Link>
-            )}
             <NotificationBell total={total} unreadMentions={unreadMentions} mentions={mentions} onOpen={loadMentions} onMarkSeen={markSeen} />
-            <span className="text-sm text-ink-600 hidden sm:inline truncate">{user?.full_name || user?.email}</span>
+            <span className="text-sm text-ink-600 hidden md:inline truncate">{displayName}</span>
             <button
               onClick={handleLogout}
               aria-label="Sign out"
-              className="flex items-center gap-1.5 text-sm text-ink-600 hover:text-ink-900 transition-colors p-1.5 -mr-1.5"
+              className="hidden md:flex items-center gap-1.5 text-sm text-ink-600 hover:text-ink-900 transition-colors"
             >
-              <LogOut className="w-5 h-5 sm:w-4 sm:h-4" strokeWidth={2} />
-              <span className="hidden sm:inline">Sign out</span>
+              <LogOut className="w-4 h-4" strokeWidth={2} />
+              Sign out
+            </button>
+            {/* Phone: avatar opens the account sheet (profile + sign out). */}
+            <button
+              onClick={() => setSheetOpen(true)}
+              aria-label="Account menu"
+              className="md:hidden w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] text-sm font-bold flex items-center justify-center ring-2 ring-white/10"
+            >
+              {initial}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Tabs stay pinned under the top edge while scrolling. The fade on the
-          right tells people on a phone there are more tabs to swipe to. */}
-      <div className="sticky top-0 z-20 border-b border-ink-200 bg-paper/85 backdrop-blur-md">
-        <div className="relative max-w-3xl mx-auto">
-          <nav ref={navRef} className="px-4 sm:px-6 flex gap-1 overflow-x-auto scrollbar-none">
-            {navItems.map(({ to, label, badgeKey }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `shrink-0 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center whitespace-nowrap ${
-                    isActive
-                      ? 'border-emerald-700 text-ink-900'
-                      : 'border-transparent text-ink-600 hover:text-ink-900'
-                  }`
-                }
-              >
-                {label}
-                {badgeKey && <NavBadge count={badgeCounts[badgeKey]} />}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-paper to-transparent md:hidden" aria-hidden="true" />
+      {/* Desktop tabs, pinned under the top edge while scrolling. Phones use the bottom dock instead. */}
+      <div className="hidden md:block sticky top-0 z-20 glass-bar">
+        <div className="max-w-3xl mx-auto px-6 py-2 flex justify-center">
+          <DesktopTabs counts={{ unreadMessages, unreadClassGroups, unreadDirect }} />
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))] md:pb-24 relative z-10">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-4 md:pt-8 pb-32 md:pb-24 relative z-10">
         <div key={location.pathname} className="page-enter">
           {children}
         </div>
       </main>
+
+      <BottomNav items={bottomItems} />
       <AssistantFab to="/parent/assistant" />
+
+      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Account">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] text-lg font-bold flex items-center justify-center">{initial}</div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink-900 truncate">{user?.full_name || 'Parent'}</p>
+            <p className="text-xs text-ink-600 truncate">{user?.email}</p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Link
+            to="/parent/profile"
+            onClick={() => setSheetOpen(false)}
+            className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-ink-100/70 text-sm font-medium text-ink-900 active:bg-ink-200"
+          >
+            <UserRound className="w-5 h-5 text-green" strokeWidth={1.75} />
+            Profile and children
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-ink-100/70 text-sm font-medium text-clay-700 active:bg-ink-200 text-left"
+          >
+            <LogOut className="w-5 h-5" strokeWidth={1.75} />
+            Sign out
+          </button>
+        </div>
+      </BottomSheet>
     </div>
   );
 }

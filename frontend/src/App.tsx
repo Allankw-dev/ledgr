@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LiveBackground } from './components/LiveBackground';
 
 // Every page loads lazily, split into its own chunk — without this the
 // whole app (every admin page, every parent page, all ~25 routes) shipped
@@ -48,6 +49,7 @@ function RouteLoadingFallback() {
 export default function App() {
   return (
     <BrowserRouter>
+      <LiveBackground />
       <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
         <Route path="/login" element={<AuthPage initialMode="login" />} />

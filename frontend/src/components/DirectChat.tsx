@@ -410,7 +410,7 @@ export function DirectChat() {
   let lastDay = '';
 
   return (
-    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr] h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-12rem)] min-h-[420px] md:min-h-[480px] max-h-[760px] shadow-xl shadow-black/20 relative">
+    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr] h-[calc(100dvh-14rem)] md:h-[calc(100dvh-12rem)] min-h-[420px] md:min-h-[480px] max-h-[760px] shadow-xl shadow-black/20 relative">
       {/* Conversation list (hidden on phones while a chat is open) */}
       <div className={`${selected ? 'hidden md:flex' : 'flex'} flex-col min-h-0 border-b md:border-b-0 md:border-r border-ink-200 bg-ink-950/40`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">

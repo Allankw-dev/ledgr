@@ -465,7 +465,7 @@ export function ClassGroupChat() {
   let lastDay = '';
 
   return (
-    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden flex flex-col md:grid md:grid-cols-[280px_1fr] h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-12rem)] min-h-[420px] md:min-h-[480px] max-h-[760px] shadow-xl shadow-black/20">
+    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden flex flex-col md:grid md:grid-cols-[280px_1fr] h-[calc(100dvh-14rem)] md:h-[calc(100dvh-12rem)] min-h-[420px] md:min-h-[480px] max-h-[760px] shadow-xl shadow-black/20">
       {/* Phone: switch between groups with a swipeable chip row (the sidebar
          below only fits from md up). Hidden when there's just one group. */}
       {groups.length > 1 && (

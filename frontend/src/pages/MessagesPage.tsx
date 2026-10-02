@@ -117,7 +117,7 @@ export function MessagesPage() {
 
   return (
     <AppShell>
-      <div className="px-8 py-8 h-screen flex flex-col">
+      <div className="px-4 sm:px-8 py-4 sm:py-8 h-[calc(100dvh-7rem)] md:h-dvh flex flex-col">
         <div className="mb-6">
           <h1 className="font-display text-2xl text-ink-900 font-medium">Messages</h1>
           <p className="text-sm text-ink-600 mt-1">Questions from parents about fees, invoices, and payments.</p>
