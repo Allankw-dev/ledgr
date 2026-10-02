@@ -16,7 +16,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
         <input
           ref={ref}
           id={fieldId}
-          className={`neu-input px-3.5 py-2.5 rounded-md border bg-panel text-ink-900 text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 ${
+          className={`neu-input px-3.5 py-2.5 rounded-md border bg-panel text-ink-900 text-base sm:text-sm placeholder:text-ink-400 focus-visible:outline-2 focus-visible:outline-ink-600 ${
             error ? 'neu-input-error' : ''
           } ${className}`}
           aria-invalid={!!error}

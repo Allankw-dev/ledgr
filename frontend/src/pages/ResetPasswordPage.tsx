@@ -41,9 +41,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-paper px-4 relative overflow-hidden">
-      <div className="glow-violet" />
-      <div className="glow-cyan" />
+    <div className="min-h-dvh flex items-center justify-center px-4 relative overflow-hidden">
       <div className="w-full max-w-sm relative z-10">
         <div className="flex items-center gap-2.5 mb-8 justify-center">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center">
@@ -52,7 +50,7 @@ export function ResetPasswordPage() {
           <span className="font-display text-2xl text-ink-900 font-medium">Ledgr</span>
         </div>
 
-        <div className="bg-panel border border-ink-200 rounded-3xl p-8 shadow-[0_0_50px_-16px_rgba(139,108,255,0.25)] relative">
+        <div className="bg-panel border border-ink-200 rounded-3xl p-8 shadow-[0_0_50px_-16px_rgba(57,255,136,0.16)] relative">
           <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-ink-200" aria-hidden="true" />
           {!token ? (
             <p className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">

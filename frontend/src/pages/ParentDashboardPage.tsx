@@ -61,13 +61,13 @@ export function ParentDashboardPage() {
 
   return (
     <ParentShell>
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <h1 className="font-display text-2xl text-ink-900 font-medium reveal">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-1">
+        <h1 className="font-display text-xl sm:text-2xl text-ink-900 font-medium reveal">
           Welcome{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
         </h1>
         <button
           onClick={() => navigate('/verify-child')}
-          className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-ink-900 hover:underline underline-offset-2"
+          className="shrink-0 flex items-center gap-1.5 py-1 text-sm font-medium text-ink-900 hover:underline underline-offset-2"
         >
           <UserPlus className="w-4 h-4" strokeWidth={2} />
           Link another child
@@ -121,15 +121,15 @@ export function ParentDashboardPage() {
               <div key={child.id}>
                 {/* Hero balance card — the one number that matters most for this
                    child, with the M-Pesa CTA right where the eye lands first. */}
-                <div className="relative overflow-hidden rounded-2xl border border-ink-200 bg-gradient-to-b from-ink-100 to-panel p-7">
+                <div className="relative overflow-hidden rounded-2xl border border-ink-200 bg-gradient-to-b from-ink-100 to-panel p-5 sm:p-7">
                   <div
                     className="absolute -top-20 -right-20 w-56 h-56 rounded-full pointer-events-none"
                     style={{ background: 'radial-gradient(circle, rgba(57,255,136,0.28) 0%, rgba(57,255,136,0) 70%)' }}
                   />
-                  <div className="relative flex items-start justify-between gap-4 mb-5">
+                  <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
                     <div>
                       <p className="text-sm text-ink-600">{child.full_name} · Balance due</p>
-                      <p className={`figure text-4xl font-medium mt-1.5 ${balance > 0 ? 'text-ink-900' : 'text-emerald-700'}`}>
+                      <p className={`figure text-3xl sm:text-4xl font-medium mt-1.5 ${balance > 0 ? 'text-ink-900' : 'text-emerald-700'}`}>
                         {formatCurrency(balance)}
                       </p>
                     </div>
@@ -140,7 +140,7 @@ export function ParentDashboardPage() {
                         onInitiated={handlePaymentInitiated}
                         variant="primary"
                         label="Pay with M-Pesa"
-                        className="shrink-0 px-5 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
+                        className="w-full sm:w-auto shrink-0 justify-center px-5 py-3.5 sm:py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
                       />
                     ) : (
                       child.invoices.length > 0 && <DownloadStatementLink studentId={child.id} />
@@ -160,7 +160,7 @@ export function ParentDashboardPage() {
                           }}
                         />
                       </div>
-                      <div className="flex justify-between text-xs text-ink-600 mt-2">
+                      <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-ink-600 mt-2">
                         <span>{child.class_name || 'Class not assigned'}</span>
                         <span className="figure">
                           {formatCurrency(totalPaid)} of {formatCurrency(safeTotal)} paid
@@ -186,7 +186,7 @@ export function ParentDashboardPage() {
                           <div key={inv.id} className="bg-panel border border-ink-200 rounded-xl overflow-hidden">
                             <button
                               onClick={() => toggleInvoice(inv.id)}
-                              className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-ink-100/60 transition-colors"
+                              className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4 text-left hover:bg-ink-100/60 transition-colors"
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="text-ink-400 shrink-0">
@@ -206,15 +206,15 @@ export function ParentDashboardPage() {
                             </button>
 
                             {isExpanded && (
-                              <div className="px-5 pb-5 border-t border-ink-200 pt-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="px-4 sm:px-5 pb-4 sm:pb-5 border-t border-ink-200 pt-4" onClick={(e) => e.stopPropagation()}>
                                 {inv.items.length > 0 && (
-                                  <table className="w-full text-xs mb-3">
+                                  <table className="w-full text-xs mb-3 table-fixed">
                                     <tbody>
                                       {inv.items.map((item, i) => (
                                         <tr key={i} className="h-6">
-                                          <td className="text-ink-600">{item.name}</td>
-                                          <td className="text-ink-400">{item.category}</td>
-                                          <td className="text-right figure text-ink-900">{formatCurrency(Number(item.amount))}</td>
+                                          <td className="text-ink-600 pr-2 break-words">{item.name}</td>
+                                          <td className="text-ink-400 pr-2 hidden sm:table-cell">{item.category}</td>
+                                          <td className="text-right figure text-ink-900 whitespace-nowrap w-24">{formatCurrency(Number(item.amount))}</td>
                                         </tr>
                                       ))}
                                     </tbody>
@@ -222,7 +222,7 @@ export function ParentDashboardPage() {
                                 )}
 
                                 <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                                     <DownloadStatementLink studentId={child.id} />
                                     {inv.payments.length === 0 ? (
                                       <span className="text-xs text-ink-400">No receipts yet</span>

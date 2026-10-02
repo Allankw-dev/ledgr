@@ -165,7 +165,7 @@ export function ChatReportsPage() {
                         <p className="italic text-ink-400">Deleted before the report was filed</p>
                       ) : (
                         <>
-                          {e.attachment_name && <p className="text-xs text-violet">📎 {e.attachment_name}</p>}
+                          {e.attachment_name && <p className="text-xs text-sky">📎 {e.attachment_name}</p>}
                           {e.body && <p className="whitespace-pre-wrap break-words">{e.body}</p>}
                         </>
                       )}

@@ -286,8 +286,6 @@ export function AuthPage({ initialMode }: AuthPageProps) {
 
   return (
     <div className="auth-shell">
-      <div className="glow-violet" />
-      <div className="glow-cyan" />
       <AuthArches />
 
       <div ref={fitRef} className="auth-fit relative z-10 flex flex-col items-center">

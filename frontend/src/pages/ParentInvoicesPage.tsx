@@ -55,7 +55,7 @@ export function ParentInvoicesPage() {
 
   return (
     <ParentShell>
-      <h1 className="font-display text-2xl text-ink-900 font-medium mb-1">Invoices</h1>
+      <h1 className="font-display text-xl sm:text-2xl text-ink-900 font-medium mb-1">Invoices</h1>
       <p className="text-sm text-ink-600 mb-6">Every invoice, itemized, across your children.</p>
 
       {error && (
@@ -100,12 +100,77 @@ export function ParentInvoicesPage() {
         <div className="flex flex-col gap-6">
           {visibleChildren.map((child) => (
             <div key={child.id} className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
-              <div className="px-5 py-3 border-b border-ink-200 flex items-center justify-between">
+              <div className="px-4 sm:px-5 py-3 border-b border-ink-200 flex items-center justify-between gap-3">
                 <h2 className="font-display text-base text-ink-900 font-medium">{child.full_name}</h2>
                 <DownloadStatementLink studentId={child.id} />
               </div>
 
-              <div className="ledger-lines overflow-x-auto">
+              {/* Phone layout: one card per invoice instead of a six-column table. */}
+              <div className="md:hidden">
+                {child.invoices.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-ink-600">No invoices yet for this term.</p>
+                ) : (
+                  <ul className="divide-y divide-ink-200">
+                    {child.invoices.map((inv) => {
+                      const isExpanded = expandedInvoices.has(inv.id);
+                      const balance = Number(inv.total_amount) - Number(inv.amount_paid);
+                      const isUnpaid = inv.status !== 'PAID' && inv.status !== 'CANCELLED';
+                      return (
+                        <li key={inv.id}>
+                          <button
+                            onClick={() => toggleInvoice(inv.id)}
+                            aria-expanded={isExpanded}
+                            className="w-full flex items-start justify-between gap-3 px-4 py-3.5 text-left"
+                          >
+                            <div className="min-w-0">
+                              <p className="flex items-center gap-1.5 text-sm font-medium text-ink-900">
+                                <span className="text-ink-400 shrink-0">
+                                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                </span>
+                                Due {new Date(inv.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                              <p className="figure text-xs text-ink-600 mt-1 pl-[22px]">
+                                {formatCurrency(Number(inv.amount_paid))} of {formatCurrency(Number(inv.total_amount))} paid
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <span className="figure text-sm text-ink-900">{formatCurrency(Number(inv.total_amount))}</span>
+                              <StatusBadge status={inv.status} hasActivePaymentPlan={inv.has_active_payment_plan} />
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="px-4 pb-4 flex flex-col gap-3">
+                              {inv.items.length > 0 && (
+                                <ul className="flex flex-col gap-1.5 text-xs">
+                                  {inv.items.map((item, i) => (
+                                    <li key={i} className="flex items-baseline justify-between gap-3">
+                                      <span className="text-ink-600 min-w-0 break-words">{item.name}</span>
+                                      <span className="figure text-ink-900 whitespace-nowrap">{formatCurrency(Number(item.amount))}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+                                <DownloadInvoicePdfLink invoiceId={inv.id} />
+                                {inv.payments.map((p) => (
+                                  <DownloadReceiptLink key={p.id} paymentId={p.id} />
+                                ))}
+                                {isUnpaid && balance > 0 && (
+                                  <PayWithMpesa invoiceId={inv.id} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" className="ml-auto text-xs px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap" />
+                                )}
+                              </div>
+                              {isUnpaid && balance > 0 && <PaymentPlanCard invoiceId={inv.id} />}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              <div className="ledger-lines overflow-x-auto hidden md:block">
                 {child.invoices.length === 0 ? (
                   <p className="px-5 py-6 text-sm text-ink-600">No invoices yet for this term.</p>
                 ) : (

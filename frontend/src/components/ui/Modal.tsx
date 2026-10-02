@@ -24,7 +24,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="modal-panel-in neu-surface relative bg-panel rounded-lg border border-ink-200 w-full max-w-md max-h-[90vh] flex flex-col"
+        className="modal-panel-in neu-surface relative bg-panel rounded-lg border border-ink-200 w-full max-w-md max-h-[90dvh] flex flex-col"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink-200 shrink-0">
           <h2 id="modal-title" className="font-display text-lg text-ink-900 font-medium">

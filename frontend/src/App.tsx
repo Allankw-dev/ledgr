@@ -39,7 +39,7 @@ const STAFF_ROLES = ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BURSAR'] as const;
 
 function RouteLoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-paper">
+    <div className="min-h-dvh flex items-center justify-center">
       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan animate-pulse" />
     </div>
   );

@@ -72,7 +72,7 @@ export function VerifyChildPage() {
     <ParentShell>
       <div className="max-w-md mx-auto">
         {stage === 'entry' && (
-          <div className="bg-panel border border-ink-200 rounded-2xl p-7 shadow-[0_0_40px_-14px_rgba(139,108,255,0.25)]">
+          <div className="bg-panel border border-ink-200 rounded-2xl p-7 shadow-[0_0_40px_-14px_rgba(57,255,136,0.16)]">
             <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
             <h1 className="font-display text-xl text-ink-900 mb-1 text-center">Link your child</h1>
             <p className="text-sm text-ink-600 mb-5 text-center">
@@ -117,7 +117,7 @@ export function VerifyChildPage() {
         )}
 
         {(stage === 'found' || stage === 'confirming') && student && (
-          <div className="bg-panel border border-ink-200 rounded-2xl overflow-hidden shadow-[0_0_40px_-14px_rgba(139,108,255,0.25)]">
+          <div className="bg-panel border border-ink-200 rounded-2xl overflow-hidden shadow-[0_0_40px_-14px_rgba(57,255,136,0.16)]">
             <div className="px-6 py-5 border-b border-ink-200 text-center">
               <SchoolIcon className="w-7 h-7 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
               <h1 className="font-display text-xl text-ink-900">Is this your child?</h1>

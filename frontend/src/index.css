@@ -4,7 +4,7 @@
 @theme {
   /* Confident fintech, dark: near-black base with two neon accents used on
      purpose, not as decoration — green means "money that's good" (paid,
-     collected, positive), the violet/cyan pair is ambient light only,
+     collected, positive), the teal/cyan light is ambient only,
      never a status color. */
   --color-bg: #0A0C16;
   --color-bg-raised: #0E1120;
@@ -30,7 +30,7 @@
   --color-amber-100: rgba(255, 194, 75, 0.1);
   --color-amber-200: rgba(255, 194, 75, 0.3);
 
-  --color-violet: #8B6CFF;
+  --color-sky: #5BB4FF;
   --color-cyan: #3FD9FF;
 
   --font-display: 'Space Grotesk', ui-sans-serif, sans-serif;
@@ -74,10 +74,44 @@
 }
 
 @layer base {
+  html,
+  body {
+    max-width: 100%;
+    /* clip (not hidden) so a stray wide element can never create sideways
+       scrolling on phones, without breaking position: sticky. */
+    overflow-x: clip;
+  }
+
   body {
     background-color: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* "Ledger at night" backdrop: faint ruled lines like an accounting book,
+     one soft green light pooling from the top and a cool teal one in the
+     bottom corner. Static and fixed (no animation, no blur filters), so it
+     costs nothing on scroll and is easy on phone batteries. The rules fade
+     out toward the bottom so they never fight with content. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(90% 42% at 50% -6%, rgba(57, 255, 136, 0.12), transparent 70%),
+      radial-gradient(70% 38% at 105% 104%, rgba(63, 217, 255, 0.07), transparent 70%),
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 39px,
+        rgba(160, 175, 215, 0.06) 39px,
+        rgba(160, 175, 215, 0.06) 40px
+      );
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgba(0, 0, 0, 0.3) 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgba(0, 0, 0, 0.3) 100%);
   }
 
   /* Financial figures always get tabular numerals so amounts align in
@@ -104,73 +138,6 @@
 }
 
 @layer components {
-  /* Soft ambient light washes behind hero/header areas — the "exciting
-     background" without ever touching text itself. Fixed + pointer-events
-     none so they sit behind content and never block clicks or scroll.
-     Each orb drifts on its own slow, independent loop (different duration
-     AND easing shape) so the two/three never fall into a synchronized
-     pulse — that desync is what reads as organic ambient light rather
-     than a mechanical repeating effect. Transform + opacity only, so it's
-     compositor-only and costs nothing on scroll/interaction. */
-  .glow-violet {
-    position: fixed;
-    top: -220px;
-    right: -160px;
-    width: 620px;
-    height: 620px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(139, 108, 255, 0.28) 0%, rgba(139, 108, 255, 0) 70%);
-    filter: blur(10px);
-    pointer-events: none;
-    z-index: 0;
-    animation: drift-a 24s ease-in-out infinite;
-  }
-
-  .glow-cyan {
-    position: fixed;
-    bottom: -260px;
-    left: 120px;
-    width: 560px;
-    height: 560px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(63, 217, 255, 0.16) 0%, rgba(63, 217, 255, 0) 70%);
-    filter: blur(10px);
-    pointer-events: none;
-    z-index: 0;
-    animation: drift-b 31s ease-in-out infinite;
-  }
-
-  /* A third, faint money-green wash — low enough opacity to read as
-     ambient light rather than a status color, keeping green's meaning
-     ("paid", "good") reserved for actual data elsewhere. */
-  .glow-emerald {
-    position: fixed;
-    top: 40%;
-    left: 48%;
-    width: 700px;
-    height: 700px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(57, 255, 136, 0.05) 0%, rgba(57, 255, 136, 0) 70%);
-    filter: blur(10px);
-    pointer-events: none;
-    z-index: 0;
-    animation: drift-c 38s ease-in-out infinite;
-  }
-
-  @keyframes drift-a {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(-42px, 34px) scale(1.08); }
-    66% { transform: translate(26px, -22px) scale(0.95); }
-  }
-  @keyframes drift-b {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(-54px, -38px) scale(1.1); }
-  }
-  @keyframes drift-c {
-    0%, 100% { transform: translate(-50%, -40%) scale(1); opacity: 1; }
-    50% { transform: translate(-46%, -44%) scale(1.15); opacity: 0.5; }
-  }
-
   /* Faint structural ruling on data-bearing surfaces — same idea as before,
      re-tuned for the dark panels instead of paper. */
   .ledger-lines {
@@ -181,6 +148,15 @@
       var(--color-panel-line) 35px,
       var(--color-panel-line) 36px
     );
+  }
+
+  /* Horizontal scrollers (nav tabs, chip rows) without a visible scrollbar. */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 
   /* Reveal-text: a deliberate fade-up on load, used sparingly — page
@@ -777,13 +753,13 @@
 }
 
 
-/* --- Chat wallpaper: deep navy with soft violet/cyan light and a faint
-   doodle pattern, so a long thread has texture without hurting legibility. --- */
+/* --- Chat wallpaper: deep navy with a soft green glow and a faint doodle
+   pattern, so a long thread has texture without hurting legibility. --- */
 .chat-wallpaper {
   background-color: #0B0E1B;
   background-image:
-    radial-gradient(circle at 15% 8%, rgba(139, 108, 255, 0.12), transparent 42%),
-    radial-gradient(circle at 88% 92%, rgba(63, 217, 255, 0.09), transparent 46%),
+    radial-gradient(circle at 15% 8%, rgba(57, 255, 136, 0.07), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(63, 217, 255, 0.08), transparent 46%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.04' stroke-width='1.2' stroke-linecap='round'%3E%3Ccircle cx='14' cy='16' r='3.2'/%3E%3Cpath d='M56 10l6 6m0-6l-6 6'/%3E%3Crect x='32' y='52' width='9' height='9' rx='2.5'/%3E%3Cpath d='M66 66c3.5-4.5 9-4.5 12.5 0'/%3E%3Cpath d='M12 70l5-8 5 8z'/%3E%3C/g%3E%3C/svg%3E");
 }
 

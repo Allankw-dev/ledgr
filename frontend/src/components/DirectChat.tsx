@@ -141,7 +141,7 @@ function DirectAttachment({ conversationId, messageId, attachment }: { conversat
       }}
       className="w-full flex items-center gap-3 rounded-md bg-black/25 border border-ink-200 px-3 py-2.5 mb-1.5 hover:bg-black/40 transition-colors text-left"
     >
-      <span className="w-9 h-9 rounded-md bg-violet/20 text-violet flex items-center justify-center shrink-0">
+      <span className="w-9 h-9 rounded-md bg-sky/20 text-sky flex items-center justify-center shrink-0">
         <FileText className="w-5 h-5" strokeWidth={1.75} />
       </span>
       <span className="min-w-0 flex-1">
@@ -410,7 +410,7 @@ export function DirectChat() {
   let lastDay = '';
 
   return (
-    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr] h-[calc(100vh-12rem)] min-h-[480px] max-h-[760px] shadow-xl shadow-black/20 relative">
+    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden grid grid-cols-1 md:grid-cols-[300px_1fr] h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-12rem)] min-h-[420px] md:min-h-[480px] max-h-[760px] shadow-xl shadow-black/20 relative">
       {/* Conversation list (hidden on phones while a chat is open) */}
       <div className={`${selected ? 'hidden md:flex' : 'flex'} flex-col min-h-0 border-b md:border-b-0 md:border-r border-ink-200 bg-ink-950/40`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
@@ -485,7 +485,7 @@ export function DirectChat() {
           </div>
         ) : (
           <>
-            <div className="px-4 py-3 border-b border-ink-200 flex items-center gap-3 bg-gradient-to-r from-ink-100 to-panel">
+            <div className="px-3 sm:px-4 py-3 border-b border-ink-200 flex items-center gap-2 sm:gap-3 bg-gradient-to-r from-ink-100 to-panel">
               <button onClick={() => setSelectedId(null)} className="md:hidden text-ink-600 hover:text-ink-900" aria-label="Back to chats">
                 <ArrowLeft className="w-5 h-5" strokeWidth={2} />
               </button>
@@ -499,7 +499,7 @@ export function DirectChat() {
                 title="Messages and files are encrypted in transit and stored encrypted. Only you and this person can see this chat in Ledgr."
               >
                 <Lock className="w-3 h-3" strokeWidth={2.5} />
-                Encrypted
+                <span className="hidden sm:inline">Encrypted</span>
               </span>
               <div className="relative shrink-0">
                 <button onClick={() => setHeaderMenu((o) => !o)} aria-label="Chat options" className="p-1.5 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100">
@@ -613,7 +613,7 @@ export function DirectChat() {
                       {pendingPreview ? (
                         <img src={pendingPreview} alt="" className="w-12 h-12 rounded-md object-cover" />
                       ) : (
-                        <div className="w-12 h-12 rounded-md bg-violet/20 text-violet flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-md bg-sky/20 text-sky flex items-center justify-center">
                           <FileText className="w-6 h-6" strokeWidth={1.75} />
                         </div>
                       )}
@@ -629,10 +629,10 @@ export function DirectChat() {
                   <div className="flex items-end gap-1.5">
                     <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} />
                     <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" className="hidden" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} />
-                    <button type="button" onClick={() => photoInputRef.current?.click()} aria-label="Attach a photo" title="Photo" className="p-2.5 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100">
+                    <button type="button" onClick={() => photoInputRef.current?.click()} aria-label="Attach a photo" title="Photo" className="p-2 sm:p-2.5 shrink-0 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100">
                       <ImageIcon className="w-5 h-5" strokeWidth={1.75} />
                     </button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Attach a file" title="File" className="p-2.5 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100">
+                    <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Attach a file" title="File" className="p-2 sm:p-2.5 shrink-0 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100">
                       <Paperclip className="w-5 h-5" strokeWidth={1.75} />
                     </button>
                     <textarea
@@ -646,13 +646,13 @@ export function DirectChat() {
                       onKeyDown={onKeyDown}
                       placeholder={`Message ${selected.other_name.split(' ')[0]}…`}
                       disabled={sending}
-                      className="flex-1 resize-none px-4 py-2.5 rounded-2xl border border-ink-200 text-sm bg-ink-100 text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-emerald-700/30 max-h-[120px]"
+                      className="flex-1 min-w-0 resize-none px-4 py-2.5 rounded-2xl border border-ink-200 text-base sm:text-sm bg-ink-100 text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-emerald-700/30 max-h-[120px]"
                     />
                     <button
                       onClick={() => void handleSend()}
                       disabled={sending || (!input.trim() && !pendingFile)}
                       aria-label="Send"
-                      className="p-3 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-700/20"
+                      className="p-2.5 sm:p-3 shrink-0 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-700/20"
                     >
                       <Send className="w-4.5 h-4.5" strokeWidth={2.25} />
                     </button>

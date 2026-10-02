@@ -140,9 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen flex bg-paper relative">
-      <div className="glow-violet" />
-      <div className="glow-cyan" />
+    <div className="min-h-dvh flex relative">
 
       {/* Mobile top bar — the fixed sidebar only fits from md up, so
          anything narrower gets a hamburger that opens the same nav as a

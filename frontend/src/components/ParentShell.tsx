@@ -1,6 +1,6 @@
-import { type ReactNode } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, LogOut } from 'lucide-react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { BookOpen, LogOut, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
@@ -32,63 +32,85 @@ export function ParentShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuthStore();
   const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
   const badgeCounts = { unreadMessages, unreadClassGroups, unreadDirect };
+  const navRef = useRef<HTMLElement>(null);
 
   function handleLogout() {
     logout();
     navigate('/login');
   }
 
-  return (
-    <div className="min-h-screen bg-paper relative">
-      {/* Centered via margin-left (not transform) — the drift animation on
-         .glow-violet now owns `transform`, and a CSS animation always wins
-         over an inline transform for the property it's animating, which
-         would otherwise snap this back to an uncentered position the
-         instant the animation started. */}
-      <div className="glow-violet" style={{ top: '-260px', left: '50%', right: 'auto', marginLeft: '-450px', width: '900px', height: '620px' }} />
-      <div className="glow-emerald" style={{ top: '30%', left: '50%' }} />
+  // On a phone the tab row scrolls sideways; make sure the current tab is
+  // always in view instead of hiding off the right edge.
+  useEffect(() => {
+    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    active?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [location.pathname]);
 
+  const onAssistant = location.pathname === '/parent/assistant';
+
+  return (
+    <div className="min-h-dvh relative">
       <header className="relative z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center">
               <BookOpen className="w-4 h-4 text-[#06110B]" strokeWidth={2} />
             </div>
             <span className="font-display text-lg font-semibold">Ledgr</span>
           </div>
-          <div className="flex items-center gap-3 sm:gap-4">
-            <BackButton />
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <BackButton className="!px-3 !py-1.5" />
+            {!onAssistant && (
+              <Link
+                to="/parent/assistant"
+                aria-label="Ask Ledgr"
+                title="Ask Ledgr"
+                className="md:hidden w-9 h-9 rounded-full border border-ink-200 bg-panel/80 flex items-center justify-center text-emerald-700"
+              >
+                <Sparkles className="w-4.5 h-4.5" strokeWidth={1.75} />
+              </Link>
+            )}
             <NotificationBell total={total} unreadMentions={unreadMentions} mentions={mentions} onOpen={loadMentions} onMarkSeen={markSeen} />
-            <span className="text-sm text-ink-600 hidden sm:inline">{user?.full_name || user?.email}</span>
+            <span className="text-sm text-ink-600 hidden sm:inline truncate">{user?.full_name || user?.email}</span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 text-sm text-ink-600 hover:text-ink-900 transition-colors"
+              aria-label="Sign out"
+              className="flex items-center gap-1.5 text-sm text-ink-600 hover:text-ink-900 transition-colors p-1.5 -mr-1.5"
             >
-              <LogOut className="w-4 h-4" strokeWidth={2} />
-              Sign out
+              <LogOut className="w-5 h-5 sm:w-4 sm:h-4" strokeWidth={2} />
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
         </div>
-        <nav className="max-w-3xl mx-auto px-6 flex gap-1 overflow-x-auto border-b border-ink-200">
-          {navItems.map(({ to, label, badgeKey }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `shrink-0 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center ${
-                  isActive
-                    ? 'border-emerald-700 text-ink-900'
-                    : 'border-transparent text-ink-600 hover:text-ink-900'
-                }`
-              }
-            >
-              {label}
-              {badgeKey && <NavBadge count={badgeCounts[badgeKey]} />}
-            </NavLink>
-          ))}
-        </nav>
       </header>
-      <main className="max-w-3xl mx-auto px-6 py-8 relative z-10">
+
+      {/* Tabs stay pinned under the top edge while scrolling. The fade on the
+          right tells people on a phone there are more tabs to swipe to. */}
+      <div className="sticky top-0 z-20 border-b border-ink-200 bg-paper/85 backdrop-blur-md">
+        <div className="relative max-w-3xl mx-auto">
+          <nav ref={navRef} className="px-4 sm:px-6 flex gap-1 overflow-x-auto scrollbar-none">
+            {navItems.map(({ to, label, badgeKey }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  `shrink-0 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center whitespace-nowrap ${
+                    isActive
+                      ? 'border-emerald-700 text-ink-900'
+                      : 'border-transparent text-ink-600 hover:text-ink-900'
+                  }`
+                }
+              >
+                {label}
+                {badgeKey && <NavBadge count={badgeCounts[badgeKey]} />}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-paper to-transparent md:hidden" aria-hidden="true" />
+        </div>
+      </div>
+
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))] md:pb-24 relative z-10">
         <div key={location.pathname} className="page-enter">
           {children}
         </div>

@@ -50,7 +50,7 @@ export function PayWithMpesa({ invoiceId, defaultPhone, onInitiated, variant = '
       <Button
         variant={variant}
         onClick={() => setOpen(true)}
-        className={className || 'text-xs px-3 py-1.5 flex items-center gap-1.5'}
+        className={className || 'text-xs px-3.5 py-2 sm:px-3 sm:py-1.5 flex items-center gap-1.5 whitespace-nowrap'}
       >
         <Smartphone className="w-3.5 h-3.5" /> {label}
       </Button>

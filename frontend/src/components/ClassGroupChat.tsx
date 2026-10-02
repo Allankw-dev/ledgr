@@ -161,7 +161,7 @@ function AttachmentView({ classId, messageId, attachment }: { classId: string; m
       }}
       className="flex items-center gap-3 rounded-md bg-black/25 border border-ink-200 px-3 py-2.5 mb-1.5 hover:bg-black/40 transition-colors"
     >
-      <div className="w-9 h-9 rounded-md bg-violet/20 text-violet flex items-center justify-center shrink-0">
+      <div className="w-9 h-9 rounded-md bg-sky/20 text-sky flex items-center justify-center shrink-0">
         <FileText className="w-5 h-5" strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">
@@ -465,9 +465,36 @@ export function ClassGroupChat() {
   let lastDay = '';
 
   return (
-    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden grid grid-cols-1 md:grid-cols-[280px_1fr] h-[calc(100vh-12rem)] min-h-[480px] max-h-[760px] shadow-xl shadow-black/20">
-      {/* Group list */}
-      <div className="border-b md:border-b-0 md:border-r border-ink-200 overflow-y-auto max-h-32 md:max-h-none shrink-0 md:shrink bg-ink-950/40">
+    <div className="bg-panel border border-ink-200 rounded-xl overflow-hidden flex flex-col md:grid md:grid-cols-[280px_1fr] h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-12rem)] min-h-[420px] md:min-h-[480px] max-h-[760px] shadow-xl shadow-black/20">
+      {/* Phone: switch between groups with a swipeable chip row (the sidebar
+         below only fits from md up). Hidden when there's just one group. */}
+      {groups.length > 1 && (
+        <div className="md:hidden shrink-0 flex gap-2 overflow-x-auto scrollbar-none px-3 py-2.5 border-b border-ink-200 bg-ink-950/40">
+          {groups.map((g) => {
+            const active = g.class_id === selectedClassId;
+            return (
+              <button
+                key={g.class_id}
+                onClick={() => setSelectedClassId(g.class_id)}
+                aria-pressed={active}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  active ? 'bg-emerald-100 text-emerald-700 border-emerald-700' : 'border-ink-200 text-ink-600'
+                }`}
+              >
+                {g.class_name}
+                {!!g.unread_count && !active && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-green text-[#06110B] text-[10px] font-bold flex items-center justify-center">
+                    {g.unread_count > 99 ? '99+' : g.unread_count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Group list (md and up) */}
+      <div className="hidden md:block border-r border-ink-200 overflow-y-auto bg-ink-950/40">
         {groups.map((g) => {
           const active = g.class_id === selectedClassId;
           return (
@@ -507,8 +534,8 @@ export function ClassGroupChat() {
       </div>
 
       {/* Thread */}
-      <div className="flex flex-col min-h-0 min-w-0">
-        <div className="px-5 py-3.5 border-b border-ink-200 flex items-center gap-3 bg-gradient-to-r from-ink-100 to-panel">
+      <div className="flex flex-col flex-1 min-h-0 min-w-0">
+        <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-b border-ink-200 flex items-center gap-3 bg-gradient-to-r from-ink-100 to-panel">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center shrink-0 shadow-lg shadow-emerald-700/20">
             <Users className="w-5 h-5 text-[#06110B]" strokeWidth={2} />
           </div>
@@ -621,7 +648,7 @@ export function ClassGroupChat() {
         </div>
 
         {/* Composer */}
-        <div className="relative border-t border-ink-200 bg-panel px-3 sm:px-4 py-3">
+        <div className="relative border-t border-ink-200 bg-panel px-2.5 sm:px-4 py-2.5 sm:py-3">
           {mention && pickerOptions.length > 0 && (
             <div className="absolute bottom-full left-3 right-3 sm:left-4 sm:right-auto sm:w-80 mb-2 rounded-lg border border-ink-200 bg-panel shadow-2xl overflow-hidden z-20">
               <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-ink-400">Mention someone</p>
@@ -655,7 +682,7 @@ export function ClassGroupChat() {
               {pendingPreview ? (
                 <img src={pendingPreview} alt="" className="w-12 h-12 rounded-md object-cover" />
               ) : (
-                <div className="w-12 h-12 rounded-md bg-violet/20 text-violet flex items-center justify-center">
+                <div className="w-12 h-12 rounded-md bg-sky/20 text-sky flex items-center justify-center">
                   <FileText className="w-6 h-6" strokeWidth={1.75} />
                 </div>
               )}
@@ -671,7 +698,7 @@ export function ClassGroupChat() {
 
           {error && <p className="text-xs text-clay-700 mb-2">{error}</p>}
 
-          <div className="flex items-end gap-1.5">
+          <div className="flex items-end gap-1">
             <input
               ref={photoInputRef}
               type="file"
@@ -692,13 +719,13 @@ export function ClassGroupChat() {
                 e.target.value = '';
               }}
             />
-            <button type="button" onClick={() => photoInputRef.current?.click()} disabled={!selectedClassId} aria-label="Attach a photo" title="Photo" className="p-2.5 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100 disabled:opacity-40">
+            <button type="button" onClick={() => photoInputRef.current?.click()} disabled={!selectedClassId} aria-label="Attach a photo" title="Photo" className="p-2 sm:p-2.5 shrink-0 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100 disabled:opacity-40">
               <ImageIcon className="w-5 h-5" strokeWidth={1.75} />
             </button>
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!selectedClassId} aria-label="Attach a file" title="File" className="p-2.5 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100 disabled:opacity-40">
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!selectedClassId} aria-label="Attach a file" title="File" className="p-2 sm:p-2.5 shrink-0 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100 disabled:opacity-40">
               <Paperclip className="w-5 h-5" strokeWidth={1.75} />
             </button>
-            <button type="button" onClick={startMention} disabled={!selectedClassId} aria-label="Mention someone" title="Mention (@)" className="p-2.5 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100 disabled:opacity-40">
+            <button type="button" onClick={startMention} disabled={!selectedClassId} aria-label="Mention someone" title="Mention (@)" className="p-2 sm:p-2.5 shrink-0 rounded-full text-ink-600 hover:text-ink-900 hover:bg-ink-100 disabled:opacity-40">
               <AtSign className="w-5 h-5" strokeWidth={1.75} />
             </button>
 
@@ -717,13 +744,13 @@ export function ClassGroupChat() {
               onKeyDown={onKeyDown}
               placeholder={selectedClassId ? 'Type a message… use @ to mention someone' : 'Select a group first'}
               disabled={!selectedClassId || sending}
-              className="flex-1 resize-none px-4 py-2.5 rounded-2xl border border-ink-200 text-sm bg-ink-100 text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-emerald-700/30 max-h-[120px]"
+              className="flex-1 min-w-0 resize-none px-4 py-2.5 rounded-2xl border border-ink-200 text-base sm:text-sm bg-ink-100 text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-emerald-700/30 max-h-[120px]"
             />
             <button
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || (!input.trim() && !pendingFile) || !selectedClassId}
-              className="p-3 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-700/20"
+              className="p-2.5 sm:p-3 shrink-0 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-700/20"
               aria-label="Send"
             >
               <Send className="w-4.5 h-4.5" strokeWidth={2.25} />

@@ -33,7 +33,7 @@ export function ParentReceiptsPage() {
 
   return (
     <ParentShell>
-      <h1 className="font-display text-2xl text-ink-900 font-medium mb-1">Receipts</h1>
+      <h1 className="font-display text-xl sm:text-2xl text-ink-900 font-medium mb-1">Receipts</h1>
       <p className="text-sm text-ink-600 mb-6">Every confirmed payment, with a downloadable receipt for each.</p>
 
       {error && (
@@ -74,7 +74,21 @@ export function ParentReceiptsPage() {
         </div>
       ) : (
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
-          <div className="ledger-lines overflow-x-auto">
+          <ul className="md:hidden divide-y divide-ink-200">
+            {rows.map((r) => (
+              <li key={r.paymentId} className="flex items-center justify-between gap-3 px-4 py-3.5">
+                <div className="min-w-0">
+                  <p className="figure text-sm text-ink-900">{formatCurrency(r.amount)}</p>
+                  <p className="text-xs text-ink-600 mt-0.5 truncate">
+                    {r.childName} · {r.method}
+                  </p>
+                  <p className="text-xs text-ink-400 mt-0.5">{r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                </div>
+                <DownloadReceiptLink paymentId={r.paymentId} />
+              </li>
+            ))}
+          </ul>
+          <div className="ledger-lines overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-ink-600">

@@ -2,7 +2,7 @@
  * Decorative architectural arches behind the sign-in / sign-up card:
  * nested arches rising from the bottom edge (like a row of doorways), plus a
  * few small floating ones. Purely visual — hidden from screen readers and
- * ignoring the pointer — and tinted with the same violet / cyan / green as
+ * ignoring the pointer — and tinted with the same cyan / teal / green as
  * the rest of the auth page.
  */
 
@@ -37,12 +37,12 @@ export function AuthArches() {
       <defs>
         <linearGradient id="arch-stroke" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#3FD9FF" />
-          <stop offset="55%" stopColor="#8B6CFF" />
+          <stop offset="55%" stopColor="#27C7B8" />
           <stop offset="100%" stopColor="#39FF88" />
         </linearGradient>
         <linearGradient id="arch-door" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#8B6CFF" stopOpacity="0.14" />
-          <stop offset="100%" stopColor="#8B6CFF" stopOpacity="0" />
+          <stop offset="0%" stopColor="#27C7B8" stopOpacity="0.14" />
+          <stop offset="100%" stopColor="#27C7B8" stopOpacity="0" />
         </linearGradient>
       </defs>
 
