@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X, MessagesSquare, Flag, Pencil, type LucideIcon } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X, MessagesSquare, Flag, Pencil, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
 import { NotificationBell } from './NotificationBell';
 import { BottomNav, type BottomNavItem } from './BottomNav';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
+import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { Modal } from './ui/Modal';
 import { EditStaffProfileForm } from './EditStaffProfileForm';
 
@@ -95,6 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   })).filter((g) => g.items.length > 0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed('ledgr.sidebar.staff');
 
   function handleLogout() {
     logout();
@@ -104,85 +106,109 @@ export function AppShell({ children }: { children: ReactNode }) {
   const displayName = user?.full_name || user?.email || '';
   const initial = displayName.trim().charAt(0).toUpperCase() || '?';
 
-  const sidebarContent = (
+  /** One panel for the desktop rail (can retract) and the phone drawer (always open). */
+  const renderSidebar = (c: boolean, onClose?: () => void) => (
     <>
-      <div className="flex items-center gap-2.5 px-6 py-6 mb-1">
+      <div className={`flex items-center py-6 mb-1 ${c ? 'justify-center px-3' : 'gap-2.5 px-6'}`}>
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center shrink-0 shadow-[0_6px_18px_-4px_rgba(57,255,136,0.55)]">
           <BookOpen className="w-[18px] h-[18px] text-[#06110B]" strokeWidth={2.25} />
         </div>
-        <span className="font-display text-xl font-semibold tracking-tight">Ledgr</span>
-        <button
-          onClick={() => setMobileNavOpen(false)}
-          aria-label="Close menu"
-          className="ml-auto text-ink-600 hover:text-ink-900 md:hidden"
-        >
-          <X className="w-5 h-5" strokeWidth={2} />
-        </button>
+        {!c && <span className="font-display text-xl font-semibold tracking-tight">Ledgr</span>}
+        {onClose && (
+          <button onClick={onClose} aria-label="Close menu" className="ml-auto text-ink-600 hover:text-ink-900 md:hidden">
+            <X className="w-5 h-5" strokeWidth={2} />
+          </button>
+        )}
       </div>
 
-      <nav className="flex-1 px-3 flex flex-col gap-5 overflow-y-auto pb-4">
+      <nav className="flex-1 px-3 flex flex-col gap-5 overflow-y-auto overflow-x-hidden pb-4">
         {navGroups.map((group) => (
           <div key={group.label} className="flex flex-col gap-0.5">
-            <p className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">{group.label}</p>
-            {group.items.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMobileNavOpen(false)}
-                className={({ isActive }) =>
-                  `side-link flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium ${
-                    isActive ? 'text-ink-900' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-100/70'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <span
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        isActive ? 'bg-green/15 text-green' : 'bg-ink-100/80 text-ink-600'
-                      }`}
-                    >
-                      <Icon className="w-[18px] h-[18px]" strokeWidth={isActive ? 2.25 : 1.75} />
-                    </span>
-                    {label}
-                    {to === '/chat-reports' && notif.openChatReports > 0 && <CountBadge count={notif.openChatReports} tone="amber" />}
-                    {to === '/chats' && notif.unreadDirect > 0 && <CountBadge count={notif.unreadDirect} />}
-                    {to === '/class-groups' && notif.unreadClassGroups > 0 && (
-                      <CountBadge
-                        count={notif.unreadClassGroups}
-                        tone={notif.unreadMentions > 0 ? 'amber' : 'green'}
-                        title={notif.unreadMentions > 0 ? 'Someone mentioned you' : 'Unread messages'}
-                      />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
+            {c ? (
+              <div className="mx-3 mb-1 h-px bg-white/[0.07]" aria-hidden="true" />
+            ) : (
+              <p className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">{group.label}</p>
+            )}
+            {group.items.map(({ to, label, icon: Icon }) => {
+              const badge =
+                to === '/chat-reports' ? { n: notif.openChatReports, tone: 'amber' as const, title: undefined }
+                : to === '/chats' ? { n: notif.unreadDirect, tone: 'green' as const, title: undefined }
+                : to === '/class-groups' ? { n: notif.unreadClassGroups, tone: (notif.unreadMentions > 0 ? 'amber' : 'green') as 'amber' | 'green', title: notif.unreadMentions > 0 ? 'Someone mentioned you' : 'Unread messages' }
+                : { n: 0, tone: 'green' as const, title: undefined };
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  title={c ? label : undefined}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `side-link flex items-center px-2 py-2 rounded-xl text-sm font-medium ${
+                      isActive ? 'text-ink-900' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-100/70'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span
+                        className={`relative w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                          isActive ? 'bg-green/15 text-green' : 'bg-ink-100/80 text-ink-600'
+                        }`}
+                      >
+                        <Icon className="w-[18px] h-[18px]" strokeWidth={isActive ? 2.25 : 1.75} />
+                        {c && badge.n > 0 && (
+                          <span className={`pop-in absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-[#0A0C16] ${badge.tone === 'amber' ? 'bg-amber' : 'bg-green'}`} />
+                        )}
+                      </span>
+                      <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>{label}</span>
+                      {!c && badge.n > 0 && <CountBadge count={badge.n} tone={badge.tone} title={badge.title} />}
+                    </>
+                  )}
+                </NavLink>
+              );
+            })}
           </div>
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-white/[0.07]">
+      <div className="px-3 py-4 border-t border-white/[0.07] flex flex-col gap-1">
+        {/* Retract / expand — desktop only (the phone drawer just closes). */}
+        {!onClose && (
+          <button
+            onClick={toggleCollapsed}
+            aria-label={c ? 'Expand side panel' : 'Retract side panel'}
+            title={c ? 'Expand' : 'Retract'}
+            className="flex items-center px-2 py-2 rounded-xl text-sm font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900 transition-colors"
+          >
+            <span className="w-8 h-8 rounded-lg bg-ink-100/80 flex items-center justify-center shrink-0">
+              {c ? <PanelLeftOpen className="w-[18px] h-[18px]" strokeWidth={1.75} /> : <PanelLeftClose className="w-[18px] h-[18px]" strokeWidth={1.75} />}
+            </span>
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>Retract</span>
+          </button>
+        )}
         <button
           onClick={() => {
             setEditProfileOpen(true);
-            setMobileNavOpen(false);
+            onClose?.();
           }}
-          className="w-full flex items-center gap-3 px-3 py-2 mb-1 rounded-xl text-left hover:bg-ink-100/70 transition-colors group"
+          title={c ? displayName : undefined}
+          className="w-full flex items-center px-2 py-2 rounded-xl text-left hover:bg-ink-100/70 transition-colors group"
         >
-          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] text-sm font-bold flex items-center justify-center shrink-0">{initial}</span>
-          <span className="min-w-0 flex-1">
+          <span className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] text-sm font-bold flex items-center justify-center shrink-0">{initial}</span>
+          <span className={`min-w-0 flex-1 overflow-hidden transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>
             <span className="block text-sm font-medium truncate text-ink-900">{displayName}</span>
             <span className="block text-xs text-ink-400 capitalize">{user?.role.toLowerCase().replace('_', ' ')}</span>
           </span>
-          <Pencil className="w-3.5 h-3.5 text-ink-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" strokeWidth={2} />
+          {!c && <Pencil className="w-3.5 h-3.5 text-ink-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" strokeWidth={2} />}
         </button>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900 transition-colors"
+          title={c ? 'Sign out' : undefined}
+          className="w-full flex items-center px-2 py-2 rounded-xl text-sm font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900 transition-colors"
         >
-          <LogOut className="w-[18px] h-[18px]" strokeWidth={2} />
-          Sign out
+          <span className="w-8 h-8 flex items-center justify-center shrink-0">
+            <LogOut className="w-[18px] h-[18px]" strokeWidth={2} />
+          </span>
+          <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>Sign out</span>
         </button>
       </div>
     </>
@@ -224,14 +250,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       {mobileNavOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="modal-backdrop-in absolute inset-0 bg-ink-950/60" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
-          <aside className="relative w-72 max-w-[85vw] bg-paper border-r border-white/10 flex flex-col h-full shadow-[20px_0_50px_-10px_rgba(0,0,0,0.8)]">
-            {sidebarContent}
+          <aside className="drawer-in relative w-72 max-w-[85vw] bg-paper border-r border-white/10 flex flex-col h-full shadow-[20px_0_50px_-10px_rgba(0,0,0,0.8)]">
+            {renderSidebar(false, () => setMobileNavOpen(false))}
           </aside>
         </div>
       )}
 
-      <aside className="w-64 border-r border-white/[0.07] bg-paper/55 backdrop-blur-xl shrink-0 relative z-10 hidden md:flex md:flex-col sticky top-0 h-dvh self-start">
-        {sidebarContent}
+      <aside
+        className={`hidden md:flex md:flex-col sticky top-0 h-dvh self-start shrink-0 z-20 border-r border-white/[0.07] bg-paper/55 backdrop-blur-xl overflow-x-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          collapsed ? 'w-[72px]' : 'w-64'
+        }`}
+      >
+        {renderSidebar(collapsed)}
       </aside>
 
       <main className="flex-1 min-w-0 relative z-10 pt-14 md:pt-0 pb-28 md:pb-0">
