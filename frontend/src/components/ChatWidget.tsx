@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Sparkles, Send, ChevronUp, ChevronDown } from 'lucide-react';
+import { Sparkles, Send, ChevronDown } from 'lucide-react';
 import { queryParentAssistant, type AssistantMessage } from '../api/parentAssistant';
 
 const SUGGESTIONS = ['Has my payment gone through?', "What's still owed this term?", 'When is the next payment due?'];
@@ -52,11 +52,11 @@ export function ChatWidget() {
           <Sparkles className="w-4 h-4" strokeWidth={2} />
           Ask about your fees
         </span>
-        {open ? <ChevronUp className="w-4 h-4 text-ink-600" /> : <ChevronDown className="w-4 h-4 text-ink-600" />}
+        <ChevronDown className={`w-4 h-4 text-ink-600 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="border-t border-ink-100 flex flex-col">
+        <div className="expand-in border-t border-ink-100 flex flex-col">
           <div className="max-h-80 overflow-y-auto px-5 py-4 flex flex-col gap-3">
             {messages.length === 0 && (
               <div className="flex flex-col gap-2">

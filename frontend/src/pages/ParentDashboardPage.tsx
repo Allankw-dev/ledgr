@@ -1,7 +1,8 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, ChevronDown, ChevronRight } from 'lucide-react';
+import { UserPlus, ChevronRight } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -95,7 +96,7 @@ export function ParentDashboardPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-ink-600">Loading…</p>
+        <ListSkeleton rows={3} />
       ) : children.length === 0 ? (
         <div className="bg-panel border border-ink-200 rounded-lg px-6 py-12 text-center">
           <p className="text-sm text-ink-900 font-medium">No children linked to your account yet</p>
@@ -152,7 +153,7 @@ export function ParentDashboardPage() {
                     <div className="relative">
                       <div className="h-1.5 w-full rounded-full bg-ink-200 overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${
+                          className={`bar-grow h-full rounded-full transition-all ${
                             paidPct >= 100 ? 'bg-gradient-to-r from-emerald-800 to-emerald-700' : 'bg-amber-500'
                           }`}
                           style={{
@@ -191,7 +192,7 @@ export function ParentDashboardPage() {
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="text-ink-400 shrink-0">
-                                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                  <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
                                 </span>
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium text-ink-900">
@@ -207,7 +208,7 @@ export function ParentDashboardPage() {
                             </button>
 
                             {isExpanded && (
-                              <div className="px-4 sm:px-5 pb-4 sm:pb-5 border-t border-ink-200 pt-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="expand-in px-4 sm:px-5 pb-4 sm:pb-5 border-t border-ink-200 pt-4" onClick={(e) => e.stopPropagation()}>
                                 {inv.items.length > 0 && (
                                   <table className="w-full text-xs mb-3 table-fixed">
                                     <tbody>

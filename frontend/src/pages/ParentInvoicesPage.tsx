@@ -1,6 +1,7 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useState, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { PayWithMpesa } from '../components/PayWithMpesa';
@@ -95,7 +96,7 @@ export function ParentInvoicesPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-ink-600">Loading…</p>
+        <ListSkeleton rows={3} />
       ) : (
         <div className="flex flex-col gap-6">
           {visibleChildren.map((child) => (
@@ -125,7 +126,7 @@ export function ParentInvoicesPage() {
                             <div className="min-w-0">
                               <p className="flex items-center gap-1.5 text-sm font-medium text-ink-900">
                                 <span className="text-ink-400 shrink-0">
-                                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                  <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
                                 </span>
                                 Due {new Date(inv.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
                               </p>
@@ -140,7 +141,7 @@ export function ParentInvoicesPage() {
                           </button>
 
                           {isExpanded && (
-                            <div className="px-4 pb-4 flex flex-col gap-3">
+                            <div className="expand-in px-4 pb-4 flex flex-col gap-3">
                               {inv.items.length > 0 && (
                                 <ul className="flex flex-col gap-1.5 text-xs">
                                   {inv.items.map((item, i) => (
@@ -197,7 +198,7 @@ export function ParentInvoicesPage() {
                               className="text-ink-900 cursor-pointer hover:bg-ink-100/60 align-top"
                             >
                               <td className="pl-5 py-2.5 text-ink-400">
-                                {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
                               </td>
                               <td className="px-5 py-2.5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
                               <td className="px-5 py-2.5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>

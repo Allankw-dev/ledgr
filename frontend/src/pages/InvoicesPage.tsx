@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useState } from 'react';
 import { Plus, FileText, Receipt, Wallet, Search, Pencil, Trash2, Ban } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -143,7 +144,7 @@ export function InvoicesPage() {
           </div>
 
           {termsLoading ? (
-            <p className="text-sm text-ink-600">Loading…</p>
+            <ListSkeleton rows={3} />
           ) : terms.length === 0 ? (
             <p className="text-sm text-ink-600">No terms yet. Create one to start setting up fees.</p>
           ) : (
@@ -234,7 +235,7 @@ export function InvoicesPage() {
           </div>
 
           {invoicesLoading ? (
-            <div className="px-5 py-12 text-center text-sm text-ink-600">Loading…</div>
+            <ListSkeleton rows={5} className="p-5" />
           ) : invoices.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <FileText className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />

@@ -50,10 +50,10 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
                 </span>
               ) : (
                 <span className="relative">
-                  <Icon className={`w-[22px] h-[22px] transition-transform duration-300 ${active ? 'scale-110' : ''}`} strokeWidth={active ? 2.25 : 1.75} />
+                  <Icon key={String(active)} className={`w-[22px] h-[22px] ${active ? 'nav-pop' : ''}`} strokeWidth={active ? 2.25 : 1.75} />
                   {!!item.badge && item.badge > 0 && (
                     <span
-                      className={`absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center text-[#06110B] ${
+                      className={`pop-in absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center text-[#06110B] ${
                         item.badgeTone === 'amber' ? 'bg-amber' : 'bg-green'
                       }`}
                     >
@@ -65,7 +65,7 @@ export function BottomNav({ items }: { items: BottomNavItem[] }) {
               <span className={`text-[11px] font-medium leading-none ${item.center ? 'mt-1.5' : ''}`}>{item.label}</span>
             </>
           );
-          const cls = `relative z-10 flex flex-col items-center justify-center gap-1 pt-2.5 pb-2 transition-colors ${
+          const cls = `press relative z-10 flex flex-col items-center justify-center gap-1 pt-2.5 pb-2 transition-colors ${
             active ? 'text-green' : 'text-ink-600 active:text-ink-900'
           }`;
           return item.to ? (

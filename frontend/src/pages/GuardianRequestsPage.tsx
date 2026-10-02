@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useEffect, useState } from 'react';
 import { UserCheck, Check, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -68,7 +69,7 @@ export function GuardianRequestsPage() {
 
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {loading ? (
-            <div className="px-5 py-16 text-center text-sm text-ink-600">Loading…</div>
+            <ListSkeleton rows={5} className="p-5" />
           ) : requests.length === 0 ? (
             <div className="px-5 py-16 text-center">
               <UserCheck className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />

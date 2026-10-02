@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useState, type FormEvent } from 'react';
 import { GraduationCap, Plus, Mail, Phone, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -171,7 +172,7 @@ export function TeachersPage() {
 
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {loading ? (
-            <div className="px-5 py-12 text-center text-sm text-ink-600">Loading teachers…</div>
+            <ListSkeleton rows={5} className="p-5" />
           ) : teachers.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <p className="text-sm text-ink-900 font-medium">No teachers yet</p>

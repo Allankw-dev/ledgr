@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useEffect, useState } from 'react';
 import { ParentShell } from '../components/ParentShell';
 import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
@@ -21,7 +22,7 @@ export function ParentProfilePage() {
       <p className="text-sm text-ink-600 mb-6">Your account and contact details.</p>
 
       {loading ? (
-        <p className="text-sm text-ink-600">Loading…</p>
+        <ListSkeleton rows={3} />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="bg-panel border border-ink-200 rounded-lg px-5 py-4">

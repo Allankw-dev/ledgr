@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useEffect, useState } from 'react';
 import { ScrollText } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -84,7 +85,7 @@ export function AuditLogPage() {
 
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {loading ? (
-            <div className="px-5 py-12 text-center text-sm text-ink-600">Loading…</div>
+            <ListSkeleton rows={5} className="p-5" />
           ) : entries.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <p className="text-sm text-ink-600">No activity recorded yet.</p>

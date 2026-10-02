@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useCallback, useEffect, useState } from 'react';
 import { Flag, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -109,7 +110,7 @@ export function ChatReportsPage() {
 
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {reports === null ? (
-            <p className="p-6 text-sm text-ink-600">Loading…</p>
+            <ListSkeleton rows={3} className="p-6" />
           ) : reports.length === 0 ? (
             <p className="p-8 text-sm text-ink-600 text-center">Nothing here — no reports in this list.</p>
           ) : (

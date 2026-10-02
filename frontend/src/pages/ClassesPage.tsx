@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useState, type FormEvent } from 'react';
 import { GraduationCap, Plus } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -96,7 +97,7 @@ export function ClassesPage() {
 
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           {loading ? (
-            <div className="px-5 py-16 text-center text-sm text-ink-600">Loading grades…</div>
+            <ListSkeleton rows={5} className="p-5" />
           ) : classes.length === 0 ? (
             <div className="px-5 py-16 text-center">
               <GraduationCap className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />

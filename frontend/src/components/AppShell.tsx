@@ -66,7 +66,7 @@ function CountBadge({ count, tone = 'green', title }: { count: number; tone?: 'g
   return (
     <span
       title={title}
-      className={`ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] ${tone === 'amber' ? 'bg-amber' : 'bg-green'}`}
+      className={`pop-in ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] ${tone === 'amber' ? 'bg-amber' : 'bg-green'}`}
     >
       {count > 99 ? '99+' : count}
     </span>

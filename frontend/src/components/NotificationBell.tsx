@@ -64,7 +64,7 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] z-50 rounded-lg border border-ink-200 bg-panel shadow-2xl overflow-hidden">
+        <div className="pop-in absolute right-0 mt-2 w-80 max-w-[90vw] z-50 rounded-lg border border-ink-200 bg-panel shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
             <p className="text-sm font-medium text-ink-900">Mentions</p>
             {unseen.length > 0 && (

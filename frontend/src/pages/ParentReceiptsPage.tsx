@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { useState, useMemo } from 'react';
 import { ParentShell } from '../components/ParentShell';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
@@ -67,7 +68,7 @@ export function ParentReceiptsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-ink-600">Loading…</p>
+        <ListSkeleton rows={3} />
       ) : rows.length === 0 ? (
         <div className="bg-panel border border-ink-200 rounded-lg px-6 py-12 text-center">
           <p className="text-sm text-ink-600">No confirmed payments yet.</p>

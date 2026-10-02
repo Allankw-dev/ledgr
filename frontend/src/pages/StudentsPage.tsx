@@ -1,5 +1,6 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronDown, ChevronRight, Plus, Search, X } from 'lucide-react';
+import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
 import { MultiGradeSelect } from '../components/ui/MultiGradeSelect';
@@ -220,7 +221,7 @@ export function StudentsPage() {
         )}
 
         {loading ? (
-          <div className="bg-panel border border-ink-200 rounded-lg px-5 py-16 text-center text-sm text-ink-600">Loading students…</div>
+          <div className="bg-panel border border-ink-200 rounded-lg"><ListSkeleton rows={5} className="p-5" /></div>
         ) : students.length === 0 ? (
           <div className="bg-panel border border-ink-200 rounded-lg px-5 py-16 text-center">
             <Users className="w-8 h-8 text-ink-400 mx-auto mb-3" strokeWidth={1.5} />
@@ -251,7 +252,7 @@ export function StudentsPage() {
                       aria-expanded={!isCollapsed}
                       className="flex items-center gap-2 text-left"
                     >
-                      {isCollapsed ? <ChevronRight className="w-4 h-4 text-ink-600" /> : <ChevronDown className="w-4 h-4 text-ink-600" />}
+                      <ChevronRight className={`w-4 h-4 text-ink-600 transition-transform duration-300 ${isCollapsed ? '' : 'rotate-90'}`} />
                       <span className="text-sm font-semibold text-ink-900">{groupLabel(cluster.classId)}</span>
                       <span className="text-xs text-ink-600">
                         {cluster.items.length} student{cluster.items.length === 1 ? '' : 's'}
@@ -322,7 +323,7 @@ export function StudentsPage() {
                                     aria-expanded={openDetails.has(s.id)}
                                     className="text-xs font-medium text-ink-900 hover:underline underline-offset-2 flex items-center gap-1"
                                   >
-                                    {openDetails.has(s.id) ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Details
+                                    <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${openDetails.has(s.id) ? 'rotate-90' : ''}`} /> Details
                                   </button>
                                   <button
                                     onClick={() => setEditTarget(s)}

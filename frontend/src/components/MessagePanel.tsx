@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { MessageCircle, Send, ChevronUp, ChevronDown } from 'lucide-react';
+import { MessageCircle, Send, ChevronDown } from 'lucide-react';
 import { getMyMessages, sendMyMessage, pingMyTyping, getStaffTypingStatus, type Message } from '../api/messages';
 import { MessageTicks } from './MessageTicks';
 import { TypingDots } from './TypingDots';
@@ -75,11 +75,11 @@ export function MessagePanel() {
           <MessageCircle className="w-4 h-4" strokeWidth={2} />
           Message the school
         </span>
-        {open ? <ChevronUp className="w-4 h-4 text-ink-600" /> : <ChevronDown className="w-4 h-4 text-ink-600" />}
+        <ChevronDown className={`w-4 h-4 text-ink-600 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="border-t border-ink-100 flex flex-col">
+        <div className="expand-in border-t border-ink-100 flex flex-col">
           <div className="max-h-80 overflow-y-auto px-5 py-4 flex flex-col gap-3">
             {loaded && messages.length === 0 && (
               <p className="text-sm text-ink-600">

@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../components/ui/Skeleton';
 import type { CSSProperties } from 'react';
 import { Wallet, AlertCircle, Users, Receipt, ShieldAlert, TrendingUp } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
@@ -164,7 +165,7 @@ export function DashboardPage() {
               </div>
 
               {loading ? (
-                <div className="px-5 py-12 text-center text-sm text-ink-600">Loading invoices…</div>
+                <ListSkeleton rows={5} className="p-5" />
               ) : recentInvoices.length === 0 ? (
                 <div className="px-5 py-12 text-center">
                   <p className="text-sm text-ink-600">No invoices yet.</p>
