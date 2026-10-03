@@ -17,6 +17,11 @@ export function useFitToViewport(ref: RefObject<HTMLElement | null>) {
 
     function fit() {
       if (!el) return;
+      // Phones scroll instead: shrinking a tall form to 62% made the text tiny.
+      if (window.innerWidth < 768) {
+        el.style.zoom = '';
+        return;
+      }
       el.style.zoom = '1'; // measure at natural size…
       const natural = el.offsetHeight;
       const scale = natural > 0 ? Math.min(1, Math.max(MIN_SCALE, (window.innerHeight - BREATHING_ROOM) / natural)) : 1;

@@ -1,9 +1,11 @@
+import { friendlyName } from '../lib/names';
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ShieldCheck, Fingerprint, CheckCircle2 } from 'lucide-react';
+import { BookOpen, ShieldCheck, Fingerprint, CheckCircle2, Mail, Lock, UserRound, Phone, GraduationCap, ArrowRight, AlertCircle, Smartphone, Wallet, MessageCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
+import { PasswordStrength } from '../components/ui/PasswordStrength';
 import { OtpInput } from '../components/ui/OtpInput';
 import { login, verifyTwoFactorLogin, googleAuth, registerParent } from '../api/auth';
 import { getErrorMessage } from '../api/client';
@@ -55,6 +57,66 @@ function useSlideWhoosh() {
     noise.start();
     noise.stop(ctx.currentTime + duration);
   };
+}
+
+/** Phone-only switch between the two screens (the sliding side panel does this on desktop). */
+function AuthSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+  const tabs: { id: Mode; label: string }[] = [
+    { id: 'login', label: 'Sign in' },
+    { id: 'signup', label: 'Create account' },
+  ];
+  return (
+    <div className="md:hidden relative grid grid-cols-2 p-1 mb-6 rounded-full bg-black/25 ring-1 ring-white/10" role="tablist">
+      <span
+        aria-hidden="true"
+        className="bottom-nav-pill absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-full bg-emerald-100 ring-1 ring-green/25 shadow-[0_0_18px_-4px_rgba(57,255,136,0.5)]"
+        style={{ transform: `translateX(${mode === 'signup' ? 100 : 0}%)` }}
+      />
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={mode === t.id}
+          onClick={() => onChange(t.id)}
+          className={`relative z-10 py-2 text-sm font-medium transition-colors ${mode === t.id ? 'text-green' : 'text-ink-600'}`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AuthHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
+  return (
+    <div className="mb-5">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-green/10 ring-1 ring-green/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-green mb-3">
+        <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" aria-hidden="true" />
+        {eyebrow}
+      </span>
+      <h1 className="auth-title font-display text-[1.65rem] leading-tight text-ink-900">{title}</h1>
+      <p className="text-sm text-ink-600 mt-1.5">{subtitle}</p>
+    </div>
+  );
+}
+
+function AuthAlert({ children, center = false }: { children: React.ReactNode; center?: boolean }) {
+  return (
+    <p role="alert" className={`pop-in flex items-start gap-2 text-sm text-clay-700 bg-clay-100 rounded-lg px-3 py-2.5 ${center ? 'justify-center text-center' : ''}`}>
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={2} />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+function TrustNote() {
+  return (
+    <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-ink-400">
+      <Lock className="w-3 h-3" strokeWidth={2} />
+      Encrypted connection · your details stay private
+    </p>
+  );
 }
 
 interface AuthPageProps {
@@ -290,10 +352,10 @@ export function AuthPage({ initialMode }: AuthPageProps) {
 
       <div ref={fitRef} className="auth-fit relative z-10 flex flex-col items-center">
         <div className="flex items-center gap-2.5 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center">
-            <BookOpen className="w-5 h-5 text-[#06110B]" strokeWidth={2} />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center shadow-[0_8px_24px_-6px_rgba(57,255,136,0.6)]">
+            <BookOpen className="w-5 h-5 text-[#06110B]" strokeWidth={2.25} />
           </div>
-          <span className="font-display text-2xl text-ink-900 font-medium">Ledgr</span>
+          <span className="font-display text-2xl text-ink-900 font-semibold tracking-tight">Ledgr</span>
         </div>
 
         <div className="auth-card" data-mode={mode}>
@@ -303,6 +365,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
               <div className="auth-form-inner">
               {!challengeToken ? (
                 <>
+                  <AuthSwitch mode={mode} onChange={toggle} />
                   {fingerprintAvailable && (
                     <>
                       <button
@@ -322,8 +385,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                     </>
                   )}
 
-                  <h1 className="font-display text-xl text-ink-900 mb-1">Sign in</h1>
-                  <p className="text-sm text-ink-600 mb-4">Access your school's fee dashboard.</p>
+                  <AuthHeading eyebrow="Sign in" title="Welcome back" subtitle="Access your school's fee dashboard." />
 
                   <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4" noValidate>
                     <TextField
@@ -331,15 +393,16 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                       type="text"
                       autoComplete="username"
                       placeholder="you@example.com or 0712 345 678"
+                      icon={<Mail />}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="neu-input"
                       required
                     />
-                    <TextField
+                    <PasswordField
                       label="Password"
-                      type="password"
                       autoComplete="current-password"
+                      icon={<Lock />}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="neu-input"
@@ -349,15 +412,18 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                       Forgot password?
                     </a>
 
-                    {loginError && (
-                      <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">
-                        {loginError}
-                      </p>
-                    )}
+                    {loginError && <AuthAlert>{loginError}</AuthAlert>}
 
-                    <Button type="submit" disabled={loginLoading} className="mt-2 flex items-center justify-center gap-2">
+                    <Button type="submit" disabled={loginLoading} className="group mt-2 flex items-center justify-center gap-2">
                       {loginLoading && <span className="orbit-spinner" />}
-                      {loginLoading ? 'Signing in…' : 'Sign in'}
+                      {loginLoading ? (
+                        'Signing in…'
+                      ) : (
+                        <>
+                          Sign in
+                          <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" strokeWidth={2.25} />
+                        </>
+                      )}
                     </Button>
                   </form>
 
@@ -371,12 +437,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                     <GoogleSignInButton onCredential={handleLoginGoogleCredential} text="signin_with" />
                   </div>
 
-                  <p className="text-center text-sm text-ink-600 mt-6 md:hidden">
-                    New here?{' '}
-                    <button type="button" onClick={() => toggle('signup')} className="text-ink-900 font-medium underline underline-offset-2">
-                      Create an account
-                    </button>
-                  </p>
+                  <TrustNote />
                 </>
               ) : verifyStage === 'success' ? (
                 <div className="flex flex-col items-center justify-center text-center py-10 welcome-pop">
@@ -384,7 +445,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                     <CheckCircle2 className="w-8 h-8 text-emerald-700" strokeWidth={2} />
                   </div>
                   <h1 className="font-display text-2xl text-ink-900 mb-1">
-                    Welcome back{verifiedUser?.full_name ? `, ${verifiedUser.full_name.split(' ')[0]}` : ''}!
+                    Welcome back{verifiedUser?.full_name ? `, ${friendlyName(verifiedUser.full_name)}` : ''}!
                   </h1>
                   <p className="text-sm text-ink-600">Taking you to your dashboard…</p>
                 </div>
@@ -409,11 +470,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                       <p className="text-center text-sm text-ink-600 py-1">Verifying…</p>
                     ) : (
                       <>
-                        {loginError && (
-                          <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2 text-center">
-                            {loginError}
-                          </p>
-                        )}
+                        {loginError && <AuthAlert center>{loginError}</AuthAlert>}
                         <Button type="submit" disabled={code.length !== 6} className="mt-1 flex items-center justify-center gap-2">
                           Verify and sign in
                         </Button>
@@ -439,8 +496,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
             {/* ---------------- SIGNUP PANEL ---------------- */}
             <div className="auth-form-panel auth-form-panel--signup" data-hidden={mode !== 'signup'} ref={signupPanelRef} inert={mode !== 'signup'}>
               <div className="auth-form-inner">
-              <h1 className="font-display text-xl text-ink-900 mb-1">Parent sign up</h1>
-              <p className="text-sm text-ink-600 mb-4">Create your account, then we'll verify your child's details.</p>
+              <AuthSwitch mode={mode} onChange={toggle} />
+              <AuthHeading eyebrow="Parent sign up" title="Create your account" subtitle="Then we'll verify your child's details with the school." />
 
               <div className="flex justify-center mb-5">
                 <GoogleSignInButton onCredential={handleSignupGoogleCredential} text="signup_with" />
@@ -458,6 +515,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   value={suFullName}
                   onChange={(e) => setSuFullName(e.target.value)}
                   placeholder="e.g. Jane Wambui"
+                  icon={<UserRound />}
                   className="neu-input"
                   required
                 />
@@ -465,6 +523,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   label="Email"
                   type="email"
                   autoComplete="email"
+                  icon={<Mail />}
                   value={suEmail}
                   onChange={(e) => setSuEmail(e.target.value)}
                   className="neu-input"
@@ -475,6 +534,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                   type="tel"
                   autoComplete="tel"
                   placeholder="e.g. +254712345678"
+                  icon={<Phone />}
                   value={suPhone}
                   onChange={(e) => setSuPhone(e.target.value)}
                   className="neu-input"
@@ -483,39 +543,39 @@ export function AuthPage({ initialMode }: AuthPageProps) {
                 <PasswordField
                   label="Password"
                   autoComplete="new-password"
+                  icon={<Lock />}
                   value={suPassword}
                   onChange={(e) => setSuPassword(e.target.value)}
                   className="neu-input"
                   required
                 />
-                <hr className="border-ink-100 my-1" />
+                <PasswordStrength value={suPassword} />
+                <hr className="border-white/10 my-1" />
                 <TextField
                   label="Child's admission number"
                   value={suAdmissionNumber}
                   onChange={(e) => setSuAdmissionNumber(e.target.value)}
                   placeholder="e.g. GA-2026-014"
+                  icon={<GraduationCap />}
                   className="neu-input"
                   required
                 />
 
-                {suError && (
-                  <p role="alert" className="text-sm text-clay-700 bg-clay-100 rounded-md px-3 py-2">
-                    {suError}
-                  </p>
-                )}
+                {suError && <AuthAlert>{suError}</AuthAlert>}
 
-                <Button type="submit" disabled={suLoading} className="mt-2 flex items-center justify-center gap-2">
+                <Button type="submit" disabled={suLoading} className="group mt-2 flex items-center justify-center gap-2">
                   {suLoading && <span className="orbit-spinner" />}
-                  {suLoading ? 'Creating account…' : 'Continue'}
+                  {suLoading ? (
+                    'Creating account…'
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" strokeWidth={2.25} />
+                    </>
+                  )}
                 </Button>
               </form>
-
-              <p className="text-center text-sm text-ink-600 mt-6 md:hidden">
-                Already have an account?{' '}
-                <button type="button" onClick={() => toggle('login')} className="text-ink-900 font-medium underline underline-offset-2">
-                  Sign in
-                </button>
-              </p>
+              <TrustNote />
               </div>
             </div>
           </div>
@@ -528,9 +588,23 @@ export function AuthPage({ initialMode }: AuthPageProps) {
               <OverlayArches />
               <div className="auth-overlay-panel auth-overlay-panel--signup-cta">
                 <h2 className="font-display text-2xl text-white mb-3">New to Ledgr?</h2>
-                <p className="text-sm text-white/85 leading-relaxed mb-6">
-                  Create a parent account to track fees, pay via M-Pesa, and stay in touch with the school.
+                <p className="text-sm text-white/85 leading-relaxed mb-5">
+                  Create a parent account and everything about your child's fees is in one place.
                 </p>
+                <ul className="flex flex-col gap-2.5 mb-6 text-left">
+                  {[
+                    { icon: Smartphone, text: 'Pay fees with M-Pesa' },
+                    { icon: Wallet, text: 'Live balances and receipts' },
+                    { icon: MessageCircle, text: 'Chat with teachers and the office' },
+                  ].map(({ icon: Icon, text }) => (
+                    <li key={text} className="flex items-center gap-2.5 text-[13px] text-white/90">
+                      <span className="w-7 h-7 rounded-lg bg-white/15 ring-1 ring-white/20 flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4" strokeWidth={1.75} />
+                      </span>
+                      {text}
+                    </li>
+                  ))}
+                </ul>
                 <button type="button" onClick={() => toggle('signup')} className="auth-overlay-btn">
                   Create account
                 </button>

@@ -527,12 +527,16 @@
     width: 840px;
     max-width: 94vw;
     border-radius: 28px;
-    background: var(--color-panel);
+    /* Frosted glass over the live background. */
+    background: linear-gradient(160deg, rgba(26, 31, 56, 0.84), rgba(12, 15, 30, 0.9));
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
     overflow: hidden;
     box-shadow:
-      10px 10px 28px rgba(0, 0, 0, 0.6),
-      -8px -8px 20px rgba(255, 255, 255, 0.06),
-      0 0 60px -20px var(--color-green-glow);
+      0 40px 80px -30px rgba(0, 0, 0, 0.85),
+      0 0 70px -25px var(--color-green-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
   /* Both panels sit in the SAME grid cell and are each 100% of the card's
@@ -640,7 +644,26 @@
     height: 100%;
     display: grid;
     overflow: hidden;
-    background: linear-gradient(135deg, var(--color-emerald-800), #146a94);
+    background:
+      radial-gradient(90% 60% at 100% 0%, rgba(63, 217, 255, 0.35), transparent 60%),
+      linear-gradient(135deg, var(--color-emerald-800), #146a94);
+  }
+  /* A slow-drifting light inside the side panel keeps it alive. */
+  .auth-overlay::before {
+    content: '';
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    left: -70px;
+    top: 18%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(57, 255, 136, 0.38), transparent 65%);
+    pointer-events: none;
+    will-change: transform;
+    animation: overlay-drift 13s ease-in-out infinite alternate;
+  }
+  @keyframes overlay-drift {
+    to { transform: translate3d(220px, 60px, 0) scale(1.25); }
   }
 
   /* The two soft "arch" circles from the reference — mostly hidden beyond
@@ -1169,3 +1192,24 @@ main tbody > tr:nth-child(n + 8), main ul[class~='divide-y'] > li:nth-child(n + 
 @keyframes avatar-spin {
   to { transform: rotate(360deg); }
 }
+
+
+/* Auth screens: the title glows softly, and the fields settle in one by one
+   each time a panel slides into view. */
+.auth-title {
+  letter-spacing: -0.02em;
+  background: linear-gradient(95deg, #ffffff 15%, #c9ffe0 60%, #8fe9ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  width: fit-content;
+}
+.auth-form-panel[data-hidden='false'] form > * {
+  animation: stagger-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.auth-form-panel[data-hidden='false'] form > *:nth-child(2) { animation-delay: 0.06s; }
+.auth-form-panel[data-hidden='false'] form > *:nth-child(3) { animation-delay: 0.12s; }
+.auth-form-panel[data-hidden='false'] form > *:nth-child(4) { animation-delay: 0.18s; }
+.auth-form-panel[data-hidden='false'] form > *:nth-child(5) { animation-delay: 0.24s; }
+.auth-form-panel[data-hidden='false'] form > *:nth-child(6) { animation-delay: 0.3s; }
+.auth-form-panel[data-hidden='false'] form > *:nth-child(n + 7) { animation-delay: 0.36s; }
