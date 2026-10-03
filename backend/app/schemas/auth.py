@@ -39,7 +39,7 @@ class TwoFactorSetupResponse(BaseModel):
 
 
 class TwoFactorEnableRequest(BaseModel):
-    code: str = Field(min_length=6, max_length=6)
+    code: str = Field(min_length=6, max_length=8)  # up to 8 so "123 456" pastes; spaces are stripped server-side
 
 
 class TwoFactorDisableRequest(BaseModel):
@@ -48,7 +48,7 @@ class TwoFactorDisableRequest(BaseModel):
 
 class TwoFactorVerifyLoginRequest(BaseModel):
     challenge_token: str
-    code: str = Field(min_length=6, max_length=6)
+    code: str = Field(min_length=6, max_length=8)  # up to 8 so "123 456" pastes; spaces are stripped server-side
 
 
 class ForgotPasswordRequest(BaseModel):

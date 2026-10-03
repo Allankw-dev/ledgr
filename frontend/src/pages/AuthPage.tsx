@@ -7,6 +7,7 @@ import { TextField } from '../components/ui/TextField';
 import { PasswordField } from '../components/ui/PasswordField';
 import { PasswordStrength } from '../components/ui/PasswordStrength';
 import { OtpInput } from '../components/ui/OtpInput';
+import axios from 'axios';
 import { login, verifyTwoFactorLogin, googleAuth, registerParent } from '../api/auth';
 import { getErrorMessage } from '../api/client';
 import { getLoginOptions, verifyLogin } from '../api/webauthn';
@@ -262,8 +263,28 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       setVerifiedUser(result.user);
       setVerifyStage('success');
       setTimeout(() => completeLogin(result.token, result.user, result.refresh_token), 1100);
-    } catch {
-      setLoginError('Incorrect code. Check your authenticator app and try again.');
+    } catch (err) {
+      // Say what actually went wrong. Every failure used to read "Incorrect code",
+      // which hid a timed-out sign-in, the rate limit and a dropped connection —
+      // none of which a correct code can fix.
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const detail = axios.isAxiosError(err) ? String(err.response?.data?.detail ?? '') : '';
+      if (status === 401 && /expired/i.test(detail)) {
+        // The 5-minute window between password and code ran out: start over.
+        setChallengeToken(null);
+        setLoginError('That sign-in timed out. Enter your password again, then your code.');
+      } else if (status === 429) {
+        setLoginError('Too many attempts. Wait a minute, then try again.');
+      } else if (axios.isAxiosError(err) && !err.response) {
+        setLoginError("Couldn't reach the server. Check your connection and try again.");
+      } else if (status === 422) {
+        setLoginError('Enter the 6-digit code shown in your authenticator app.');
+      } else {
+        setLoginError(
+          'Incorrect code. Wait for the next code in your authenticator app and try again. ' +
+            "If it keeps failing, make sure your phone's date and time are set to automatic."
+        );
+      }
       setVerifyStage('entering');
       setCode('');
       autoVerifyingRef.current = false;

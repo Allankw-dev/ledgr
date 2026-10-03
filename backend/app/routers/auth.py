@@ -25,7 +25,7 @@ from app.core.security import (
     decode_email_change_token,
     _email_fingerprint,
 )
-from app.core.totp import generate_totp_secret, get_provisioning_uri, verify_totp_code
+from app.core.totp import diagnose_failed_code, generate_totp_secret, get_provisioning_uri, verify_totp_code
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user, require_roles, CurrentUser
 from app.services.notification_service import send_email, send_sms, NotificationConfigError
@@ -392,6 +392,18 @@ def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends
     return _complete_login(new_user, db)
 
 
+def _log_failed_2fa(stage: str, user_id: str, secret: str, code: str) -> None:
+    """Why was a code refused? Logged for whoever reads the server logs (never sent to the client)."""
+    offset = diagnose_failed_code(secret, code)
+    if offset is None:
+        logger.warning("2FA %s rejected for user %s: code matches no time step within +/-10 min "
+                       "(typo, or an authenticator entry for a different secret)", stage, user_id)
+    else:
+        logger.warning("2FA %s rejected for user %s: code is valid for a time %+d x 30s from now "
+                       "— the phone's clock is about %d seconds %s", stage, user_id, offset, abs(offset) * 30,
+                       "fast" if offset < 0 else "slow")
+
+
 @router.post("/2fa/verify-login", response_model=TokenResponse)
 @limiter.limit("10/minute")
 def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Session = Depends(get_system_db)):
@@ -406,6 +418,7 @@ def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Sessio
         raise HTTPException(401, "Invalid login attempt")
 
     if not verify_totp_code(user.totp_secret, data.code):
+        _log_failed_2fa("login", user.id, user.totp_secret, data.code)
         raise HTTPException(401, "Incorrect code. Check your authenticator app and try again.")
 
     user.last_login_at = datetime.now(timezone.utc)
@@ -429,6 +442,11 @@ def setup_2fa(
     if not db_user:
         raise HTTPException(404, "User not found")
 
+    if db_user.totp_enabled:
+        # Overwriting the secret while 2FA is ON would instantly invalidate the
+        # authenticator entry the user logs in with — a self-inflicted lockout.
+        raise HTTPException(409, "Two-factor sign-in is already on. Turn it off first if you want to set it up again.")
+
     secret = generate_totp_secret()
     db_user.totp_secret = secret
     db.commit()
@@ -450,6 +468,7 @@ def enable_2fa(
         raise HTTPException(400, "Call /2fa/setup first to generate a secret")
 
     if not verify_totp_code(db_user.totp_secret, data.code):
+        _log_failed_2fa("enable", db_user.id, db_user.totp_secret, data.code)
         raise HTTPException(401, "Incorrect code. Check your authenticator app and try again.")
 
     db_user.totp_enabled = True
