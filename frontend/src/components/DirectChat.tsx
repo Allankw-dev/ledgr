@@ -1,3 +1,4 @@
+import { friendlyName } from '../lib/names';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Ban, Download, FileText, Flag, Image as ImageIcon, Lock, MessageSquarePlus, MoreVertical, Paperclip, Search, Send, ShieldOff, Trash2, X } from 'lucide-react';
@@ -512,7 +513,7 @@ export function DirectChat() {
                     <div className="absolute right-0 mt-1 z-40 w-56 rounded-lg border border-ink-200 bg-panel shadow-2xl overflow-hidden">
                       <button onClick={toggleBlock} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-ink-900 hover:bg-ink-100 text-left">
                         {selected.blocked_by_me ? <ShieldOff className="w-4 h-4" strokeWidth={2} /> : <Ban className="w-4 h-4" strokeWidth={2} />}
-                        {selected.blocked_by_me ? `Unblock ${selected.other_name.split(' ')[0]}` : `Block ${selected.other_name.split(' ')[0]}`}
+                        {selected.blocked_by_me ? `Unblock ${friendlyName(selected.other_name)}` : `Block ${friendlyName(selected.other_name)}`}
                       </button>
                       <button
                         onClick={() => {
@@ -533,7 +534,7 @@ export function DirectChat() {
             <div ref={listRef} onScroll={onScroll} className="chat-wallpaper flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col gap-1.5">
               <div className="self-center max-w-sm text-center text-[11px] text-ink-600 bg-panel/90 border border-ink-200 rounded-lg px-3 py-2 mb-2">
                 <Lock className="w-3 h-3 inline -mt-0.5 mr-1" strokeWidth={2.5} />
-                Messages and files are encrypted in transit and stored encrypted. Only you and {selected.other_name.split(' ')[0]} can see this chat in Ledgr.
+                Messages and files are encrypted in transit and stored encrypted. Only you and {friendlyName(selected.other_name)} can see this chat in Ledgr.
               </div>
 
               {loadingThread ? (
@@ -645,7 +646,7 @@ export function DirectChat() {
                         e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                       }}
                       onKeyDown={onKeyDown}
-                      placeholder={`Message ${selected.other_name.split(' ')[0]}…`}
+                      placeholder={`Message ${friendlyName(selected.other_name)}…`}
                       disabled={sending}
                       className="flex-1 min-w-0 resize-none px-4 py-2.5 rounded-2xl border border-ink-200 text-base sm:text-sm bg-ink-100 text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-emerald-700/30 max-h-[120px]"
                     />
@@ -661,7 +662,7 @@ export function DirectChat() {
                 </>
               ) : selected.blocked_by_me ? (
                 <div className="flex items-center justify-center gap-3 py-1.5 text-xs text-ink-600">
-                  You’ve blocked {selected.other_name.split(' ')[0]}. Unblock them to send messages.
+                  You’ve blocked {friendlyName(selected.other_name)}. Unblock them to send messages.
                   <button onClick={toggleBlock} className="text-emerald-700 hover:underline font-medium">
                     Unblock
                   </button>
@@ -752,7 +753,7 @@ export function DirectChat() {
             {reportDone ? (
               <div className="p-5 text-center">
                 <p className="text-sm text-ink-900 font-medium">Thank you — the school admin has your report.</p>
-                <p className="text-xs text-ink-600 mt-1">They’ll review it. If you’d rather not hear from {selected.other_name.split(' ')[0]} in the meantime, you can block them.</p>
+                <p className="text-xs text-ink-600 mt-1">They’ll review it. If you’d rather not hear from {friendlyName(selected.other_name)} in the meantime, you can block them.</p>
                 <div className="flex justify-center gap-2 mt-4">
                   {!selected.blocked_by_me && (
                     <button
@@ -763,7 +764,7 @@ export function DirectChat() {
                       }}
                       className="px-4 py-2 rounded-md border border-ink-200 text-sm text-ink-900 hover:bg-ink-100"
                     >
-                      Block {selected.other_name.split(' ')[0]}
+                      Block {friendlyName(selected.other_name)}
                     </button>
                   )}
                   <button onClick={closeReport} className="px-4 py-2 rounded-md bg-emerald-700 text-[#06110B] text-sm font-medium">
