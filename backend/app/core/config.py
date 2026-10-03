@@ -66,8 +66,16 @@ class Settings(BaseSettings):
     mpesa_c2b_validation_url: str | None = None
     mpesa_c2b_confirmation_url: str | None = None
 
-    # AI assistant — powers the parent chatbot and the bursar's "Ask Ledgr" assistant
+    # AI assistant — powers the parent chatbot and the bursar's "Ask Ledgr" assistant.
+    # Set ONE of the two keys. AI_PROVIDER "auto" uses Gemini when GEMINI_API_KEY is
+    # set, otherwise Claude when ANTHROPIC_API_KEY is set; force one with "gemini"/"anthropic".
+    ai_provider: str = "auto"
+    gemini_api_key: str | None = None
+    # Google retires Gemini models regularly. If this name stops working the app looks up
+    # a current Flash model automatically (see services/llm.py) and logs which one to set.
+    gemini_model: str = "gemini-3.1-flash-lite"
     anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-sonnet-4-6"
 
     # "Sign in with Google" — the OAuth client ID Google issues; ID tokens are
     # verified against this as the audience. No client secret needed since

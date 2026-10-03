@@ -7,13 +7,11 @@ get a grounded answer instead of reading the invoice table by eye."""
 
 import json
 
-import anthropic
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.services import llm
 from app.services import parent_data_service
 
-MODEL = "claude-sonnet-4-6"
 MAX_TOOL_ITERATIONS = 4
 
 SYSTEM_PROMPT = """You are Ledgr's assistant for a parent/guardian, embedded in the parent portal of a \
@@ -115,33 +113,13 @@ def _run_tool(db: Session, guardian_user_id: str, name: str, tool_input: dict) -
 def ask_parent_assistant(db: Session, guardian_user_id: str, messages: list[dict]) -> str:
     """Stateless, same pattern as the bursar assistant — caller resends the
     full conversation each turn."""
-    if not settings.anthropic_api_key:
+    reply = llm.run_tool_conversation(
+        system=SYSTEM_PROMPT,
+        messages=messages,
+        tools=TOOLS,
+        run_tool=lambda name, tool_input: _run_tool(db, guardian_user_id, name, tool_input),
+        max_iterations=MAX_TOOL_ITERATIONS,
+    )
+    if reply is None:
         return "The AI assistant isn't available yet — please check back later."
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    conversation: list[dict] = [{"role": m["role"], "content": m["content"]} for m in messages]
-
-    for _ in range(MAX_TOOL_ITERATIONS):
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            messages=conversation,
-            tools=TOOLS,
-        )
-
-        if response.stop_reason != "tool_use":
-            return "".join(block.text for block in response.content if block.type == "text")
-
-        conversation.append({"role": "assistant", "content": response.content})
-
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            output = _run_tool(db, guardian_user_id, block.name, block.input)
-            tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": output})
-
-        conversation.append({"role": "user", "content": tool_results})
-
-    return "That took more lookups than expected — try asking a more specific question."
+    return reply

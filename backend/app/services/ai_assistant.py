@@ -12,13 +12,11 @@ it fires, so it isn't in this first pass — this is Q&A only.
 
 import json
 
-import anthropic
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.services import llm
 from app.services import analytics_service
 
-MODEL = "claude-sonnet-4-6"
 MAX_TOOL_ITERATIONS = 4
 
 SYSTEM_PROMPT = """You are Ledgr's bursar assistant, embedded in a school fee-management app. \
@@ -131,33 +129,13 @@ def ask_assistant(db: Session, school_id: str, messages: list[dict]) -> str:
     Returns the assistant's reply text for this turn. Stateless — the caller
     (frontend) is responsible for keeping and resending history, same as any
     direct use of the Messages API."""
-    if not settings.anthropic_api_key:
-        return "The AI assistant isn't configured yet — an ANTHROPIC_API_KEY needs to be set in the backend's .env."
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    conversation: list[dict] = [{"role": m["role"], "content": m["content"]} for m in messages]
-
-    for _ in range(MAX_TOOL_ITERATIONS):
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            messages=conversation,
-            tools=TOOLS,
-        )
-
-        if response.stop_reason != "tool_use":
-            return "".join(block.text for block in response.content if block.type == "text")
-
-        conversation.append({"role": "assistant", "content": response.content})
-
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            output = _run_tool(db, school_id, block.name, block.input)
-            tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": output})
-
-        conversation.append({"role": "user", "content": tool_results})
-
-    return "That took more lookups than expected — try asking a more specific question."
+    reply = llm.run_tool_conversation(
+        system=SYSTEM_PROMPT,
+        messages=messages,
+        tools=TOOLS,
+        run_tool=lambda name, tool_input: _run_tool(db, school_id, name, tool_input),
+        max_iterations=MAX_TOOL_ITERATIONS,
+    )
+    if reply is None:
+        return "The AI assistant isn't configured yet — set GEMINI_API_KEY (free) or ANTHROPIC_API_KEY in the backend's environment."
+    return reply

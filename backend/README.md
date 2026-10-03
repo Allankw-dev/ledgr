@@ -32,6 +32,15 @@ uvicorn app.main:app --reload --port 4000
 API on `http://localhost:4000`, interactive docs at `/docs` (disabled when
 `ENVIRONMENT=production`). Use the Supabase **Session pooler** URI (port 5432).
 
+## AI assistants
+
+Two assistants (parent chatbot, bursar "Ask Ledgr") answer from live fee data using tool calls. Set **one** of:
+
+- `GEMINI_API_KEY` — free tier from <https://aistudio.google.com/apikey>. Free-tier requests may be used by Google to improve its products, so use a billing-enabled key once real families' data is involved.
+- `ANTHROPIC_API_KEY` — Claude (paid).
+
+`python -m scripts.dev.check_gemini` verifies the key and model end to end. Provider code lives in `app/services/llm.py`.
+
 ## Layout
 
 ```
