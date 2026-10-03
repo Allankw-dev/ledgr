@@ -30,7 +30,7 @@ export function ParentDashboardPage() {
   const { children, loading, error, refetch } = useMyChildren();
   const user = useAuthStore((s) => s.user);
   const [phone, setPhone] = useState<string | null>(null);
-  const { polling, received, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
+  const { polling, received, watchingFor, receivedFor, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
   function toggleInvoice(id: string) {
@@ -46,6 +46,7 @@ export function ParentDashboardPage() {
     getMyProfile().then((profile) => setPhone(profile.phone)).catch(() => {});
   }, []);
 
+  const manyChildren = children.length > 1;
   const totalOutstanding = children.reduce((sum, c) => sum + Number(c.balance_due), 0);
   const welcomeChips: WelcomeChip[] = loading || children.length === 0 ? [] : [
     { icon: Users, label: `${children.length} ${children.length === 1 ? 'child' : 'children'} linked` },
@@ -82,7 +83,7 @@ export function ParentDashboardPage() {
         </div>
       )}
 
-      <PaymentStatusBanner polling={polling} received={received} />
+      <PaymentStatusBanner polling={polling} received={received} watchingFor={watchingFor} receivedFor={receivedFor} />
 
       {loading ? (
         <ListSkeleton rows={3} />
@@ -130,11 +131,13 @@ export function ParentDashboardPage() {
                     {payable >= 1 ? (
                       <PayWithMpesa
                         studentId={child.id}
+                        childName={manyChildren ? child.full_name : undefined}
+                        detail="Whole outstanding balance · oldest invoice paid first"
                         balance={payable}
                         defaultPhone={phone}
                         onInitiated={handlePaymentInitiated}
                         variant="primary"
-                        label="Pay with M-Pesa"
+                        label={manyChildren ? `Pay for ${child.full_name.trim().split(/\s+/)[0]} with M-Pesa` : 'Pay with M-Pesa'}
                         className="w-full sm:w-auto shrink-0 justify-center px-5 py-3.5 sm:py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
                       />
                     ) : (
@@ -228,6 +231,8 @@ export function ParentDashboardPage() {
                                   {invUnpaid && invBalance > 0 && (
                                     <PayWithMpesa
                                       invoiceId={inv.id}
+                                      childName={manyChildren ? child.full_name : undefined}
+                                      detail={`Invoice due ${new Date(inv.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                                       balance={invBalance}
                                       defaultPhone={phone}
                                       onInitiated={handlePaymentInitiated}

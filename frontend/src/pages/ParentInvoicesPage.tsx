@@ -24,7 +24,7 @@ export function ParentInvoicesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [phone, setPhone] = useState<string | null>(null);
-  const { polling, received, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
+  const { polling, received, watchingFor, receivedFor, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
 
   const selectedChildId = searchParams.get('child');
 
@@ -54,7 +54,7 @@ export function ParentInvoicesPage() {
         </div>
       )}
 
-      <PaymentStatusBanner polling={polling} received={received} />
+      <PaymentStatusBanner polling={polling} received={received} watchingFor={watchingFor} receivedFor={receivedFor} />
 
       {children.length > 1 && (
         <div className="flex gap-2 mb-5 flex-wrap">
@@ -143,7 +143,7 @@ export function ParentInvoicesPage() {
                                   <DownloadReceiptLink key={p.id} paymentId={p.id} />
                                 ))}
                                 {isUnpaid && balance > 0 && (
-                                  <PayWithMpesa invoiceId={inv.id} balance={balance} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" className="ml-auto text-xs px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap" />
+                                  <PayWithMpesa invoiceId={inv.id} childName={children.length > 1 ? child.full_name : undefined} detail={`Invoice due ${new Date(inv.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}`} balance={balance} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" className="ml-auto text-xs px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap" />
                                 )}
                               </div>
                               {isUnpaid && balance > 0 && <PaymentPlanCard invoiceId={inv.id} />}
@@ -195,7 +195,7 @@ export function ParentInvoicesPage() {
                                 <div className="flex flex-col gap-1.5 items-start">
                                   <DownloadInvoicePdfLink invoiceId={inv.id} />
                                   {isUnpaid && balance > 0 && (
-                                    <PayWithMpesa invoiceId={inv.id} balance={balance} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" />
+                                    <PayWithMpesa invoiceId={inv.id} childName={children.length > 1 ? child.full_name : undefined} detail={`Invoice due ${new Date(inv.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}`} balance={balance} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" />
                                   )}
                                   {inv.payments.length === 0 ? (
                                     isUnpaid ? null : <span className="text-xs text-ink-400">—</span>
