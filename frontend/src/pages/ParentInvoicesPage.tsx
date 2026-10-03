@@ -1,3 +1,5 @@
+import { PaymentStatusBanner } from '../components/PaymentStatusBanner';
+import { usePaymentWatch } from '../hooks/usePaymentWatch';
 import { ListSkeleton } from '../components/ui/Skeleton';
 import { useState, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -22,7 +24,7 @@ export function ParentInvoicesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [phone, setPhone] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
+  const { polling, received, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
 
   const selectedChildId = searchParams.get('child');
 
@@ -39,19 +41,6 @@ export function ParentInvoicesPage() {
     });
   }
 
-  function handlePaymentInitiated() {
-    setPolling(true);
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-      refetch();
-      if (attempts >= 10) {
-        clearInterval(interval);
-        setPolling(false);
-      }
-    }, 4000);
-  }
-
   const visibleChildren = selectedChildId ? children.filter((c) => c.id === selectedChildId) : children;
 
   return (
@@ -65,11 +54,7 @@ export function ParentInvoicesPage() {
         </div>
       )}
 
-      {polling && (
-        <div role="status" className="bg-ink-100 text-ink-700 rounded-md px-4 py-3 text-sm mb-6">
-          Waiting for payment confirmation from M-Pesa — this updates automatically.
-        </div>
-      )}
+      <PaymentStatusBanner polling={polling} received={received} />
 
       {children.length > 1 && (
         <div className="flex gap-2 mb-5 flex-wrap">
@@ -158,7 +143,7 @@ export function ParentInvoicesPage() {
                                   <DownloadReceiptLink key={p.id} paymentId={p.id} />
                                 ))}
                                 {isUnpaid && balance > 0 && (
-                                  <PayWithMpesa invoiceId={inv.id} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" className="ml-auto text-xs px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap" />
+                                  <PayWithMpesa invoiceId={inv.id} balance={balance} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" className="ml-auto text-xs px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap" />
                                 )}
                               </div>
                               {isUnpaid && balance > 0 && <PaymentPlanCard invoiceId={inv.id} />}
@@ -210,7 +195,7 @@ export function ParentInvoicesPage() {
                                 <div className="flex flex-col gap-1.5 items-start">
                                   <DownloadInvoicePdfLink invoiceId={inv.id} />
                                   {isUnpaid && balance > 0 && (
-                                    <PayWithMpesa invoiceId={inv.id} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" />
+                                    <PayWithMpesa invoiceId={inv.id} balance={balance} defaultPhone={phone} onInitiated={handlePaymentInitiated} variant="secondary" />
                                   )}
                                   {inv.payments.length === 0 ? (
                                     isUnpaid ? null : <span className="text-xs text-ink-400">—</span>

@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -31,6 +32,28 @@ logger = logging.getLogger("ledgr.mpesa")
 
 router = APIRouter(prefix="/api/payments/mpesa", tags=["mpesa"])
 
+# Smallest part-payment we'll send an M-Pesa prompt for (paying off whatever is
+# left is always allowed, even when it's smaller than this).
+MIN_PART_PAYMENT = Decimal(10)
+
+
+def _resolve_pay_amount(requested: Decimal | None, balance: Decimal) -> Decimal:
+    """How much this STK push should ask for. M-Pesa works in whole shillings,
+    so the amount we ask for, the amount we record on the pending payment and
+    the amount the callback must report back are all the same whole number."""
+    whole_balance = Decimal(int(balance))
+    if whole_balance < 1:
+        raise HTTPException(422, "The remaining balance is under KES 1 — please contact the school office.")
+    if requested is None:
+        return whole_balance
+    if requested != requested.to_integral_value():
+        raise HTTPException(422, "Enter a whole number of shillings.")
+    if requested > whole_balance:
+        raise HTTPException(422, f"That is more than the KES {whole_balance:,.0f} still owed on this invoice.")
+    if requested < MIN_PART_PAYMENT and requested != whole_balance:
+        raise HTTPException(422, f"The smallest part-payment is KES {MIN_PART_PAYMENT:,.0f}.")
+    return requested
+
 
 def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, school_id: str):
     """All the synchronous DB work for an STK push, kept in a plain function
@@ -57,8 +80,10 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
     if balance <= 0:
         raise HTTPException(422, "This invoice is already fully paid")
 
+    pay_amount = _resolve_pay_amount(data.amount, balance)
+
     student = db.get(Student, invoice.student_id)
-    return invoice, balance, student
+    return invoice, pay_amount, student
 
 
 @router.post("/stk-push", response_model=StkPushResponse, status_code=201)
@@ -86,7 +111,7 @@ async def request_stk_push(
     store the result after. If Daraja itself fails, the reservation is
     released so a genuine retry isn't stuck behind a dead key.
     """
-    invoice, balance, student = await run_in_threadpool(_prepare_stk_push, db, data, user, school_id)
+    invoice, pay_amount, student = await run_in_threadpool(_prepare_stk_push, db, data, user, school_id)
 
     if not settings.mpesa_callback_url:
         raise HTTPException(503, "M-Pesa is not fully configured yet — missing callback URL")
@@ -111,7 +136,7 @@ async def request_stk_push(
         phone = normalize_phone_number(data.phone_number)
         result = await initiate_stk_push(
             phone_number=phone,
-            amount=int(balance),
+            amount=int(pay_amount),
             account_reference=student.admission_number if student else "Ledgr",
             transaction_desc="School fees",
             callback_url=settings.mpesa_callback_url,
@@ -138,7 +163,7 @@ async def request_stk_push(
         school_id=school_id,
         student_id=invoice.student_id,
         invoice_id=invoice.id,
-        amount=balance,
+        amount=pay_amount,
         checkout_request_id=checkout_request_id,
     )
 

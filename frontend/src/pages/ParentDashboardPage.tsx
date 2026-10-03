@@ -15,6 +15,8 @@ import { RecentActivityFeed } from '../components/RecentActivityFeed';
 import { PaymentPlanCard } from '../components/PaymentPlanCard';
 import { AnimatedAmount } from '../components/AnimatedAmount';
 import { WelcomeBanner, type WelcomeChip } from '../components/WelcomeBanner';
+import { PaymentStatusBanner } from '../components/PaymentStatusBanner';
+import { usePaymentWatch } from '../hooks/usePaymentWatch';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { useAuthStore } from '../store/authStore';
 import { getMyProfile } from '../api/user';
@@ -28,7 +30,7 @@ export function ParentDashboardPage() {
   const { children, loading, error, refetch } = useMyChildren();
   const user = useAuthStore((s) => s.user);
   const [phone, setPhone] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
+  const { polling, received, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
   function toggleInvoice(id: string) {
@@ -43,23 +45,6 @@ export function ParentDashboardPage() {
   useEffect(() => {
     getMyProfile().then((profile) => setPhone(profile.phone)).catch(() => {});
   }, []);
-
-  // After initiating an M-Pesa payment, the parent needs to see their
-  // balance update once they enter their PIN on their phone — that
-  // confirmation arrives asynchronously via Safaricom's callback, so we
-  // poll for a short window rather than expecting an instant update.
-  function handlePaymentInitiated() {
-    setPolling(true);
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-      refetch();
-      if (attempts >= 10) {
-        clearInterval(interval);
-        setPolling(false);
-      }
-    }, 4000);
-  }
 
   const totalOutstanding = children.reduce((sum, c) => sum + Number(c.balance_due), 0);
   const welcomeChips: WelcomeChip[] = loading || children.length === 0 ? [] : [
@@ -97,11 +82,7 @@ export function ParentDashboardPage() {
         </div>
       )}
 
-      {polling && (
-        <div role="status" className="bg-ink-100 text-ink-700 rounded-md px-4 py-3 text-sm mb-6">
-          Waiting for payment confirmation from M-Pesa — this updates automatically.
-        </div>
-      )}
+      <PaymentStatusBanner polling={polling} received={received} />
 
       {loading ? (
         <ListSkeleton rows={3} />
@@ -146,6 +127,7 @@ export function ParentDashboardPage() {
                     {balance > 0 && unpaidInvoice ? (
                       <PayWithMpesa
                         invoiceId={unpaidInvoice.id}
+                        balance={Number(unpaidInvoice.total_amount) - Number(unpaidInvoice.amount_paid)}
                         defaultPhone={phone}
                         onInitiated={handlePaymentInitiated}
                         variant="primary"
@@ -243,6 +225,7 @@ export function ParentDashboardPage() {
                                   {invUnpaid && invBalance > 0 && (
                                     <PayWithMpesa
                                       invoiceId={inv.id}
+                                      balance={invBalance}
                                       defaultPhone={phone}
                                       onInitiated={handlePaymentInitiated}
                                       variant="secondary"

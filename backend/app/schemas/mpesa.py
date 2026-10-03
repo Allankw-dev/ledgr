@@ -1,9 +1,16 @@
+from decimal import Decimal
+
 from pydantic import BaseModel, Field
 
 
 class StkPushRequest(BaseModel):
     invoice_id: str
     phone_number: str = Field(description="Any common format — 07XX, +2547XX, 2547XX")
+    amount: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="How much to pay now, in whole shillings. Omit to pay the invoice's full remaining balance.",
+    )
 
 
 class StkPushResponse(BaseModel):

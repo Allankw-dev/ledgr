@@ -6,12 +6,16 @@ export async function listMyChildren(): Promise<ParentStudentView[]> {
   return data;
 }
 
-export async function requestMpesaPayment(invoiceId: string, phoneNumber: string): Promise<{ checkout_request_id: string; message: string }> {
+export async function requestMpesaPayment(
+  invoiceId: string,
+  phoneNumber: string,
+  amount?: number
+): Promise<{ checkout_request_id: string; message: string }> {
   // Idempotency-Key: stops a double-tap on "Pay now" (or a retried request)
   // from sending a second M-Pesa prompt to the parent's phone.
   const { data } = await apiClient.post(
     '/api/payments/mpesa/stk-push',
-    { invoice_id: invoiceId, phone_number: phoneNumber },
+    { invoice_id: invoiceId, phone_number: phoneNumber, ...(amount !== undefined ? { amount } : {}) },
     { headers: { 'Idempotency-Key': crypto.randomUUID() } }
   );
   return data;

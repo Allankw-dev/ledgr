@@ -12,7 +12,7 @@ from app.models.invoice import Invoice
 from app.models.student import Student, StudentGuardian
 from app.models.school import School, User
 from app.models.enums import GuardianLinkStatus, PaymentMethod, PaymentStatus
-from app.services.invoice_service import recalculate_invoice_status
+from app.services.invoice_service import lock_invoice, recalculate_invoice_status
 from app.services.audit_service import log_audit
 
 
@@ -43,6 +43,11 @@ def record_confirmed_payment(
     """
     if amount <= 0:
         raise HTTPException(422, "Payment amount must be greater than zero")
+
+    if invoice_id:
+        # Exclusive invoice lock BEFORE the payment INSERT (see lock_invoice) —
+        # otherwise two simultaneous payments on one invoice can deadlock.
+        lock_invoice(db, invoice_id)
 
     payment = Payment(
         school_id=school_id,
@@ -229,6 +234,9 @@ def reverse_payment(db: Session, payment_id: str, reason: str, actor_user_id: st
         raise HTTPException(404, "Payment not found")
     if original.status != PaymentStatus.CONFIRMED:
         raise HTTPException(422, "Only confirmed payments can be reversed")
+
+    if original.invoice_id:
+        lock_invoice(db, original.invoice_id)  # before the INSERT below, same reason as record_confirmed_payment
 
     reversal = Payment(
         school_id=original.school_id,

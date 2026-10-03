@@ -32,7 +32,7 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -40,6 +40,14 @@ from app.models.idempotency import IdempotencyKey
 
 DEFAULT_TTL = timedelta(hours=24)
 MAX_KEY_LENGTH = 200
+
+# reserve_key() commits its reservation BEFORE the external call, so if the
+# process dies mid-call the row stays behind with no stored response. Without a
+# way out, every retry of that key would get 409 until DEFAULT_TTL (24h) expires.
+# A reservation with no response that is older than this is treated as
+# abandoned and can be taken over. It must stay comfortably above the slowest
+# legitimate external call (Daraja requests time out at 15s).
+STALE_RESERVATION = timedelta(minutes=2)
 
 
 def _hash(body: Any) -> str:
@@ -153,6 +161,13 @@ def reserve_key(
     caller should return that response as-is without repeating the external call.
     Raises HTTPException(409) if another request is still mid-flight, or
     HTTPException(422) if the same key was used for a different request body.
+
+    A reservation that never got a result and is older than STALE_RESERVATION
+    (the worker crashed mid-call) is taken over instead of blocking retries
+    for 24h. Trade-off: if the crash happened AFTER the external call
+    succeeded, the takeover repeats that call (for an STK push: a second
+    prompt on the parent's phone) — a visible, harmless duplicate, preferable
+    to a key that can never be used again.
     """
     key = (key or "").strip()
     if not key or len(key) > MAX_KEY_LENGTH:
@@ -185,10 +200,31 @@ def reserve_key(
             IdempotencyKey.key == key,
         )
     ).scalar_one_or_none()
-    if existing is None or existing.response is None:
+    if existing is None:
         raise HTTPException(409, "A request with this Idempotency-Key is still being processed. Retry shortly.")
     if existing.request_hash != request_hash:
         raise HTTPException(422, "This Idempotency-Key was already used with a different request.")
+    if existing.response is None:
+        # Still in flight... or abandoned by a worker that crashed. Take an
+        # abandoned reservation over with a compare-and-set on created_at, so if
+        # two retries race for it exactly one wins and the other still gets 409.
+        created_at = existing.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - created_at > STALE_RESERVATION:
+            taken = db.execute(
+                update(IdempotencyKey)
+                .where(
+                    IdempotencyKey.id == existing.id,
+                    IdempotencyKey.response.is_(None),
+                    IdempotencyKey.created_at == existing.created_at,
+                )
+                .values(created_at=func.now())
+            )
+            db.commit()
+            if taken.rowcount == 1:
+                return None  # we own the reservation now — caller does the work
+        raise HTTPException(409, "A request with this Idempotency-Key is still being processed. Retry shortly.")
     return "replay", existing.response
 
 

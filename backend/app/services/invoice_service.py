@@ -73,9 +73,22 @@ def generate_invoice_for_student(
     return invoice
 
 
+def lock_invoice(db: Session, invoice_id: str) -> Invoice:
+    """SELECT ... FOR UPDATE on the invoice. Call this BEFORE inserting a payment
+    row that points at it: that INSERT takes a shared (FOR KEY SHARE) lock on the
+    invoice through the foreign key, and two transactions that each hold a share
+    lock and then ask for FOR UPDATE deadlock each other. Taking the exclusive
+    lock first makes them queue up instead."""
+    invoice = db.execute(select(Invoice).where(Invoice.id == invoice_id).with_for_update()).scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
+    return invoice
+
+
 def recalculate_invoice_status(db: Session, invoice_id: str, *, commit: bool = True) -> Invoice:
     """
-    Recomputes amount_paid and status from CONFIRMED payments only. Called
+    Recomputes amount_paid and status from the payment ledger (CONFIRMED rows
+    plus the REVERSED originals they cancel out — see below). Called
     after every payment state change so status is always derived from the
     ledger, never hand-set — it can't drift out of sync with reality.
 
@@ -85,15 +98,25 @@ def recalculate_invoice_status(db: Session, invoice_id: str, *, commit: bool = T
     with a stale sum. Pass commit=False to make this part of the caller's
     transaction (payment row + invoice total then commit, or roll back, together).
     """
-    invoice = db.execute(select(Invoice).where(Invoice.id == invoice_id).with_for_update()).scalar_one_or_none()
-    if not invoice:
-        raise HTTPException(404, "Invoice not found")
+    invoice = lock_invoice(db, invoice_id)
+
+    # Sessions here run with autoflush=False, so a payment whose status the
+    # caller just changed (e.g. PENDING -> CONFIRMED in the M-Pesa callback) is
+    # invisible to the SUM below until it is flushed. Without this the invoice
+    # silently keeps its old total.
+    db.flush()
 
     # Total in the database (index-only scan on ix_payments_invoice_status)
     # rather than loading every payment row into Python.
+    #
+    # REVERSED originals count too: a reversal keeps the original row (status
+    # REVERSED, +x) and adds a CONFIRMED correction row (-x). The pair nets to
+    # zero. Counting only CONFIRMED would drop the +x and leave the -x, pushing
+    # amount_paid negative and inflating what the parent owes.
     amount_paid = db.execute(
         select(func.coalesce(func.sum(Payment.amount), 0)).where(
-            Payment.invoice_id == invoice_id, Payment.status == PaymentStatus.CONFIRMED
+            Payment.invoice_id == invoice_id,
+            Payment.status.in_([PaymentStatus.CONFIRMED, PaymentStatus.REVERSED]),
         )
     ).scalar_one()
     amount_paid = Decimal(amount_paid)
