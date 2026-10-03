@@ -1,8 +1,7 @@
 import { ListSkeleton } from '../components/ui/Skeleton';
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, ChevronRight } from 'lucide-react';
+import { UserPlus, ChevronRight, Users, Wallet, CheckCircle2 } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -15,6 +14,7 @@ import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { RecentActivityFeed } from '../components/RecentActivityFeed';
 import { PaymentPlanCard } from '../components/PaymentPlanCard';
 import { AnimatedAmount } from '../components/AnimatedAmount';
+import { WelcomeBanner, type WelcomeChip } from '../components/WelcomeBanner';
 import { useMyChildren } from '../hooks/useMyChildren';
 import { useAuthStore } from '../store/authStore';
 import { getMyProfile } from '../api/user';
@@ -61,23 +61,31 @@ export function ParentDashboardPage() {
     }, 4000);
   }
 
+  const totalOutstanding = children.reduce((sum, c) => sum + Number(c.balance_due), 0);
+  const welcomeChips: WelcomeChip[] = loading || children.length === 0 ? [] : [
+    { icon: Users, label: `${children.length} ${children.length === 1 ? 'child' : 'children'} linked` },
+    totalOutstanding > 0
+      ? { icon: Wallet, label: `${formatCurrency(totalOutstanding)} outstanding`, tone: 'warn' }
+      : { icon: CheckCircle2, label: 'All paid up', tone: 'good' },
+  ];
+
   return (
     <ParentShell>
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-1">
-        <h1 className="font-display text-xl sm:text-2xl text-ink-900 font-medium reveal">
-          Welcome{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
-        </h1>
-        <button
-          onClick={() => navigate('/verify-child')}
-          className="shrink-0 flex items-center gap-1.5 py-1 text-sm font-medium text-ink-900 hover:underline underline-offset-2"
-        >
-          <UserPlus className="w-4 h-4" strokeWidth={2} />
-          Link another child
-        </button>
-      </div>
-      <p className="text-sm text-ink-600 mb-6 reveal" style={{ '--reveal-delay': '0.08s' } as CSSProperties}>
-        Here's the fee status for your children.
-      </p>
+      <WelcomeBanner
+        fullName={user?.full_name}
+        role="Parent"
+        subtitle="Here's the fee status for your children."
+        chips={welcomeChips}
+        action={
+          <button
+            onClick={() => navigate('/verify-child')}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] ring-1 ring-white/15 px-3.5 py-2 text-sm font-medium text-ink-900 hover:bg-white/[0.12] transition-colors"
+          >
+            <UserPlus className="w-4 h-4" strokeWidth={2} />
+            Link another child
+          </button>
+        }
+      />
 
       <div className="mb-6">
         <UpdatePhoneForm currentPhone={phone} onUpdated={setPhone} />

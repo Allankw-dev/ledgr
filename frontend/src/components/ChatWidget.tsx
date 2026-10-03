@@ -10,11 +10,16 @@ export function ChatWidget() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
+  // Keep the latest answer in view by scrolling the chat list only — never
+  // the page — and only once a conversation has actually started.
+  const count = messages.length;
   useEffect(() => {
-    if (open) scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading, open]);
+    const el = listRef.current;
+    if (!open || !el || (count === 0 && !loading)) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [count, loading, open]);
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -57,7 +62,7 @@ export function ChatWidget() {
 
       {open && (
         <div className="expand-in border-t border-ink-100 flex flex-col">
-          <div className="max-h-80 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+          <div ref={listRef} className="max-h-80 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
             {messages.length === 0 && (
               <div className="flex flex-col gap-2">
                 {SUGGESTIONS.map((s) => (
@@ -86,7 +91,6 @@ export function ChatWidget() {
 
             {loading && <p className="text-xs text-ink-400">Looking that up…</p>}
             {error && <p className="text-xs text-clay-700">{error}</p>}
-            <div ref={scrollRef} />
           </div>
 
           <form onSubmit={handleSubmit} className="flex items-center gap-2 px-5 py-3 border-t border-ink-100">

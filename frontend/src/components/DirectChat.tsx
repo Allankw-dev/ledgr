@@ -261,7 +261,8 @@ export function DirectChat() {
   usePolling(refreshThread, POLL_THREAD_MS, !!selectedId);
 
   useEffect(() => {
-    if (stick.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = listRef.current;
+    if (stick.current && el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   function onScroll() {

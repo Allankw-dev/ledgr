@@ -17,7 +17,10 @@ export function MessagePanel() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staffTyping, setStaffTyping] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // True while the person is reading at the bottom; false once they scroll
+  // up to read older messages, so new activity never drags them back down.
+  const stickRef = useRef(true);
   const lastTypingPingRef = useRef(0);
 
   useEffect(() => {
@@ -37,9 +40,31 @@ export function MessagePanel() {
   // Poll whether staff is currently typing.
   usePolling(() => getStaffTypingStatus().then(setStaffTyping), POLL_TYPING_MS, open);
 
+  // Scroll only the message list itself (never the page), and only when
+  // something actually new arrived while the person is at the bottom. The
+  // 3-second poll hands back a fresh array every time, so depend on the
+  // count / last id rather than the array.
+  const count = messages.length;
+  const lastId = messages[messages.length - 1]?.id;
   useEffect(() => {
-    if (open) scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, staffTyping, open]);
+    const el = listRef.current;
+    if (!open || !el || !stickRef.current) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [count, lastId, staffTyping, open]);
+
+  // Opening the panel starts at the latest message.
+  useEffect(() => {
+    if (!open) return;
+    stickRef.current = true;
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [open, loaded]);
+
+  function onListScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
 
   function handleInputChange(value: string) {
     setInput(value);
@@ -57,6 +82,7 @@ export function MessagePanel() {
 
     setSending(true);
     setError(null);
+    stickRef.current = true;
     try {
       const sent = await sendMyMessage(trimmed);
       setMessages((prev) => [...prev, sent]);
@@ -80,7 +106,7 @@ export function MessagePanel() {
 
       {open && (
         <div className="expand-in border-t border-ink-100 flex flex-col">
-          <div className="max-h-80 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+          <div ref={listRef} onScroll={onListScroll} className="max-h-80 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
             {loaded && messages.length === 0 && (
               <p className="text-sm text-ink-600">
                 Have a question about fees, an invoice, or a payment? Send a message and the school's office will get
@@ -109,7 +135,6 @@ export function MessagePanel() {
             {staffTyping && <TypingDots />}
 
             {error && <p className="text-xs text-clay-700">{error}</p>}
-            <div ref={scrollRef} />
           </div>
 
           <form onSubmit={handleSubmit} className="flex items-center gap-2 px-5 py-3 border-t border-ink-100">

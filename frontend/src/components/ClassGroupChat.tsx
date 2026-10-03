@@ -275,7 +275,8 @@ export function ClassGroupChat() {
   usePolling(refreshThread, POLL_THREAD_MS, !!selectedClassId);
 
   useEffect(() => {
-    if (stickToBottom.current) endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = listRef.current;
+    if (stickToBottom.current && el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   function onScroll() {
@@ -289,7 +290,8 @@ export function ClassGroupChat() {
   function jumpToBottom() {
     stickToBottom.current = true;
     setShowJump(false);
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = listRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }
 
   // ---------- attachments ----------

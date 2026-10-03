@@ -1,5 +1,4 @@
 import { ListSkeleton } from '../components/ui/Skeleton';
-import type { CSSProperties } from 'react';
 import { Wallet, AlertCircle, Users, Receipt, ShieldAlert, TrendingUp } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { StatCard } from '../components/ui/StatCard';
@@ -10,6 +9,7 @@ import { useInvoices } from '../hooks/useInvoices';
 import { useAnomalies } from '../hooks/useAnomalies';
 import { useDashboardAnalytics } from '../hooks/useDashboardAnalytics';
 import { useAuthStore } from '../store/authStore';
+import { WelcomeBanner, type WelcomeChip } from '../components/WelcomeBanner';
 
 function formatCurrency(amount: number, currency = 'KES') {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
@@ -73,17 +73,22 @@ export function DashboardPage() {
   const termPaid = currentTermPoint ? Number(currentTermPoint.total_paid) : 0;
   const termPaidPct = termBilled > 0 ? Math.min(100, Math.round((termPaid / termBilled) * 100)) : 0;
 
+  const roleLabel = user?.role ? user.role.toLowerCase().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Staff';
+  const welcomeChips: WelcomeChip[] = !analytics ? [] : [
+    ...(termBilled > 0 ? [{ icon: TrendingUp, label: `${termPaidPct}% of this term collected`, tone: termPaidPct >= 70 ? ('good' as const) : undefined }] : []),
+    { icon: Users, label: `${analytics.active_student_count} active students` },
+    ...(analytics.overdue_count > 0 ? [{ icon: AlertCircle, label: `${analytics.overdue_count} overdue`, tone: 'warn' as const }] : []),
+  ];
+
   return (
     <AppShell>
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-2xl text-ink-900 font-medium reveal">
-            Good day{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
-          </h1>
-          <p className="text-sm text-ink-600 mt-1 reveal" style={{ '--reveal-delay': '0.08s' } as CSSProperties}>
-            Here's where your school's fee collection stands.
-          </p>
-        </div>
+        <WelcomeBanner
+          fullName={user?.full_name}
+          role={roleLabel}
+          subtitle="Here's where your school's fee collection stands."
+          chips={welcomeChips}
+        />
 
         {error && (
           <div role="alert" className="bg-clay-100 text-clay-700 rounded-md px-4 py-3 text-sm mb-6">
