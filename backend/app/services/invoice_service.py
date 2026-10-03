@@ -73,6 +73,32 @@ def generate_invoice_for_student(
     return invoice
 
 
+# Invoices money can still be collected against. DRAFT isn't issued yet, PAID has
+# nothing left, CANCELLED is void.
+OPEN_INVOICE_STATUSES = (InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE)
+
+
+def student_open_invoices(db: Session, student_id: str, *, for_update: bool = False) -> list[Invoice]:
+    """A student's collectable invoices, oldest due date first (id breaks ties so
+    every caller locks them in the same order — two transactions locking the same
+    set in different orders is how deadlocks happen)."""
+    query = (
+        select(Invoice)
+        .where(Invoice.student_id == student_id, Invoice.status.in_(OPEN_INVOICE_STATUSES))
+        .order_by(Invoice.due_date.asc(), Invoice.id.asc())
+    )
+    if for_update:
+        query = query.with_for_update()
+    return list(db.execute(query).scalars().all())
+
+
+def student_open_balance(db: Session, student_id: str) -> Decimal:
+    return sum(
+        (max(inv.total_amount - inv.amount_paid, Decimal("0")) for inv in student_open_invoices(db, student_id)),
+        Decimal("0"),
+    )
+
+
 def lock_invoice(db: Session, invoice_id: str) -> Invoice:
     """SELECT ... FOR UPDATE on the invoice. Call this BEFORE inserting a payment
     row that points at it: that INSERT takes a shared (FOR KEY SHARE) lock on the

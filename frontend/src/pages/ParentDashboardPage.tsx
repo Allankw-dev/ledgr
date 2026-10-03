@@ -100,9 +100,12 @@ export function ParentDashboardPage() {
         <div className="flex flex-col gap-9">
           {children.map((child) => {
             const balance = Number(child.balance_due);
-            const unpaidInvoice = child.invoices.find(
-              (inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED'
-            );
+            // What can actually be collected right now: the same invoices the server
+            // counts (issued / part-paid / overdue), so the amount the parent is shown
+            // is never more than the server will accept.
+            const payable = child.invoices
+              .filter((inv) => inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID' || inv.status === 'OVERDUE')
+              .reduce((sum, inv) => sum + Math.max(Number(inv.total_amount) - Number(inv.amount_paid), 0), 0);
             const totalDue = child.invoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
             const totalPaid = child.invoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
             const safeTotal = totalDue > 0 ? totalDue : 0;
@@ -124,10 +127,10 @@ export function ParentDashboardPage() {
                         <AnimatedAmount value={balance} format={formatCurrency} />
                       </p>
                     </div>
-                    {balance > 0 && unpaidInvoice ? (
+                    {payable >= 1 ? (
                       <PayWithMpesa
-                        invoiceId={unpaidInvoice.id}
-                        balance={Number(unpaidInvoice.total_amount) - Number(unpaidInvoice.amount_paid)}
+                        studentId={child.id}
+                        balance={payable}
                         defaultPhone={phone}
                         onInitiated={handlePaymentInitiated}
                         variant="primary"

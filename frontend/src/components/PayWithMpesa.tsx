@@ -15,8 +15,11 @@ function kes(n: number) {
 }
 
 interface PayWithMpesaProps {
-  invoiceId: string;
-  /** What is still owed on this invoice. When given, the parent types in how much to pay now. */
+  /** Pay toward this one invoice... */
+  invoiceId?: string;
+  /** ...or toward a child's whole balance (applied to their oldest invoice first). Give one of the two. */
+  studentId?: string;
+  /** What is still owed (on the invoice, or in total for studentId). When given, the parent types in how much to pay now. */
   balance?: number;
   defaultPhone?: string | null;
   onInitiated: () => void;
@@ -25,7 +28,7 @@ interface PayWithMpesaProps {
   label?: string;
 }
 
-export function PayWithMpesa({ invoiceId, balance, defaultPhone, onInitiated, variant = 'primary', className, label = 'Pay now' }: PayWithMpesaProps) {
+export function PayWithMpesa({ invoiceId, studentId, balance, defaultPhone, onInitiated, variant = 'primary', className, label = 'Pay now' }: PayWithMpesaProps) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(defaultPhone || '');
   const wholeBalance = balance !== undefined ? Math.floor(balance) : undefined;
@@ -53,7 +56,7 @@ export function PayWithMpesa({ invoiceId, balance, defaultPhone, onInitiated, va
     setError(null);
     setSubmitting(true);
     try {
-      await requestMpesaPayment(invoiceId, phone, choosing ? amount : undefined);
+      await requestMpesaPayment({ invoiceId, studentId }, phone, choosing ? amount : undefined);
       setSentAmount(choosing ? amount : null);
       setSent(true);
       onInitiated();
@@ -94,13 +97,16 @@ export function PayWithMpesa({ invoiceId, balance, defaultPhone, onInitiated, va
               {choosing && (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-baseline justify-between rounded-lg bg-ink-100/70 ring-1 ring-white/5 px-3.5 py-2.5">
-                    <span className="text-xs text-ink-600">Still owed on this invoice</span>
+                    <span className="text-xs text-ink-600">{studentId ? 'Total balance owed' : 'Still owed on this invoice'}</span>
                     <span className="figure text-sm font-medium text-ink-900">{kes(wholeBalance!)}</span>
                   </div>
 
                   <div>
                     <p className="text-sm font-medium text-ink-700">How much would you like to pay now?</p>
-                    <p className="text-xs text-ink-600 mt-0.5 mb-2.5">Pay any amount you're comfortable with — you can pay the rest later.</p>
+                    <p className="text-xs text-ink-600 mt-0.5 mb-2.5">
+                      Pay any amount you're comfortable with — you can pay the rest later.
+                      {studentId && ' Your payment clears the oldest invoice first, then the next.'}
+                    </p>
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-400">KES</span>
                       <input

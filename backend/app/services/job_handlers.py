@@ -110,16 +110,23 @@ def handle_notify_payment_result(payload: dict[str, Any]) -> None:
         if not guardian_ids:
             return
 
+        # A whole-balance payment is stored as several rows; its job carries the
+        # full amount and the student's overall balance so the parent gets ONE
+        # accurate message rather than a message about a single slice.
+        amount = Decimal(payload["amount"]) if payload.get("amount") is not None else payment.amount
+
         if succeeded:
             remaining = Decimal("0")
-            if payment.invoice_id:
+            if payload.get("remaining") is not None:
+                remaining = Decimal(payload["remaining"])
+            elif payment.invoice_id:
                 invoice = db.get(Invoice, payment.invoice_id)
                 if invoice:
                     remaining = invoice.total_amount - invoice.amount_paid
             subject, body, sms_text = compose_payment_confirmation(
                 student_name=student.full_name,
                 school_name=school.name,
-                amount=payment.amount,
+                amount=amount,
                 currency=school.currency,
                 method=payment.method.value,
                 remaining_balance=remaining,
@@ -128,7 +135,7 @@ def handle_notify_payment_result(payload: dict[str, Any]) -> None:
             subject, body, sms_text = compose_payment_failed(
                 student_name=student.full_name,
                 school_name=school.name,
-                amount=payment.amount,
+                amount=amount,
                 currency=school.currency,
             )
 

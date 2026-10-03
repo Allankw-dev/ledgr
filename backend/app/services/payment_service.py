@@ -12,7 +12,7 @@ from app.models.invoice import Invoice
 from app.models.student import Student, StudentGuardian
 from app.models.school import School, User
 from app.models.enums import GuardianLinkStatus, PaymentMethod, PaymentStatus
-from app.services.invoice_service import lock_invoice, recalculate_invoice_status
+from app.services.invoice_service import lock_invoice, recalculate_invoice_status, student_open_balance, student_open_invoices
 from app.services.audit_service import log_audit
 
 
@@ -89,7 +89,7 @@ def create_pending_mpesa_payment(
     db: Session,
     school_id: str,
     student_id: str,
-    invoice_id: str,
+    invoice_id: str | None,
     amount: Decimal,
     checkout_request_id: str,
 ) -> Payment:
@@ -99,6 +99,9 @@ def create_pending_mpesa_payment(
     Daraja callback confirms or fails it — never counted toward the
     invoice's amount_paid while pending (recalculate_invoice_status only
     sums CONFIRMED payments).
+
+    invoice_id=None means the parent paid toward the student's whole balance;
+    the callback then splits the money across their open invoices (oldest first).
     """
     payment = Payment(
         school_id=school_id,
@@ -117,7 +120,14 @@ def create_pending_mpesa_payment(
     return payment
 
 
-def queue_payment_notification(db: Session, payment: Payment, succeeded: bool) -> None:
+def queue_payment_notification(
+    db: Session,
+    payment: Payment,
+    succeeded: bool,
+    *,
+    amount: Decimal | None = None,
+    remaining: Decimal | None = None,
+) -> None:
     """Queues the parent's SMS/email as a durable job, enqueued in the SAME
     transaction as the payment (transactional outbox — see core/jobs.py). It
     only becomes visible to a worker once that transaction commits, so a
@@ -130,9 +140,90 @@ def queue_payment_notification(db: Session, payment: Payment, succeeded: bool) -
         db,
         school_id=payment.school_id,
         kind="notify_payment_result",
-        payload={"payment_id": payment.id, "succeeded": succeeded},
+        payload={
+            "payment_id": payment.id,
+            "succeeded": succeeded,
+            # A whole-balance payment is stored as several rows, so the message must
+            # report the full amount and the student's overall balance, not one row's share.
+            **({"amount": str(amount)} if amount is not None else {}),
+            **({"remaining": str(remaining)} if remaining is not None else {}),
+        },
         dedupe_key=f"pay-notify:{payment.id}:{succeeded}",
     )
+
+
+def _allocate_to_open_invoices(db: Session, payment: Payment) -> tuple[Decimal, list[dict]]:
+    """Splits a CONFIRMED whole-balance payment across the student's open invoices,
+    oldest due date first. The pending row becomes the first slice (so its receipt
+    and id keep working); further slices are new CONFIRMED rows carrying the same
+    M-Pesa receipt. Allocation happens HERE, at confirmation time, against the
+    balances as they are now — a cash payment recorded between the STK push and
+    the PIN entry can't cause an invoice to be overpaid.
+
+    Anything that doesn't fit (invoices paid off in the meantime) is kept as an
+    unallocated row with no invoice and flagged in the audit log for the bursar.
+    Returns (total_amount, [{invoice_id, amount}, ...]); the caller recalculates
+    the touched invoices.
+    """
+    total = payment.amount
+    remaining = total
+    slices: list[dict] = []
+
+    for invoice in student_open_invoices(db, payment.student_id, for_update=True):
+        if remaining <= 0:
+            break
+        owed = invoice.total_amount - invoice.amount_paid
+        if owed <= 0:
+            continue
+        take = min(owed, remaining)
+        if not slices:
+            payment.invoice_id = invoice.id
+            payment.amount = take
+        else:
+            db.add(
+                Payment(
+                    school_id=payment.school_id,
+                    student_id=payment.student_id,
+                    invoice_id=invoice.id,
+                    amount=take,
+                    method=PaymentMethod.MPESA,
+                    status=PaymentStatus.CONFIRMED,
+                    reference_code=payment.reference_code,
+                    external_txn_id=payment.external_txn_id,
+                    paid_at=payment.paid_at,
+                    notes="Part of one M-Pesa payment applied across several invoices",
+                )
+            )
+        slices.append({"invoice_id": invoice.id, "amount": str(take)})
+        remaining -= take
+
+    if remaining > 0:
+        if slices:
+            db.add(
+                Payment(
+                    school_id=payment.school_id,
+                    student_id=payment.student_id,
+                    invoice_id=None,
+                    amount=remaining,
+                    method=PaymentMethod.MPESA,
+                    status=PaymentStatus.CONFIRMED,
+                    reference_code=payment.reference_code,
+                    external_txn_id=payment.external_txn_id,
+                    paid_at=payment.paid_at,
+                    notes="Unallocated: the open invoices were cleared before this M-Pesa payment arrived",
+                )
+            )
+        # (if nothing was open at all the pending row itself stays, unallocated)
+        log_audit(
+            db,
+            school_id=payment.school_id,
+            action="MPESA_PAYMENT_UNALLOCATED",
+            entity_type="Payment",
+            entity_id=payment.id,
+            metadata={"unallocated": str(remaining), "allocated": slices},
+        )
+    db.flush()
+    return total, slices
 
 
 def resolve_mpesa_callback(
@@ -190,8 +281,15 @@ def resolve_mpesa_callback(
         payment.paid_at = datetime.now(timezone.utc)
         payment.reference_code = mpesa_receipt_number
 
+        notify_amount = notify_remaining = None
+        slices: list[dict] = []
         if payment.invoice_id:
             recalculate_invoice_status(db, payment.invoice_id, commit=False)
+        else:
+            notify_amount, slices = _allocate_to_open_invoices(db, payment)
+            for part in slices:
+                recalculate_invoice_status(db, part["invoice_id"], commit=False)
+            notify_remaining = student_open_balance(db, payment.student_id)
 
         log_audit(
             db,
@@ -199,9 +297,13 @@ def resolve_mpesa_callback(
             action="MPESA_PAYMENT_CONFIRMED",
             entity_type="Payment",
             entity_id=payment.id,
-            metadata={"checkout_request_id": checkout_request_id, "mpesa_receipt": mpesa_receipt_number},
+            metadata={
+                "checkout_request_id": checkout_request_id,
+                "mpesa_receipt": mpesa_receipt_number,
+                **({"allocation": slices} if slices else {}),
+            },
         )
-        queue_payment_notification(db, payment, succeeded=True)
+        queue_payment_notification(db, payment, succeeded=True, amount=notify_amount, remaining=notify_remaining)
         db.commit()
         cache.bump(payment.school_id, "fin")
     else:

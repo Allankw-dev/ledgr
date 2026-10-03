@@ -6,8 +6,15 @@ export async function listMyChildren(): Promise<ParentStudentView[]> {
   return data;
 }
 
+/** Pay toward ONE invoice ({ invoiceId }) or a child's WHOLE balance ({ studentId }) —
+ *  the server then applies the money to their oldest open invoice first. */
+export interface MpesaPayTarget {
+  invoiceId?: string;
+  studentId?: string;
+}
+
 export async function requestMpesaPayment(
-  invoiceId: string,
+  target: MpesaPayTarget,
   phoneNumber: string,
   amount?: number
 ): Promise<{ checkout_request_id: string; message: string }> {
@@ -15,7 +22,11 @@ export async function requestMpesaPayment(
   // from sending a second M-Pesa prompt to the parent's phone.
   const { data } = await apiClient.post(
     '/api/payments/mpesa/stk-push',
-    { invoice_id: invoiceId, phone_number: phoneNumber, ...(amount !== undefined ? { amount } : {}) },
+    {
+      ...(target.studentId ? { student_id: target.studentId } : { invoice_id: target.invoiceId }),
+      phone_number: phoneNumber,
+      ...(amount !== undefined ? { amount } : {}),
+    },
     { headers: { 'Idempotency-Key': crypto.randomUUID() } }
   );
   return data;
