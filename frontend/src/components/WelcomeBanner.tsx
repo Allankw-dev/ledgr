@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Moon, Sun, Sunrise, type LucideIcon } from 'lucide-react';
+import { friendlyName, nameInitial } from '../lib/names';
 
 export interface WelcomeChip {
   icon: LucideIcon;
@@ -40,9 +41,8 @@ export function WelcomeBanner({
 }) {
   const now = new Date();
   const { text, Icon } = greetingFor(now.getHours());
-  const rawFirst = fullName?.trim().split(/\s+/)[0] ?? '';
-  const first = rawFirst ? rawFirst.charAt(0).toUpperCase() + rawFirst.slice(1) : '';
-  const initial = first.charAt(0) || '•';
+  const first = friendlyName(fullName);
+  const initial = nameInitial(fullName) || '•';
   const dateLabel = new Intl.DateTimeFormat('en-KE', { weekday: 'long', day: 'numeric', month: 'long' }).format(now);
 
   return (
@@ -77,8 +77,9 @@ export function WelcomeBanner({
             <span className="text-ink-400" aria-hidden="true">·</span>
             <span>{dateLabel}</span>
           </p>
-          <h1 className="welcome-title mt-1 text-[1.75rem] sm:text-4xl leading-[1.1] truncate">
-            {first ? <span className="welcome-name">{first}</span> : <span className="welcome-name">Welcome</span>}
+          <h1 className="welcome-title mt-1 leading-[1.1]">
+            <span className={`block font-medium text-ink-600 tracking-normal ${first ? 'text-base sm:text-xl mb-0.5' : 'hidden'}`}>Welcome,</span>
+            <span className="welcome-name block pb-1 text-[1.75rem] sm:text-4xl truncate">{first || 'Welcome'}</span>
           </h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-ink-600">
             <span className="shrink-0 rounded-full bg-white/[0.07] ring-1 ring-white/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-ink-700">{role}</span>
