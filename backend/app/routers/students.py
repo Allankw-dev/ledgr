@@ -818,8 +818,12 @@ def download_fee_statement(
     terms_by_id = {t.id: t for t in db.execute(select(Term).where(Term.id.in_(all_term_ids))).scalars().all()} if all_term_ids else {}
 
     invoice_ids = [inv.id for inv in invoice_rows]
+    # CONFIRMED + REVERSED: a reversal keeps the original row (REVERSED, +x) and adds
+    # a CONFIRMED correction (-x). Listing both makes the history add up to the
+    # invoices' "Total paid" instead of showing a lone negative line.
     payment_query = select(Payment).where(
-        Payment.student_id == student_id, Payment.status == PaymentStatus.CONFIRMED
+        Payment.student_id == student_id,
+        Payment.status.in_([PaymentStatus.CONFIRMED, PaymentStatus.REVERSED]),
     )
     if term:
         # Include payments tied to an invoice in this term, or unattached
@@ -854,6 +858,8 @@ def download_fee_statement(
                 "amount": p.amount,
                 "method": p.method.value,
                 "reference_code": p.reference_code,
+                "is_reversal": p.reversal_of_id is not None,
+                "was_reversed": p.status == PaymentStatus.REVERSED,
             }
             for p in payment_rows
         ],

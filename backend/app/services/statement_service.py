@@ -42,6 +42,17 @@ INVOICE_STATUS_LABELS = {
 }
 
 
+def _reference_label(p: dict) -> str:
+    """Reference column text. Reversals are labelled so a negative line (and the
+    payment it cancels) is self-explanatory on the printed statement."""
+    ref = p.get("reference_code") or "—"
+    if p.get("is_reversal"):
+        return "Reversal"
+    if p.get("was_reversed"):
+        return f"{ref} (reversed)" if ref != "—" else "(reversed)"
+    return ref
+
+
 def generate_fee_statement_pdf(
     school_name: str,
     student_name: str,
@@ -50,7 +61,7 @@ def generate_fee_statement_pdf(
     currency: str,
     period_label: str,  # e.g. "Term 2 2026" or "All terms"
     invoices: list[dict],  # [{term_name, due_date, total_amount, amount_paid, status}]
-    payments: list[dict],  # [{paid_at, amount, method, reference_code}]
+    payments: list[dict],  # [{paid_at, amount, method, reference_code, is_reversal?, was_reversed?}]
 ) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -167,7 +178,7 @@ def generate_fee_statement_pdf(
                 [
                     fmt_date(p["paid_at"]),
                     METHOD_LABELS.get(p["method"].upper(), p["method"].replace("_", " ").title()),
-                    p.get("reference_code") or "—",
+                    _reference_label(p),
                     fmt_money(p["amount"]),
                 ]
             )

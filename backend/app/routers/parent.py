@@ -79,9 +79,15 @@ def list_my_children(
             # Only CONFIRMED payments — a receipt only makes sense for money
             # actually received, matching the rule /api/payments/{id}/receipt
             # itself already enforces (422 for anything not CONFIRMED).
+            # amount > 0 drops the negative correction rows a reversal adds, so a
+            # parent never sees a "-5,000 payment" (same rule as parent_service.py).
             payment_rows = db.execute(
                 select(Payment)
-                .where(Payment.invoice_id.in_(invoice_ids), Payment.status == PaymentStatus.CONFIRMED)
+                .where(
+                    Payment.invoice_id.in_(invoice_ids),
+                    Payment.status == PaymentStatus.CONFIRMED,
+                    Payment.amount > 0,
+                )
                 .order_by(Payment.paid_at.desc())
             ).scalars().all()
             for payment in payment_rows:
