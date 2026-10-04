@@ -10,6 +10,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.enums import GuardianLinkStatus
 from app.models.invoice import Invoice, InvoiceItem, FeeStructure
 from app.models.payment import Payment
 from app.models.student import SchoolClass, Student, StudentGuardian, Term
@@ -18,7 +19,10 @@ from app.services.payment_plan_service import recommend_payment_plan
 
 def _my_student_ids(db: Session, guardian_user_id: str) -> list[str]:
     return db.execute(
-        select(StudentGuardian.student_id).where(StudentGuardian.user_id == guardian_user_id)
+        select(StudentGuardian.student_id).where(
+            StudentGuardian.user_id == guardian_user_id,
+            StudentGuardian.status == GuardianLinkStatus.APPROVED,  # unverified links see nothing
+        )
     ).scalars().all()
 
 

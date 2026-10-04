@@ -25,6 +25,7 @@ from app.services.mpesa_reconciliation_service import (
     find_unmatched_transaction,
     match_transaction_to_invoice,
 )
+from app.models.enums import GuardianLinkStatus
 from app.models.invoice import Invoice
 from app.services.invoice_service import student_open_balance
 from app.models.student import Student, StudentGuardian
@@ -84,6 +85,7 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
             select(StudentGuardian).where(
                 StudentGuardian.student_id == student.id,
                 StudentGuardian.user_id == user.user_id,
+                StudentGuardian.status == GuardianLinkStatus.APPROVED,
             )
         ).scalar_one_or_none()
         if not link:

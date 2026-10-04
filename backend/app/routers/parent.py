@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, CurrentUser
 from app.schemas.parent import ParentStudentView, ParentInvoiceView, ParentInvoiceItemView, ParentPaymentView
+from app.models.enums import GuardianLinkStatus
 from app.models.student import Student, StudentGuardian
 from app.models.invoice import Invoice, InvoiceItem, FeeStructure
 from app.models.payment import Payment
@@ -41,8 +42,13 @@ def list_my_children(
     """
     _require_parent(user)
 
+    # APPROVED only. Anyone can sign up as a parent and request a link to any admission
+    # number; until a bursar approves, a PENDING (or REJECTED) link must show nothing.
     links = db.execute(
-        select(StudentGuardian).where(StudentGuardian.user_id == user.user_id)
+        select(StudentGuardian).where(
+            StudentGuardian.user_id == user.user_id,
+            StudentGuardian.status == GuardianLinkStatus.APPROVED,
+        )
     ).scalars().all()
     student_ids = [link.student_id for link in links]
     if not student_ids:
