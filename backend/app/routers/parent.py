@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, CurrentUser
@@ -54,67 +54,69 @@ def list_my_children(
     if not student_ids:
         return []
 
+    # One query per TABLE for all of this parent's children together — not per child. A parent
+    # with three children used to cost 17 queries (5 for every child); now it is a fixed 7.
+    # Round trips to the hosted database are the expensive part, so this is the page's speed.
     students = db.execute(
-        select(Student).where(Student.id.in_(student_ids))
+        select(Student).options(selectinload(Student.school_class)).where(Student.id.in_(student_ids))
     ).scalars().all()
 
-    results = []
-    for student in students:
-        invoices = db.execute(
-            select(Invoice).where(Invoice.student_id == student.id).order_by(Invoice.due_date.desc())
+    invoices = db.execute(
+        select(Invoice).where(Invoice.student_id.in_(student_ids)).order_by(Invoice.due_date.desc())
+    ).scalars().all()
+    invoices_by_student: dict[str, list[Invoice]] = {}
+    for inv in invoices:
+        invoices_by_student.setdefault(inv.student_id, []).append(inv)
+    invoice_ids = [inv.id for inv in invoices]
+
+    items_by_invoice: dict[str, list[ParentInvoiceItemView]] = {}
+    payments_by_invoice: dict[str, list[ParentPaymentView]] = {}
+    active_plan_invoice_ids: set[str] = set()
+
+    if invoice_ids:
+        item_rows = db.execute(
+            select(InvoiceItem, FeeStructure)
+            .join(FeeStructure, InvoiceItem.fee_structure_id == FeeStructure.id)
+            .where(InvoiceItem.invoice_id.in_(invoice_ids))
+        ).all()
+        for item, fee_structure in item_rows:
+            items_by_invoice.setdefault(item.invoice_id, []).append(
+                ParentInvoiceItemView(name=fee_structure.name, category=fee_structure.category.value, amount=item.amount)
+            )
+
+        # Only CONFIRMED payments — a receipt only makes sense for money
+        # actually received, matching the rule /api/payments/{id}/receipt
+        # itself already enforces (422 for anything not CONFIRMED).
+        # amount > 0 drops the negative correction rows a reversal adds, so a
+        # parent never sees a "-5,000 payment" (same rule as parent_service.py).
+        payment_rows = db.execute(
+            select(Payment)
+            .where(
+                Payment.invoice_id.in_(invoice_ids),
+                Payment.status == PaymentStatus.CONFIRMED,
+                Payment.amount > 0,
+            )
+            .order_by(Payment.paid_at.desc())
         ).scalars().all()
-        invoice_ids = [inv.id for inv in invoices]
-
-        # Batch-fetch items and payments for ALL this student's invoices in
-        # two queries total, not one query per invoice — a student can
-        # easily have a dozen invoices across terms.
-        items_by_invoice: dict[str, list[ParentInvoiceItemView]] = {}
-        payments_by_invoice: dict[str, list[ParentPaymentView]] = {}
-
-        if invoice_ids:
-            item_rows = db.execute(
-                select(InvoiceItem, FeeStructure)
-                .join(FeeStructure, InvoiceItem.fee_structure_id == FeeStructure.id)
-                .where(InvoiceItem.invoice_id.in_(invoice_ids))
-            ).all()
-            for item, fee_structure in item_rows:
-                items_by_invoice.setdefault(item.invoice_id, []).append(
-                    ParentInvoiceItemView(name=fee_structure.name, category=fee_structure.category.value, amount=item.amount)
+        for payment in payment_rows:
+            payments_by_invoice.setdefault(payment.invoice_id, []).append(
+                ParentPaymentView(
+                    id=payment.id, amount=payment.amount, method=payment.method.value,
+                    paid_at=payment.paid_at, reference_code=payment.reference_code,
                 )
+            )
 
-            # Only CONFIRMED payments — a receipt only makes sense for money
-            # actually received, matching the rule /api/payments/{id}/receipt
-            # itself already enforces (422 for anything not CONFIRMED).
-            # amount > 0 drops the negative correction rows a reversal adds, so a
-            # parent never sees a "-5,000 payment" (same rule as parent_service.py).
-            payment_rows = db.execute(
-                select(Payment)
-                .where(
-                    Payment.invoice_id.in_(invoice_ids),
-                    Payment.status == PaymentStatus.CONFIRMED,
-                    Payment.amount > 0,
-                )
-                .order_by(Payment.paid_at.desc())
-            ).scalars().all()
-            for payment in payment_rows:
-                payments_by_invoice.setdefault(payment.invoice_id, []).append(
-                    ParentPaymentView(
-                        id=payment.id, amount=payment.amount, method=payment.method.value,
-                        paid_at=payment.paid_at, reference_code=payment.reference_code,
-                    )
-                )
-
-        balance_due = sum((inv.total_amount - inv.amount_paid for inv in invoices), Decimal("0"))
-
-        active_plan_invoice_ids: set[str] = set()
-        if invoice_ids:
-            plan_rows = db.execute(
+        active_plan_invoice_ids = set(
+            db.execute(
                 select(PaymentPlan.invoice_id).where(
                     PaymentPlan.invoice_id.in_(invoice_ids), PaymentPlan.status == PaymentPlanStatus.ACTIVE
                 )
             ).scalars().all()
-            active_plan_invoice_ids = set(plan_rows)
+        )
 
+    results = []
+    for student in students:
+        student_invoices = invoices_by_student.get(student.id, [])
         results.append(
             ParentStudentView(
                 id=student.id,
@@ -132,9 +134,9 @@ def list_my_children(
                         payments=payments_by_invoice.get(inv.id, []),
                         has_active_payment_plan=inv.id in active_plan_invoice_ids,
                     )
-                    for inv in invoices
+                    for inv in student_invoices
                 ],
-                balance_due=balance_due,
+                balance_due=sum((inv.total_amount - inv.amount_paid for inv in student_invoices), Decimal("0")),
             )
         )
 

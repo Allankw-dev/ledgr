@@ -26,6 +26,7 @@ from app.core.security import (
     _email_fingerprint,
 )
 from app.core.totp import diagnose_failed_code, generate_totp_secret, get_provisioning_uri, verify_totp_code
+from app.core import login_throttle
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user, require_roles, CurrentUser
 from app.services.notification_service import send_email, send_sms, NotificationConfigError
@@ -79,7 +80,7 @@ def get_setup_status(db: Session = Depends(get_system_db)):
 
 
 @router.post("/register-parent", response_model=TokenResponse, status_code=201)
-@limiter.limit("5/minute")
+@limiter.limit("30/minute")  # per IP; many parents sign up from the school's wifi on enrolment day
 def register_parent(request: Request, data: RegisterParentRequest, db: Session = Depends(get_system_db)):
     """
     Public self-signup for a parent. Deliberately creates ONLY the account
@@ -330,18 +331,23 @@ def _complete_login(user: User, db: Session) -> Union[TokenResponse, TwoFactorRe
 
 
 @router.post("/login", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
-@limiter.limit("10/minute")
+@limiter.limit("60/minute")  # per IP: generous on purpose — a school's wifi or a mobile carrier puts many real
+#                              parents behind one address. The real guard is the per-ACCOUNT throttle below.
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_system_db)):
+    if login_throttle.is_locked(data.email):
+        raise HTTPException(429, "Too many failed attempts on this account. Wait 15 minutes, or use \"Forgot password\".")
     user = _authenticate(db, data.email, data.password)
     if not user:
+        login_throttle.record_failure(data.email)
         _audit_failed_login(db, data.email, request)
         raise HTTPException(401, "Invalid email/phone or password")
 
+    login_throttle.clear(data.email)
     return _complete_login(user, db)
 
 
 @router.post("/google", response_model=Union[TokenResponse, TwoFactorRequiredResponse])
-@limiter.limit("10/minute")
+@limiter.limit("60/minute")
 def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends(get_system_db)):
     """Verifies the ID token Google's Sign In button hands back to the
     frontend, then either logs in a matching existing account or — for a

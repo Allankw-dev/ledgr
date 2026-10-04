@@ -20,9 +20,14 @@ timeout = 60
 graceful_timeout = 30  # time to finish in-flight requests on deploy/restart
 keepalive = 5
 
-# Recycle workers periodically to cap memory growth.
-max_requests = 2000
-max_requests_jitter = 200
+# Optional safety valve against slow memory growth: recycle a worker after this many
+# requests. OFF by default (0) because a recycle is not free — under load, in-flight
+# requests on that worker are cut off (clients see a dropped connection) and a lone
+# worker is down for the ~3 s it takes to boot. The old value (2000) triggered that every
+# ~30 seconds at busy-hour traffic. Measured memory stays flat without it; if you ever
+# see a worker's memory climbing, set MAX_REQUESTS=50000 (and keep 2+ workers).
+max_requests = int(os.getenv("MAX_REQUESTS", "0"))
+max_requests_jitter = max_requests // 10
 
 # Real client IPs for rate limiting: trust X-Forwarded-For only from these
 # addresses. Set FORWARDED_ALLOW_IPS="*" when the host's proxy is the only
