@@ -7,9 +7,20 @@ from app.core.idempotency import run_idempotent
 from app.core.rate_limit import limiter
 from app.core.deps import get_school_scope, require_roles, get_current_user, CurrentUser
 from app.models.payment import Payment
-from app.schemas.payment import RecordPaymentRequest, ReversePaymentRequest, PaymentResponse
+from app.schemas.payment import (
+    ApplyPaymentRequest,
+    PaymentResponse,
+    RecordPaymentRequest,
+    ReversePaymentRequest,
+    UnallocatedPaymentResponse,
+)
 from app.schemas.anomaly import PaymentAnomalyResponse
-from app.services.payment_service import record_confirmed_payment, reverse_payment
+from app.services.payment_service import (
+    apply_unallocated_payment,
+    list_unallocated_payments,
+    record_confirmed_payment,
+    reverse_payment,
+)
 from app.services.anomaly_detection import scan_recent_anomalies
 from app.services.ml_anomaly_service import scan_school_for_ml_anomalies
 
@@ -93,6 +104,43 @@ def reverse_payment_endpoint(
 def _do_reverse(db: Session, payment_id: str, reason: str, actor_user_id: str) -> tuple[int, dict]:
     reversal = reverse_payment(db, payment_id, reason, actor_user_id)
     return 201, PaymentResponse.model_validate(reversal).model_dump(mode="json")
+
+
+@router.get("/unallocated", response_model=list[UnallocatedPaymentResponse])
+def get_unallocated_payments(
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+):
+    """Confirmed money with no invoice behind it — needs a bursar to apply it to an
+    invoice, or to mark it refunded (the existing reverse endpoint)."""
+    return list_unallocated_payments(db, school_id)
+
+
+@router.post("/{payment_id}/apply", response_model=PaymentResponse, status_code=201)
+@limiter.limit("15/minute")
+def apply_unallocated_payment_endpoint(
+    request: Request,  # required by @limiter.limit — unused otherwise
+    payment_id: str,
+    data: ApplyPaymentRequest,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    return run_idempotent(
+        db,
+        school_id=school_id,
+        user_id=user.user_id,
+        scope=f"payments.apply:{payment_id}",
+        key=idempotency_key,
+        request_body=data.model_dump(mode="json"),
+        action=lambda: (
+            201,
+            PaymentResponse.model_validate(
+                apply_unallocated_payment(db, school_id, payment_id, data.invoice_id, user.user_id)
+            ).model_dump(mode="json"),
+        ),
+    )
 
 
 @router.get("/anomalies", response_model=list[PaymentAnomalyResponse])

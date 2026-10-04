@@ -36,6 +36,8 @@ export interface ParentPaymentView {
   amount: string;
   method: string;
   paid_at: string | null;
+  /** M-Pesa/bank code. A payment split over several invoices is several rows sharing it. */
+  reference_code?: string | null;
 }
 
 export interface ParentInvoiceItemView {

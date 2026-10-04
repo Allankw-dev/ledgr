@@ -1,36 +1,61 @@
 import { ListSkeleton } from '../components/ui/Skeleton';
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { ParentShell } from '../components/ParentShell';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
 import { useMyChildren } from '../hooks/useMyChildren';
+import { groupReceiptRows, type ReceiptGroup } from '../lib/receiptGroups';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(amount);
+}
+
+function Breakdown({ row }: { row: ReceiptGroup }) {
+  return (
+    <ul className="mt-2 rounded-md bg-ink-100 divide-y divide-ink-200" aria-label={`Breakdown of ${formatCurrency(row.total)} payment`}>
+      {row.slices.map((sl) => (
+        <li key={sl.paymentId} className="flex items-center justify-between gap-3 px-3 py-2">
+          <span className="text-xs text-ink-700 min-w-0 truncate">
+            {sl.invoiceLabel} · <span className="figure">{formatCurrency(sl.amount)}</span>
+          </span>
+          <DownloadReceiptLink paymentId={sl.paymentId} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SplitToggle({ row, open, onToggle }: { row: ReceiptGroup; open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline"
+    >
+      Split across {row.slices.length} invoices
+      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+    </button>
+  );
 }
 
 export function ParentReceiptsPage() {
   const { children, loading, error } = useMyChildren();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
-  // Flattened, most-recent-first — a parent thinks of this as "my payment
-  // history", not "payments grouped by child then by invoice", so the flat
-  // shape here is deliberate even though the source data is nested.
-  const rows = useMemo(() => {
-    return children
-      .filter((c) => !selectedChildId || c.id === selectedChildId)
-      .flatMap((child) =>
-        child.invoices.flatMap((inv) =>
-          inv.payments.map((p) => ({
-            paymentId: p.id,
-            childName: child.full_name,
-            amount: Number(p.amount),
-            method: p.method,
-            paidAt: p.paid_at,
-          }))
-        )
-      )
-      .sort((a, b) => new Date(b.paidAt || 0).getTime() - new Date(a.paidAt || 0).getTime());
-  }, [children, selectedChildId]);
+  // Most-recent-first, one entry per payment the parent actually made. A payment that was
+  // split across several invoices is ONE entry with a breakdown (see lib/receiptGroups.ts).
+  const rows = useMemo(() => groupReceiptRows(children, selectedChildId), [children, selectedChildId]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggle(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   return (
     <ParentShell>
@@ -77,15 +102,18 @@ export function ParentReceiptsPage() {
         <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden">
           <ul className="md:hidden divide-y divide-ink-200">
             {rows.map((r) => (
-              <li key={r.paymentId} className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <div className="min-w-0">
-                  <p className="figure text-sm text-ink-900">{formatCurrency(r.amount)}</p>
-                  <p className="text-xs text-ink-600 mt-0.5 truncate">
-                    {r.childName} · {r.method}
-                  </p>
-                  <p className="text-xs text-ink-400 mt-0.5">{r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+              <li key={r.key} className="px-4 py-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="figure text-sm text-ink-900">{formatCurrency(r.total)}</p>
+                    <p className="text-xs text-ink-600 mt-0.5 truncate">
+                      {r.childName} · {r.method}
+                    </p>
+                    <p className="text-xs text-ink-400 mt-0.5">{r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                  </div>
+                  {r.slices.length === 1 ? <DownloadReceiptLink paymentId={r.slices[0].paymentId} /> : <SplitToggle row={r} open={expanded.has(r.key)} onToggle={() => toggle(r.key)} />}
                 </div>
-                <DownloadReceiptLink paymentId={r.paymentId} />
+                {r.slices.length > 1 && expanded.has(r.key) && <Breakdown row={r} />}
               </li>
             ))}
           </ul>
@@ -102,15 +130,24 @@ export function ParentReceiptsPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.paymentId} className="h-10 text-ink-900">
-                  <td className="px-5">{r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-KE') : '—'}</td>
-                  <td className="px-5">{r.childName}</td>
-                  <td className="px-5 text-ink-600">{r.method}</td>
-                  <td className="px-5 figure text-right">{formatCurrency(r.amount)}</td>
-                  <td className="px-5">
-                    <DownloadReceiptLink paymentId={r.paymentId} />
-                  </td>
-                </tr>
+                <Fragment key={r.key}>
+                  <tr className="h-10 text-ink-900">
+                    <td className="px-5">{r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-KE') : '—'}</td>
+                    <td className="px-5">{r.childName}</td>
+                    <td className="px-5 text-ink-600">{r.method}</td>
+                    <td className="px-5 figure text-right">{formatCurrency(r.total)}</td>
+                    <td className="px-5">
+                      {r.slices.length === 1 ? <DownloadReceiptLink paymentId={r.slices[0].paymentId} /> : <SplitToggle row={r} open={expanded.has(r.key)} onToggle={() => toggle(r.key)} />}
+                    </td>
+                  </tr>
+                  {r.slices.length > 1 && expanded.has(r.key) && (
+                    <tr>
+                      <td colSpan={5} className="px-5 pb-3">
+                        <Breakdown row={r} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

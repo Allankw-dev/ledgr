@@ -62,7 +62,7 @@ def get_my_children(db: Session, user_id: str) -> list[ParentStudentView]:
                     due_date=inv.due_date,
                     status=inv.status.value,
                     payments=[
-                        ParentPaymentView(id=p.id, amount=p.amount, method=p.method.value, paid_at=p.paid_at)
+                        ParentPaymentView(id=p.id, amount=p.amount, method=p.method.value, paid_at=p.paid_at, reference_code=p.reference_code)
                         for p in payments
                     ],
                 )

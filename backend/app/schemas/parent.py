@@ -9,6 +9,9 @@ class ParentPaymentView(BaseModel):
     amount: Decimal
     method: str
     paid_at: datetime | None
+    # The M-Pesa/bank code. A payment split across several invoices is several rows
+    # that share this code, which is how the Receipts page puts them back together.
+    reference_code: str | None = None
 
 
 class ParentInvoiceItemView(BaseModel):

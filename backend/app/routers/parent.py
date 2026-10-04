@@ -92,7 +92,10 @@ def list_my_children(
             ).scalars().all()
             for payment in payment_rows:
                 payments_by_invoice.setdefault(payment.invoice_id, []).append(
-                    ParentPaymentView(id=payment.id, amount=payment.amount, method=payment.method.value, paid_at=payment.paid_at)
+                    ParentPaymentView(
+                        id=payment.id, amount=payment.amount, method=payment.method.value,
+                        paid_at=payment.paid_at, reference_code=payment.reference_code,
+                    )
                 )
 
         balance_due = sum((inv.total_amount - inv.amount_paid for inv in invoices), Decimal("0"))

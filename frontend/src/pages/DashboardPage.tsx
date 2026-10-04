@@ -10,6 +10,7 @@ import { useAnomalies } from '../hooks/useAnomalies';
 import { useDashboardAnalytics } from '../hooks/useDashboardAnalytics';
 import { useAuthStore } from '../store/authStore';
 import { WelcomeBanner, type WelcomeChip } from '../components/WelcomeBanner';
+import { UnallocatedPaymentsCard } from '../components/UnallocatedPaymentsCard';
 
 function formatCurrency(amount: number, currency = 'KES') {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
@@ -89,6 +90,8 @@ export function DashboardPage() {
           subtitle="Here's where your school's fee collection stands."
           chips={welcomeChips}
         />
+
+        {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'BURSAR') && <UnallocatedPaymentsCard />}
 
         {error && (
           <div role="alert" className="bg-clay-100 text-clay-700 rounded-md px-4 py-3 text-sm mb-6">

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -27,5 +28,13 @@ export default defineConfig({
     // silent drift is what was causing "my changes aren't showing up"
     // (you were looking at the old server on a different port).
     strictPort: true,
+  },
+  // Component and hook tests (npm test). jsdom stands in for the browser.
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    css: false,
+    restoreMocks: true,
   },
 })

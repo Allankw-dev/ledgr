@@ -12,7 +12,7 @@ from app.models.invoice import Invoice
 from app.models.student import Student, StudentGuardian
 from app.models.school import School, User
 from app.models.enums import GuardianLinkStatus, PaymentMethod, PaymentStatus
-from app.services.invoice_service import lock_invoice, recalculate_invoice_status, student_open_balance, student_open_invoices
+from app.services.invoice_service import OPEN_INVOICE_STATUSES, lock_invoice, recalculate_invoice_status, student_open_balance, student_open_invoices
 from app.services.audit_service import log_audit
 
 
@@ -372,3 +372,138 @@ def reverse_payment(db: Session, payment_id: str, reason: str, actor_user_id: st
     db.refresh(reversal)
     cache.bump(original.school_id, "fin")
     return reversal
+
+
+# --- Unallocated money -------------------------------------------------------
+
+
+def _unallocated_filter(school_id: str):
+    """CONFIRMED, positive, not a reversal row, attached to no invoice."""
+    return (
+        Payment.school_id == school_id,
+        Payment.invoice_id.is_(None),
+        Payment.status == PaymentStatus.CONFIRMED,
+        Payment.amount > 0,
+        Payment.reversal_of_id.is_(None),
+    )
+
+
+def list_unallocated_payments(db: Session, school_id: str) -> list[dict]:
+    """Every payment waiting for a bursar's decision, with the invoices it could be
+    applied to. Oldest first, so nothing sits forgotten at the bottom."""
+    from app.models.invoice import Invoice
+    from app.models.student import Student, Term
+
+    rows = db.execute(
+        select(Payment, Student)
+        .join(Student, Student.id == Payment.student_id)
+        .where(*_unallocated_filter(school_id))
+        .order_by(Payment.paid_at.asc().nulls_last(), Payment.created_at.asc())
+    ).all()
+    if not rows:
+        return []
+
+    student_ids = {payment.student_id for payment, _ in rows}
+    invoice_rows = db.execute(
+        select(Invoice, Term.name)
+        .join(Term, Term.id == Invoice.term_id, isouter=True)
+        .where(Invoice.student_id.in_(student_ids), Invoice.status.in_(OPEN_INVOICE_STATUSES))
+        .order_by(Invoice.due_date.asc(), Invoice.id.asc())
+    ).all()
+    open_by_student: dict[str, list[dict]] = {}
+    for invoice, term_name in invoice_rows:
+        balance = invoice.total_amount - invoice.amount_paid
+        if balance <= 0:
+            continue
+        open_by_student.setdefault(invoice.student_id, []).append(
+            {"id": invoice.id, "label": term_name or "Invoice", "due_date": invoice.due_date, "balance": balance}
+        )
+
+    return [
+        {
+            "id": payment.id,
+            "student_id": student.id,
+            "student_name": student.full_name,
+            "admission_number": student.admission_number,
+            "amount": payment.amount,
+            "method": payment.method.value,
+            "reference_code": payment.reference_code,
+            "paid_at": payment.paid_at,
+            "notes": payment.notes,
+            "open_invoices": open_by_student.get(student.id, []),
+        }
+        for payment, student in rows
+    ]
+
+
+def apply_unallocated_payment(
+    db: Session, school_id: str, payment_id: str, invoice_id: str, actor_user_id: str | None = None
+) -> Payment:
+    """Puts an unallocated payment against one of the same student's open invoices.
+
+    The ledger stays append-only: the original row is marked REVERSED and cancelled by
+    a correction row, and the money is re-recorded as new CONFIRMED rows — one on the
+    invoice (up to what it still owes) and, if there is more than that, one still
+    unallocated. All of it in one transaction. No "payment received" message is sent:
+    the parent was already told when the money arrived."""
+    from app.models.invoice import Invoice
+
+    original = db.execute(
+        select(Payment).where(Payment.id == payment_id, Payment.school_id == school_id).with_for_update()
+    ).scalar_one_or_none()
+    if not original:
+        raise HTTPException(404, "Payment not found")
+    if (
+        original.invoice_id is not None
+        or original.status != PaymentStatus.CONFIRMED
+        or original.amount <= 0
+        or original.reversal_of_id is not None
+    ):
+        raise HTTPException(422, "This payment is not waiting to be allocated")
+
+    invoice = lock_invoice(db, invoice_id)
+    if invoice.school_id != school_id:
+        raise HTTPException(404, "Invoice not found")
+    if invoice.student_id != original.student_id:
+        raise HTTPException(422, "That invoice belongs to a different student")
+    balance = invoice.total_amount - invoice.amount_paid
+    if invoice.status not in OPEN_INVOICE_STATUSES or balance <= 0:
+        raise HTTPException(422, "That invoice has nothing left to pay")
+
+    take = min(original.amount, balance)
+    remainder = original.amount - take
+    now = datetime.now(timezone.utc)
+    shared = dict(
+        school_id=original.school_id,
+        student_id=original.student_id,
+        method=original.method,
+        status=PaymentStatus.CONFIRMED,
+        reference_code=original.reference_code,
+        external_txn_id=original.external_txn_id,
+    )
+
+    original.status = PaymentStatus.REVERSED
+    db.add(Payment(**{**shared, "invoice_id": None, "amount": -original.amount}, reversal_of_id=original.id,
+                   notes="Allocated to an invoice", paid_at=now))
+    applied = Payment(**{**shared, "invoice_id": invoice.id, "amount": take},
+                      paid_at=original.paid_at or now, notes="Applied from an unallocated payment")
+    db.add(applied)
+    if remainder > 0:
+        db.add(Payment(**{**shared, "invoice_id": None, "amount": remainder},
+                       paid_at=original.paid_at or now, notes="Unallocated remainder"))
+    db.flush()
+
+    log_audit(
+        db,
+        school_id=school_id,
+        action="PAYMENT_ALLOCATED",
+        entity_type="Payment",
+        entity_id=original.id,
+        user_id=actor_user_id,
+        metadata={"invoice_id": invoice.id, "applied": str(take), "remainder": str(remainder), "new_payment_id": applied.id},
+    )
+    recalculate_invoice_status(db, invoice.id, commit=False)
+    db.commit()
+    db.refresh(applied)
+    cache.bump(school_id, "fin")
+    return applied

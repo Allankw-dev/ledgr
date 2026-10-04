@@ -29,3 +29,30 @@ class PaymentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ApplyPaymentRequest(BaseModel):
+    invoice_id: str
+
+
+class UnallocatedInvoiceOption(BaseModel):
+    id: str
+    label: str
+    due_date: datetime | None = None
+    balance: Decimal
+
+
+class UnallocatedPaymentResponse(BaseModel):
+    """Money that arrived but has no invoice to sit against (the invoices were all
+    paid off before an M-Pesa prompt was answered, say). Needs a bursar's decision."""
+
+    id: str
+    student_id: str
+    student_name: str
+    admission_number: str
+    amount: Decimal
+    method: str
+    reference_code: str | None = None
+    paid_at: datetime | None = None
+    notes: str | None = None
+    open_invoices: list[UnallocatedInvoiceOption]
