@@ -64,9 +64,15 @@ def enqueue(
     dedupe_key: str | None = None,
     delay_seconds: int = 0,
     max_attempts: int | None = None,
+    urgent: bool = False,
 ) -> bool:
     """Add a job inside the caller's transaction (does NOT commit). Returns
-    False if a job with this dedupe_key already exists."""
+    False if a job with this dedupe_key already exists.
+
+    urgent=True puts the job ahead of everything queued normally. Workers take jobs in run_at
+    order, so without this a "payment received" text queued behind a 10,000-message broadcast
+    would wait hours. (Implemented as a one-day head start on run_at rather than a priority
+    column so it needs no database migration; a real priority column is the tidier long-term fix.)"""
     values: dict[str, Any] = {
         "school_id": school_id,
         "kind": kind,
@@ -75,13 +81,50 @@ def enqueue(
         "max_attempts": max_attempts or settings.job_max_attempts,
     }
     values["id"] = str(uuid.uuid4())
-    if delay_seconds:
+    if urgent:
+        values["run_at"] = datetime.now(timezone.utc) - URGENT_HEAD_START
+    elif delay_seconds:
         values["run_at"] = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
     stmt = pg_insert(Job).values(**values)
     if dedupe_key:
         stmt = stmt.on_conflict_do_nothing(index_elements=["dedupe_key"], index_where=text("dedupe_key IS NOT NULL"))
     result = db.execute(stmt)
     return result.rowcount == 1
+
+
+URGENT_HEAD_START = timedelta(days=1)
+
+
+def enqueue_many(db: Session, rows: list[dict[str, Any]]) -> set[str]:
+    """Add many jobs with ONE statement (inside the caller's transaction, no commit).
+
+    Each row: {school_id, kind, payload, dedupe_key, urgent?}. dedupe_key is required here —
+    it is how the caller learns which rows were really new. Returns the dedupe_keys that were
+    inserted; rows whose key already existed are silently skipped, exactly like enqueue().
+    One round trip instead of one per job is what keeps queueing a school-wide broadcast or a
+    thousand overdue reminders fast against a hosted database."""
+    if not rows:
+        return set()
+    now = datetime.now(timezone.utc)
+    values = [
+        {
+            "id": str(uuid.uuid4()),
+            "school_id": r["school_id"],
+            "kind": r["kind"],
+            "payload": r["payload"],
+            "dedupe_key": r["dedupe_key"],
+            "max_attempts": r.get("max_attempts") or settings.job_max_attempts,
+            "run_at": now - URGENT_HEAD_START if r.get("urgent") else now,
+        }
+        for r in rows
+    ]
+    stmt = (
+        pg_insert(Job)
+        .values(values)
+        .on_conflict_do_nothing(index_elements=["dedupe_key"], index_where=text("dedupe_key IS NOT NULL"))
+        .returning(Job.dedupe_key)
+    )
+    return set(db.execute(stmt).scalars().all())
 
 
 # --- claiming / finishing -----------------------------------------------------
@@ -174,27 +217,35 @@ def purge_finished(older_than_days: int = 7) -> None:
 
 
 def worker_loop(stop: threading.Event, poll_seconds: float | None = None) -> None:
-    """Claim and run jobs until `stop` is set. Sleeps only when idle."""
+    """Claim and run jobs until `stop` is set. Sleeps only when idle.
+
+    Runs up to settings.job_concurrency jobs at the same time on a small thread pool. A claim
+    only takes as many jobs as there are free threads, so a claimed job never sits waiting
+    (which would eat into its visibility timeout and risk being picked up twice)."""
+    from concurrent.futures import ThreadPoolExecutor
+
     from app.services import job_handlers  # noqa: F401 — registers the handlers
 
     poll = poll_seconds if poll_seconds is not None else settings.job_poll_seconds
+    concurrency = max(1, settings.job_concurrency)
     last_maintenance = 0.0
-    logger.info("Job worker %s started", WORKER_ID)
-    while not stop.is_set():
-        try:
-            jobs = claim_jobs(settings.job_batch_size)
-        except Exception:  # noqa: BLE001 — DB blip: back off, don't die
-            logger.exception("Could not claim jobs")
-            stop.wait(5)
-            continue
-        for job in jobs:
-            run_one(job)
-        if time.monotonic() - last_maintenance > 3600:
-            last_maintenance = time.monotonic()
+    logger.info("Job worker %s started (%s at a time)", WORKER_ID, concurrency)
+    with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="job") as pool:
+        while not stop.is_set():
             try:
-                purge_finished()
-            except Exception:  # noqa: BLE001
-                logger.exception("Queue maintenance failed")
-        if not jobs:
-            stop.wait(poll)
+                jobs = claim_jobs(concurrency)
+            except Exception:  # noqa: BLE001 — DB blip: back off, don't die
+                logger.exception("Could not claim jobs")
+                stop.wait(5)
+                continue
+            for future in [pool.submit(run_one, job) for job in jobs]:
+                future.result()  # run_one handles its own errors; this just waits for the batch
+            if time.monotonic() - last_maintenance > 3600:
+                last_maintenance = time.monotonic()
+                try:
+                    purge_finished()
+                except Exception:  # noqa: BLE001
+                    logger.exception("Queue maintenance failed")
+            if not jobs:
+                stop.wait(poll)
     logger.info("Job worker %s stopped", WORKER_ID)

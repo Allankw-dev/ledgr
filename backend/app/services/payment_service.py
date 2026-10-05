@@ -149,6 +149,7 @@ def queue_payment_notification(
             **({"remaining": str(remaining)} if remaining is not None else {}),
         },
         dedupe_key=f"pay-notify:{payment.id}:{succeeded}",
+        urgent=True,  # ahead of any bulk broadcast waiting in the queue
     )
 
 

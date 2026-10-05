@@ -26,7 +26,7 @@ from app.models.payment_plan import PaymentPlan, PaymentPlanStatus
 from app.models.school import School, User
 from app.models.enums import PaymentStatus, GuardianLinkStatus, InvoiceStatus
 from app.services.audit_service import log_audit
-from app.services.invoice_service import generate_invoice_for_student
+from app.services.invoice_service import generate_invoice_for_student, generate_invoices_bulk
 from app.services.risk_scoring import compute_risk_score
 from app.services.payment_plan_service import recommend_payment_plan
 from app.services.notification_service import send_reminder_to_guardian
@@ -215,14 +215,10 @@ def bulk_generate_invoices(
         query = query.where(Student.class_id.in_(targets))
     students = db.execute(query).scalars().all()
 
-    created, skipped, errors = 0, 0, []
-    for student in students:
-        try:
-            generate_invoice_for_student(db, student.id, data.term_id, data.due_date)
-            created += 1
-        except Exception as exc:  # noqa: BLE001 — intentionally broad: one bad student shouldn't stop the batch
-            skipped += 1
-            errors.append({"student_id": student.id, "error": str(exc)})
+    # Batched: ~a dozen round trips for the whole school instead of ~5 per student (see the
+    # function's docstring). Behaviour per student is unchanged.
+    created, errors = generate_invoices_bulk(db, school_id, students, data.term_id, data.due_date)
+    skipped = len(errors)
 
     # One entry for the whole run: who ran it, for which term/classes, and what came of it.
     log_audit(

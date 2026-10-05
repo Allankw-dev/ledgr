@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import String, Numeric, DateTime, ForeignKey, func, Enum as SAEnum, Boolean, Integer
+from sqlalchemy import String, Numeric, DateTime, ForeignKey, Index, func, Enum as SAEnum, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -32,6 +32,10 @@ class Invoice(Base):
     """One bill per student per term."""
 
     __tablename__ = "invoices"
+    # Declared here as well as in the migration that created it (d3a7e1c5f9b2, same name) so a
+    # database built straight from the models — like the test suite's — enforces it too. This is
+    # the real guard against two requests both billing the same student for the same term.
+    __table_args__ = (Index("ux_invoices_student_term", "student_id", "term_id", unique=True),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)

@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import GuardianLinkStatus
 from app.models.student import Student, StudentGuardian
-from app.services.job_handlers import enqueue_guardian_message
+from app.core.jobs import enqueue_many
+from app.services.job_handlers import guardian_message_jobs
 
 
 @dataclass
@@ -35,22 +36,20 @@ def send_bulk_announcement(
     if targets:
         student_filters.append(Student.class_id.in_(targets))
 
-    student_ids = db.execute(select(Student.id).where(*student_filters)).scalars().all()
-    if not student_ids:
-        return AnnouncementResult(recipient_count=0, jobs_queued=0)
-
+    # One query for the guardians (a join, not a giant "student id IN (...)" list): for a school of
+    # thousands that list alone was a very large statement.
     guardian_ids = (
         db.execute(
             select(StudentGuardian.user_id)
-            .where(
-                StudentGuardian.student_id.in_(student_ids),
-                StudentGuardian.status == GuardianLinkStatus.APPROVED,
-            )
+            .join(Student, Student.id == StudentGuardian.student_id)
+            .where(*student_filters, StudentGuardian.status == GuardianLinkStatus.APPROVED)
             .distinct()  # a guardian with two children in the filtered set is messaged once, not twice
         )
         .scalars()
         .all()
     )
+    if not guardian_ids:
+        return AnnouncementResult(recipient_count=0, jobs_queued=0)
 
     email_subject = f"{school_name}: {subject}"
     email_body = f"Dear Parent/Guardian,\n\n{message}\n\nThank you,\n{school_name}"
@@ -66,16 +65,20 @@ def send_bulk_announcement(
 
     batch_key = natural_key(school_id, subject, message, sorted(guardian_ids))
     jobs_queued = 0
-    for guardian_id in guardian_ids:
-        jobs_queued += enqueue_guardian_message(
-            db,
-            school_id=school_id,
-            guardian_id=guardian_id,
-            email_subject=email_subject,
-            email_body=email_body,
-            sms_text=sms_text,
-            dedupe_prefix=f"announce:{batch_key}",
-        )
+    for i in range(0, len(guardian_ids), 500):  # one INSERT per 500 guardians (1,000 jobs), not one per job
+        rows: list[dict] = []
+        for guardian_id in guardian_ids[i : i + 500]:
+            rows.extend(
+                guardian_message_jobs(
+                    school_id=school_id,
+                    guardian_id=guardian_id,
+                    email_subject=email_subject,
+                    email_body=email_body,
+                    sms_text=sms_text,
+                    dedupe_prefix=f"announce:{batch_key}",
+                )
+            )
+        jobs_queued += len(enqueue_many(db, rows))
     errors: list[str] = []
 
     return AnnouncementResult(

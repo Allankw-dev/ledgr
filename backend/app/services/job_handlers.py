@@ -14,7 +14,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.core.database import SystemSessionLocal
-from app.core.jobs import enqueue, job_handler
+from app.core.jobs import enqueue_many, enqueue, job_handler
 from app.models.enums import GuardianLinkStatus
 from app.models.invoice import Invoice
 from app.models.payment import Payment
@@ -33,8 +33,7 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_EMAIL_DOMAIN = "@phone.ledgr.invalid"
 
 
-def enqueue_guardian_message(
-    db,
+def guardian_message_jobs(
     *,
     school_id: str,
     guardian_id: str,
@@ -42,25 +41,31 @@ def enqueue_guardian_message(
     email_body: str,
     sms_text: str,
     dedupe_prefix: str,
-) -> int:
-    """Queue the email + SMS jobs for one guardian (contact details are looked up
-    when the job runs, so they aren't copied into the queue). Returns jobs added."""
-    added = 0
-    added += enqueue(
-        db,
-        school_id=school_id,
-        kind="send_email",
-        payload={"user_id": guardian_id, "subject": email_subject, "body": email_body},
-        dedupe_key=f"{dedupe_prefix}:{guardian_id}:email",
-    )
-    added += enqueue(
-        db,
-        school_id=school_id,
-        kind="send_sms",
-        payload={"user_id": guardian_id, "text": sms_text},
-        dedupe_key=f"{dedupe_prefix}:{guardian_id}:sms",
-    )
-    return added
+    urgent: bool = False,
+) -> list[dict]:
+    """The email + SMS job rows for one guardian (contact details are looked up when the job
+    runs, so they aren't copied into the queue). Pass a list of these to jobs.enqueue_many."""
+    return [
+        {
+            "school_id": school_id,
+            "kind": "send_email",
+            "payload": {"user_id": guardian_id, "subject": email_subject, "body": email_body},
+            "dedupe_key": f"{dedupe_prefix}:{guardian_id}:email",
+            "urgent": urgent,
+        },
+        {
+            "school_id": school_id,
+            "kind": "send_sms",
+            "payload": {"user_id": guardian_id, "text": sms_text},
+            "dedupe_key": f"{dedupe_prefix}:{guardian_id}:sms",
+            "urgent": urgent,
+        },
+    ]
+
+
+def enqueue_guardian_message(db, **kwargs) -> int:
+    """Queue the email + SMS jobs for one guardian. Returns jobs added."""
+    return len(enqueue_many(db, guardian_message_jobs(**kwargs)))
 
 
 @job_handler("send_email")
@@ -148,5 +153,6 @@ def handle_notify_payment_result(payload: dict[str, Any]) -> None:
                 email_body=body,
                 sms_text=sms_text,
                 dedupe_prefix=f"pay:{payment_id}:{'ok' if succeeded else 'fail'}",
+                urgent=True,  # a parent waiting for their payment confirmation must not queue behind a broadcast
             )
         db.commit()

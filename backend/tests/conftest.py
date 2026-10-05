@@ -47,6 +47,7 @@ def _schema():
     if not TEST_DB_URL:
         pytest.skip("no TEST_DATABASE_URL")
     import app.models  # noqa: F401 — registers every table on Base.metadata
+    import app.models.ml  # noqa: F401 — not re-exported by app.models, so import it or its table is never created
     from app.core.database import Base, system_engine
 
     Base.metadata.drop_all(system_engine)

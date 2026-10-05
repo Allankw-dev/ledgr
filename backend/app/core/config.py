@@ -29,7 +29,12 @@ class Settings(BaseSettings):
     # --- Durable job queue (core/jobs.py) ------------------------------------
     job_max_attempts: int = 5
     job_poll_seconds: float = 2.0  # idle sleep between polls
-    job_batch_size: int = 10
+    job_batch_size: int = 10  # (superseded by job_concurrency: a worker claims that many at a time)
+    # Jobs a worker runs AT ONCE. Almost every job is "wait for the SMS/email provider's reply", so
+    # running them one after another capped a worker at ~1-2 messages a second — a 5,000-parent
+    # announcement took over an hour. Threads are the right tool for waiting on the network.
+    # Keep it modest: each running job briefly borrows a database connection.
+    job_concurrency: int = 8
     job_visibility_timeout_seconds: int = 300  # a 'running' job older than this is re-claimed
     # Run a queue worker inside every API process. Fine for one small server;
     # for several instances run `python -m app.worker` separately and set this false.
