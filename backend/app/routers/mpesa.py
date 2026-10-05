@@ -25,9 +25,7 @@ from app.services.mpesa_reconciliation_service import (
     find_unmatched_transaction,
     match_transaction_to_invoice,
 )
-from app.models.enums import GuardianLinkStatus
 from app.models.invoice import Invoice
-from app.services.invoice_service import student_open_balance
 from app.models.student import Student, StudentGuardian
 
 logger = logging.getLogger("ledgr.mpesa")
@@ -39,7 +37,7 @@ router = APIRouter(prefix="/api/payments/mpesa", tags=["mpesa"])
 MIN_PART_PAYMENT = Decimal(10)
 
 
-def _resolve_pay_amount(requested: Decimal | None, balance: Decimal, owed_on: str = "this invoice") -> Decimal:
+def _resolve_pay_amount(requested: Decimal | None, balance: Decimal) -> Decimal:
     """How much this STK push should ask for. M-Pesa works in whole shillings,
     so the amount we ask for, the amount we record on the pending payment and
     the amount the callback must report back are all the same whole number."""
@@ -51,7 +49,7 @@ def _resolve_pay_amount(requested: Decimal | None, balance: Decimal, owed_on: st
     if requested != requested.to_integral_value():
         raise HTTPException(422, "Enter a whole number of shillings.")
     if requested > whole_balance:
-        raise HTTPException(422, f"That is more than the KES {whole_balance:,.0f} still owed on {owed_on}.")
+        raise HTTPException(422, f"That is more than the KES {whole_balance:,.0f} still owed on this invoice.")
     if requested < MIN_PART_PAYMENT and requested != whole_balance:
         raise HTTPException(422, f"The smallest part-payment is KES {MIN_PART_PAYMENT:,.0f}.")
     return requested
@@ -61,48 +59,30 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
     """All the synchronous DB work for an STK push, kept in a plain function
     so the async route can run it in the threadpool. Calling blocking
     SQLAlchemy directly inside an `async def` handler freezes the whole event
-    loop (every other request on that worker) while the query runs.
-
-    Returns (invoice_or_None, pay_amount, student). `invoice` is None when the
-    parent is paying toward the student's whole balance rather than one invoice."""
-    invoice = None
-    if data.student_id:
-        student = db.execute(
-            select(Student).where(Student.id == data.student_id, Student.school_id == school_id)
-        ).scalar_one_or_none()
-        if not student:
-            raise HTTPException(404, "Student not found")
-    else:
-        invoice = db.execute(
-            select(Invoice).where(Invoice.id == data.invoice_id, Invoice.school_id == school_id)
-        ).scalar_one_or_none()
-        if not invoice:
-            raise HTTPException(404, "Invoice not found")
-        student = db.get(Student, invoice.student_id)
+    loop (every other request on that worker) while the query runs."""
+    invoice = db.execute(
+        select(Invoice).where(Invoice.id == data.invoice_id, Invoice.school_id == school_id)
+    ).scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
 
     if user.role == "PARENT":
         link = db.execute(
             select(StudentGuardian).where(
-                StudentGuardian.student_id == student.id,
+                StudentGuardian.student_id == invoice.student_id,
                 StudentGuardian.user_id == user.user_id,
-                StudentGuardian.status == GuardianLinkStatus.APPROVED,
             )
         ).scalar_one_or_none()
         if not link:
             raise HTTPException(403, "You can only pay fees for your own children")
 
-    if invoice is not None:
-        balance = invoice.total_amount - invoice.amount_paid
-        if balance <= 0:
-            raise HTTPException(422, "This invoice is already fully paid")
-        owed_on = "this invoice"
-    else:
-        balance = student_open_balance(db, student.id)
-        if balance <= 0:
-            raise HTTPException(422, "There is nothing left to pay for this student")
-        owed_on = "this student's account"
+    balance = invoice.total_amount - invoice.amount_paid
+    if balance <= 0:
+        raise HTTPException(422, "This invoice is already fully paid")
 
-    pay_amount = _resolve_pay_amount(data.amount, balance, owed_on)
+    pay_amount = _resolve_pay_amount(data.amount, balance)
+
+    student = db.get(Student, invoice.student_id)
     return invoice, pay_amount, student
 
 
@@ -181,8 +161,8 @@ async def request_stk_push(
         create_pending_mpesa_payment,
         db,
         school_id=school_id,
-        student_id=student.id,
-        invoice_id=invoice.id if invoice else None,  # None = whole-balance payment, allocated on the callback
+        student_id=invoice.student_id,
+        invoice_id=invoice.id,
         amount=pay_amount,
         checkout_request_id=checkout_request_id,
     )

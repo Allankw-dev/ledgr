@@ -15,26 +15,17 @@ function kes(n: number) {
 }
 
 interface PayWithMpesaProps {
-  /** Pay toward this one invoice... */
-  invoiceId?: string;
-  /** ...or toward a child's whole balance (applied to their oldest invoice first). Give one of the two. */
-  studentId?: string;
-  /** What is still owed (on the invoice, or in total for studentId). When given, the parent types in how much to pay now. */
+  invoiceId: string;
+  /** What is still owed on this invoice. When given, the parent types in how much to pay now. */
   balance?: number;
   defaultPhone?: string | null;
-  /** Called once the M-Pesa prompt is sent; gets the child's name when one was given. */
-  onInitiated: (childName?: string) => void;
-  /** Which child this payment is for. Give it whenever the parent has more than one child —
-   *  it is shown prominently in the pop-up, on the confirm button and on the success screen. */
-  childName?: string;
-  /** Short context under the child's name, e.g. "Invoice due 31 Oct 2026". */
-  detail?: string;
+  onInitiated: () => void;
   variant?: 'primary' | 'secondary';
   className?: string;
   label?: string;
 }
 
-export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance, defaultPhone, onInitiated, variant = 'primary', className, label = 'Pay now' }: PayWithMpesaProps) {
+export function PayWithMpesa({ invoiceId, balance, defaultPhone, onInitiated, variant = 'primary', className, label = 'Pay now' }: PayWithMpesaProps) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(defaultPhone || '');
   const wholeBalance = balance !== undefined ? Math.floor(balance) : undefined;
@@ -44,7 +35,6 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
   const [sentAmount, setSentAmount] = useState<number | null>(null);
   const [sent, setSent] = useState(false);
 
-  const firstName = childName?.trim().split(/\s+/)[0];
   const choosing = wholeBalance !== undefined;
   const amount = amountStr === '' ? NaN : Number(amountStr);
 
@@ -63,10 +53,10 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
     setError(null);
     setSubmitting(true);
     try {
-      await requestMpesaPayment({ invoiceId, studentId }, phone, choosing ? amount : undefined);
+      await requestMpesaPayment(invoiceId, phone, choosing ? amount : undefined);
       setSentAmount(choosing ? amount : null);
       setSent(true);
-      onInitiated(childName);
+      onInitiated();
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Could not start the M-Pesa payment. Try again.'));
     } finally {
@@ -98,37 +88,19 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
       </Button>
 
       {open && (
-        <Modal title={firstName ? `Pay for ${firstName}` : 'Pay with M-Pesa'} onClose={close}>
+        <Modal title="Pay with M-Pesa" onClose={close}>
           {!sent ? (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {childName && (
-                <div className="flex items-center gap-3 rounded-lg bg-green/10 ring-1 ring-green/25 px-3.5 py-3">
-                  <span
-                    aria-hidden
-                    className="w-9 h-9 shrink-0 rounded-full bg-green/20 text-green flex items-center justify-center text-sm font-semibold"
-                  >
-                    {childName.trim().charAt(0).toUpperCase()}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-wide text-ink-600">Paying school fees for</p>
-                    <p className="text-base font-semibold text-ink-900 truncate">{childName}</p>
-                    {detail && <p className="text-xs text-ink-600">{detail}</p>}
-                  </div>
-                </div>
-              )}
               {choosing && (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-baseline justify-between rounded-lg bg-ink-100/70 ring-1 ring-white/5 px-3.5 py-2.5">
-                    <span className="text-xs text-ink-600">{studentId ? 'Total balance owed' : 'Still owed on this invoice'}</span>
+                    <span className="text-xs text-ink-600">Still owed on this invoice</span>
                     <span className="figure text-sm font-medium text-ink-900">{kes(wholeBalance!)}</span>
                   </div>
 
                   <div>
                     <p className="text-sm font-medium text-ink-700">How much would you like to pay now?</p>
-                    <p className="text-xs text-ink-600 mt-0.5 mb-2.5">
-                      Pay any amount you're comfortable with — you can pay the rest later.
-                      {studentId && ' Your payment clears the oldest invoice first, then the next.'}
-                    </p>
+                    <p className="text-xs text-ink-600 mt-0.5 mb-2.5">Pay any amount you're comfortable with — you can pay the rest later.</p>
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-400">KES</span>
                       <input
@@ -173,11 +145,7 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting || !phone || !!amountError}>
-                  {submitting
-                    ? 'Sending…'
-                    : choosing && !amountError
-                      ? `Pay ${kes(amount)}${firstName ? ` for ${firstName}` : ''}`
-                      : 'Send payment request'}
+                  {submitting ? 'Sending…' : choosing && !amountError ? `Pay ${kes(amount)}` : 'Send payment request'}
                 </Button>
               </div>
             </form>
@@ -186,8 +154,7 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
               <Smartphone className="w-8 h-8 text-emerald-700 mx-auto mb-3" strokeWidth={1.5} />
               <p className="text-sm text-ink-900 font-medium mb-1">Check your phone</p>
               <p className="text-sm text-ink-600 mb-4">
-                A prompt{sentAmount !== null ? <> for <span className="figure text-ink-900">{kes(sentAmount)}</span></> : ''}
-                {firstName && <> to pay <span className="font-medium text-ink-900">{childName}</span>'s fees</>} has been sent to {phone}. Enter your M-Pesa PIN to
+                A prompt{sentAmount !== null ? <> for <span className="figure text-ink-900">{kes(sentAmount)}</span></> : ''} has been sent to {phone}. Enter your M-Pesa PIN to
                 complete the payment — this page will update automatically once it's confirmed.
               </p>
               <Button variant="secondary" onClick={close}>
