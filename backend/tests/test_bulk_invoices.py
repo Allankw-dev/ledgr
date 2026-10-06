@@ -72,7 +72,7 @@ def _one_at_a_time(db, s, students, term_id):
     created, errs = 0, []
     for st in students:
         try:
-            generate_invoice_for_student(db, st.id, term_id, s.due)
+            generate_invoice_for_student(db, st.school_id, st.id, term_id, s.due)
             created += 1
         except Exception as exc:  # noqa: BLE001 — the old endpoint's exact behaviour
             errs.append({"student_id": st.id, "error": str(exc)})
@@ -99,7 +99,7 @@ def test_batched_result_is_identical_to_one_at_a_time(db, school):
 
 
 def test_already_invoiced_students_are_skipped_with_the_same_message(db, school):
-    generate_invoice_for_student(db, school.kids[0].id, school.term.id, school.due)
+    generate_invoice_for_student(db, school.kids[0].school_id, school.kids[0].id, school.term.id, school.due)
     created, errors = generate_invoices_bulk(db, school.sid, school.kids, school.term.id, school.due)
     assert created == 30  # 31 minus the one that already had an invoice
     assert errors == [{"student_id": school.kids[0].id, "error": "409: An invoice already exists for this student and term"}]
@@ -136,7 +136,7 @@ def test_a_concurrent_run_that_beat_us_to_some_students_is_handled(db, school, m
         if not state["injected"] and items and isinstance(items[0], Invoice):
             state["injected"] = True
             with svc.SystemSessionLocal() as other:  # a different connection, like another request
-                real(other, school.kids[3].id, school.term.id, school.due)
+                real(other, school.kids[3].school_id, school.kids[3].id, school.term.id, school.due)
         return original_add_all(items)
 
     monkeypatch.setattr(svc, "SystemSessionLocal", __import__("app.core.database", fromlist=["x"]).SystemSessionLocal, raising=False)

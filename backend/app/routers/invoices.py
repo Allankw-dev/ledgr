@@ -101,12 +101,14 @@ def list_invoices(
 def create_invoice(
     request: Request,  # required by @limiter.limit — unused otherwise
     data: GenerateInvoiceRequest,
-    school_id: str = Depends(get_school_scope),  # noqa: ARG001 — enforced via student lookup in service
+    school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
     actor: CurrentUser = Depends(get_current_user),
 ):
     # commit=False so the invoice and its audit entry land in ONE transaction.
-    invoice = generate_invoice_for_student(db, data.student_id, data.term_id, data.due_date, commit=False)
+    invoice = generate_invoice_for_student(
+        db, school_id, data.student_id, data.term_id, data.due_date, commit=False
+    )
     log_audit(
         db,
         school_id=invoice.school_id,

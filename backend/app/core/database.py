@@ -18,6 +18,17 @@ if not settings.app_database_url:
         "in .env to close this gap.",
         stacklevel=1,
     )
+    if settings.environment == "production":
+        # A Python warning is easy to miss in hosting logs. In production this is a real
+        # security gap (the second tenant wall is off), so log it as an ERROR on every boot.
+        # Deliberately not fatal: refusing to start would turn a config slip into an outage.
+        import logging
+
+        logging.getLogger("ledgr.security").error(
+            "SECURITY: ENVIRONMENT=production but APP_DATABASE_URL is not set. The app is running "
+            "as the table owner, so Row-Level Security is NOT protecting school data. Set "
+            "APP_DATABASE_URL to the restricted ledgr_app role (see sql/enable_rls.sql)."
+        )
 
 # pool_pre_ping avoids "server closed the connection unexpectedly" errors
 # after Supabase idles a connection out — the classic cause of intermittent

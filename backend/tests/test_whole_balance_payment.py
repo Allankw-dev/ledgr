@@ -251,7 +251,7 @@ def test_split_payment_can_be_reversed_slice_by_slice(db, world, three):
     _pending(db, world, "60000")
     ps.resolve_mpesa_callback(db, "ws_CO_whole", 0, "RCPSPLIT", paid_amount=60000)
     big_slice = db.execute(select(Payment).where(Payment.invoice_id == big.id)).scalar_one()
-    ps.reverse_payment(db, big_slice.id, "wrong phone")
+    ps.reverse_payment(db, world.school.id, big_slice.id, "wrong phone")
     assert _invoice(db, big).amount_paid == 0
     assert _invoice(db, mid).amount_paid == D("3990.00")  # the other slice is untouched
 

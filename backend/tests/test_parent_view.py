@@ -18,7 +18,7 @@ def test_reversed_payment_does_not_show_as_negative_line_to_parent(db, world):
     db.commit()
     keep = ps.record_confirmed_payment(db, world.school.id, world.student.id, Decimal("2000"), PaymentMethod.CASH, invoice_id=world.invoice.id)
     bad = ps.record_confirmed_payment(db, world.school.id, world.student.id, Decimal("5000"), PaymentMethod.CASH, invoice_id=world.invoice.id)
-    ps.reverse_payment(db, bad.id, "entered twice")
+    ps.reverse_payment(db, world.school.id, bad.id, "entered twice")
 
     user = CurrentUser(user_id=world.parent.id, school_id=world.school.id, role="PARENT")
     views = parent_router.list_my_children(db=db, user=user, _school_id=world.school.id)

@@ -325,14 +325,21 @@ def resolve_mpesa_callback(
     return payment
 
 
-def reverse_payment(db: Session, payment_id: str, reason: str, actor_user_id: str | None = None) -> Payment:
+def reverse_payment(
+    db: Session, school_id: str, payment_id: str, reason: str, actor_user_id: str | None = None
+) -> Payment:
     """
     Reverses a payment via a linked correction row rather than editing or
     deleting the original — the ledger always shows exactly what happened.
+
+    school_id is required and part of the lookup, so a payment from another school is
+    simply "not found" — this must not depend on Row-Level Security being switched on.
     """
     # Locked so two clicks (or a click plus a retry) can't both pass the
     # "still CONFIRMED" check and reverse the same payment twice.
-    original = db.execute(select(Payment).where(Payment.id == payment_id).with_for_update()).scalar_one_or_none()
+    original = db.execute(
+        select(Payment).where(Payment.id == payment_id, Payment.school_id == school_id).with_for_update()
+    ).scalar_one_or_none()
     if not original:
         raise HTTPException(404, "Payment not found")
     if original.status != PaymentStatus.CONFIRMED:

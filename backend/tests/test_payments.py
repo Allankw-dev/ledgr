@@ -125,7 +125,7 @@ def test_callback_for_unknown_checkout_id_is_noop(db, world):
 def test_reversal_restores_invoice_and_is_append_only(db, world):
     p = _pay(db, world, "10000")
     assert _invoice(db, world).status == InvoiceStatus.PAID
-    rev = ps.reverse_payment(db, p.id, "entered twice", actor_user_id=world.bursar.id)
+    rev = ps.reverse_payment(db, world.school.id, p.id, "entered twice", actor_user_id=world.bursar.id)
     assert rev.amount == D("-10000.00") and rev.reversal_of_id == p.id
     inv = _invoice(db, world)
     assert inv.amount_paid == 0 and inv.status in (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE)
@@ -136,9 +136,9 @@ def test_reversal_restores_invoice_and_is_append_only(db, world):
 
 def test_cannot_reverse_twice(db, world):
     p = _pay(db, world, "1000")
-    ps.reverse_payment(db, p.id, "oops")
+    ps.reverse_payment(db, world.school.id, p.id, "oops")
     with pytest.raises(HTTPException) as e:
-        ps.reverse_payment(db, p.id, "oops again")
+        ps.reverse_payment(db, world.school.id, p.id, "oops again")
     assert e.value.status_code == 422
 
 
@@ -201,7 +201,7 @@ def test_concurrent_reversal_only_one_wins(db, world):
     def work(_):
         with SystemSessionLocal() as s:
             try:
-                ps.reverse_payment(s, pid, "double click")
+                ps.reverse_payment(s, world.school.id, pid, "double click")
                 outcomes.append("ok")
             except HTTPException as exc:
                 outcomes.append(exc.status_code)

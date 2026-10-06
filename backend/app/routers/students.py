@@ -805,7 +805,11 @@ def download_fee_statement(
     school = db.get(School, school_id)
     school_class = db.get(SchoolClass, student.class_id) if student.class_id else None
 
-    term = db.get(Term, term_id) if term_id else None
+    term = (
+        db.execute(select(Term).where(Term.id == term_id, Term.school_id == school_id)).scalar_one_or_none()
+        if term_id
+        else None
+    )
     if term_id and not term:
         raise HTTPException(404, "Term not found")
 

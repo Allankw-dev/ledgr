@@ -139,7 +139,7 @@ def test_other_schools_payment_is_404(db, world):
 
 def test_marking_refunded_uses_reversal_and_clears_the_list(db, world):
     pay = _unallocated(db, world, "500")
-    ps.reverse_payment(db, pay.id, "Refunded to payer", world.bursar.id)
+    ps.reverse_payment(db, world.school.id, pay.id, "Refunded to payer", world.bursar.id)
     assert ps.list_unallocated_payments(db, world.school.id) == []
     db.expire_all()
     assert db.get(Payment, pay.id).status == PaymentStatus.REVERSED

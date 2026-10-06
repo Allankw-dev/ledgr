@@ -96,13 +96,13 @@ def reverse_payment_endpoint(
         scope=f"payments.reverse:{payment_id}",
         key=idempotency_key,
         request_body=data.model_dump(mode="json"),
-        action=lambda: _do_reverse(db, payment_id, data.reason, user.user_id),
+        action=lambda: _do_reverse(db, school_id, payment_id, data.reason, user.user_id),
         on_commit=lambda: cache.bump(school_id, "fin"),
     )
 
 
-def _do_reverse(db: Session, payment_id: str, reason: str, actor_user_id: str) -> tuple[int, dict]:
-    reversal = reverse_payment(db, payment_id, reason, actor_user_id)
+def _do_reverse(db: Session, school_id: str, payment_id: str, reason: str, actor_user_id: str) -> tuple[int, dict]:
+    reversal = reverse_payment(db, school_id, payment_id, reason, actor_user_id)
     return 201, PaymentResponse.model_validate(reversal).model_dump(mode="json")
 
 

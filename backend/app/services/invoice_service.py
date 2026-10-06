@@ -15,14 +15,19 @@ from app.services import ml_data_service
 
 
 def generate_invoice_for_student(
-    db: Session, student_id: str, term_id: str, due_date: datetime, *, commit: bool = True
+    db: Session, school_id: str, student_id: str, term_id: str, due_date: datetime, *, commit: bool = True
 ) -> Invoice:
     """
     Sums every applicable FeeStructure (class-specific + school-wide) for the
     term into one invoice. Idempotent: raises rather than silently creating
     a duplicate bill if one already exists for this student/term.
+
+    school_id is required and part of the student lookup, so another school's student is
+    simply "not found" — this must not depend on Row-Level Security being switched on.
     """
-    student = db.get(Student, student_id)
+    student = db.execute(
+        select(Student).where(Student.id == student_id, Student.school_id == school_id)
+    ).scalar_one_or_none()
     if not student:
         raise HTTPException(404, "Student not found")
 
@@ -155,7 +160,7 @@ def generate_invoices_bulk(
             db.rollback()
             for student, _ in chunk:
                 try:
-                    generate_invoice_for_student(db, student.id, term_id, due_date)
+                    generate_invoice_for_student(db, school_id, student.id, term_id, due_date)
                     created += 1
                 except HTTPException as exc:
                     skip(student.id, exc.status_code, exc.detail)
