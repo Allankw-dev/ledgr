@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, AtSign, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -25,16 +26,55 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
   const role = useAuthStore((s) => s.user?.role);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const chatPath = role === 'PARENT' ? '/parent/class-group' : '/class-groups';
   const canAskPermission = typeof Notification !== 'undefined' && Notification.permission === 'default';
+
+  // The dropdown is drawn straight into <body> (see the portal below), so it is placed from the
+  // bell's position on screen. It used to be absolutely positioned inside the page header, which
+  // meant the page content (same z-index, later in the page) was painted on top of it, and on
+  // 360px phones its fixed 320px width hung 20px off the left edge of the screen.
+  const place = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const margin = 12;
+    const r = btn.getBoundingClientRect();
+    const width = Math.min(320, window.innerWidth - margin * 2);
+    // Right-align to the bell, then nudge so the whole dropdown stays inside the screen.
+    const left = Math.min(Math.max(r.right - width, margin), window.innerWidth - width - margin);
+    setPos({ top: r.bottom + 8, left, width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true); // the page can scroll under an open dropdown
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // The dropdown lives outside the bell's DOM tree now, so check both.
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
     }
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   const badge = Math.max(total, unreadMentions);
@@ -43,6 +83,7 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => {
           setOpen((o) => !o);
@@ -63,8 +104,14 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
         )}
       </button>
 
-      {open && (
-        <div className="pop-in absolute right-0 mt-2 w-80 max-w-[90vw] z-50 rounded-lg border border-ink-200 bg-panel shadow-2xl overflow-hidden">
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          role="dialog"
+          aria-label="Mentions"
+          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: `calc(100dvh - ${pos.top}px - 12px)` }}
+          className="pop-in origin-top-right fixed z-[60] flex flex-col rounded-lg border border-ink-200 bg-panel shadow-2xl overflow-hidden"
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
             <p className="text-sm font-medium text-ink-900">Mentions</p>
             {unseen.length > 0 && (
@@ -74,7 +121,7 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
             )}
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
+          <div className="min-h-0 max-h-80 overflow-y-auto">
             {mentions.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <AtSign className="w-6 h-6 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
@@ -115,7 +162,8 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
               Get desktop alerts when someone mentions you
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
