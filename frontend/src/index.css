@@ -78,7 +78,10 @@
   body {
     max-width: 100%;
     /* clip (not hidden) so a stray wide element can never create sideways
-       scrolling on phones, without breaking position: sticky. */
+       scrolling on phones, without breaking position: sticky. The plain
+       `hidden` line is the fallback for browsers that predate `clip`
+       (iOS Safari before 16) — they ignore the second line, newer ones use it. */
+    overflow-x: hidden;
     overflow-x: clip;
   }
 
@@ -480,7 +483,7 @@
     min-height: 100dvh;
     display: flex;
     justify-content: center;
-    padding: 0.5rem 1rem;
+    padding: 0.5rem max(1rem, env(safe-area-inset-right)) 0.5rem max(1rem, env(safe-area-inset-left));
     position: relative;
     overflow-x: hidden;
     /* Scroll only as a last resort: useFitToViewport shrinks the card to fit
@@ -556,12 +559,17 @@
   .auth-forms-row {
     display: grid;
     width: 100%;
+    /* minmax(0, 1fr), not the default auto track: an auto track grows to fit its widest
+       child, so one over-wide element (Google's button was 320 px on a 280 px card) stretched
+       the whole form past the screen edge. This pins the track to the card's width. */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .auth-form-panel {
     grid-column: 1;
     grid-row: 1;
     width: 100%;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -590,8 +598,12 @@
      mid-transition. */
   .auth-form-inner {
     width: 100%;
+    min-width: 0;
     max-width: 392px;
     padding: 34px 48px;
+  }
+  .auth-form-inner iframe {
+    max-width: 100%;
   }
   .auth-form-panel--login .auth-form-inner {
     margin-right: auto;
@@ -1213,3 +1225,16 @@ main tbody > tr:nth-child(n + 8), main ul[class~='divide-y'] > li:nth-child(n + 
 .auth-form-panel[data-hidden='false'] form > *:nth-child(5) { animation-delay: 0.24s; }
 .auth-form-panel[data-hidden='false'] form > *:nth-child(6) { animation-delay: 0.3s; }
 .auth-form-panel[data-hidden='false'] form > *:nth-child(n + 7) { animation-delay: 0.36s; }
+
+
+/* --- iPhone/iPad Safari zooms the whole page in when you tap a field whose text is smaller
+   than 16px, and never zooms back out — it looks like the app "doesn't fit" the phone. Most
+   fields already use 16px on phones; this guarantees it for every field (selects, textareas,
+   search boxes, chat boxes). Unlayered on purpose, so it beats Tailwind's text-sm utility. --- */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

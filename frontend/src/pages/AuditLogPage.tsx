@@ -58,7 +58,7 @@ export function AuditLogPage() {
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl text-ink-900 font-medium flex items-center gap-2">
               <ScrollText className="w-5 h-5" strokeWidth={1.75} />
@@ -66,7 +66,7 @@ export function AuditLogPage() {
             </h1>
             <p className="text-sm text-ink-600 mt-1">Every meaningful change, who made it, and when.</p>
           </div>
-          <div className="w-56">
+          <div className="w-full sm:w-56">
             <SelectField
               label="Filter by action"
               value={actionFilter}
