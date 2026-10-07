@@ -24,13 +24,25 @@ export function useUnreadNotifications() {
   const [unreadDirect, setUnreadDirect] = useState(0);
   const [openChatReports, setOpenChatReports] = useState(0);
   const [mentions, setMentions] = useState<MentionNotification[]>([]);
+  // The server can take a few seconds to answer. Until the first list arrives the bell must say
+  // "loading" — not "Nobody has mentioned you yet", which is a claim, and a wrong one.
+  const [mentionsLoaded, setMentionsLoaded] = useState(false);
+  const [mentionsLoading, setMentionsLoading] = useState(false);
+  const [mentionsFailed, setMentionsFailed] = useState(false);
   const lastMentionCount = useRef<number | null>(null);
+  const mentionsRef = useRef<MentionNotification[]>([]);
+  mentionsRef.current = mentions;
 
   const loadMentions = useCallback(async () => {
+    setMentionsLoading(true);
     try {
       setMentions(await listMentions());
+      setMentionsLoaded(true);
+      setMentionsFailed(false);
     } catch {
-      /* keep the last list */
+      setMentionsFailed(true); // keep whatever list we already had
+    } finally {
+      setMentionsLoading(false);
     }
   }, []);
 
@@ -48,6 +60,8 @@ export function useUnreadNotifications() {
       if (s.unread_mentions > 0 && (previous === null || s.unread_mentions > previous)) {
         const list = await listMentions();
         setMentions(list);
+        setMentionsLoaded(true);
+        setMentionsFailed(false);
         // Only interrupt with a desktop notification for a NEW mention, not on first load.
         if (previous !== null && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           const newest = list.find((m) => !m.seen);
@@ -69,10 +83,27 @@ export function useUnreadNotifications() {
   }, [enabled, poll]);
   usePolling(poll, POLL_INTERVAL_MS, enabled);
 
+  // Optimistic: the badge and the list change the instant the person taps, and the server is
+  // told in the background. (It used to wait for the request AND two refetches before anything
+  // changed — on a slow connection that was several seconds of a tap that seemed to do nothing.)
+  // The returned promise settles when the server has caught up; callers should not await it
+  // before navigating.
   const markSeen = useCallback(
     async (ids?: string[]) => {
-      await markMentionsSeen(ids);
-      await Promise.all([poll(), loadMentions()]);
+      const wasUnseen = mentionsRef.current.filter((m) => !m.seen && (!ids || ids.includes(m.id))).length;
+      setMentions((prev) => prev.map((m) => (!ids || ids.includes(m.id) ? { ...m, seen: true } : m)));
+      setUnreadMentions((prev) => {
+        const next = ids ? Math.max(0, prev - wasUnseen) : 0;
+        lastMentionCount.current = next; // so the next poll doesn't mistake this for a new mention
+        return next;
+      });
+      try {
+        await markMentionsSeen(ids);
+      } catch {
+        /* the refresh below puts the true numbers back if the server didn't take it */
+      }
+      void poll();
+      void loadMentions();
     },
     [poll, loadMentions]
   );
@@ -95,5 +126,9 @@ export function useUnreadNotifications() {
     };
   }, []);
 
-  return { unreadMessages, unreadClassGroups, unreadDirect, openChatReports, unreadMentions, mentions, total, refresh: poll, loadMentions, markSeen };
+  return {
+    unreadMessages, unreadClassGroups, unreadDirect, openChatReports, unreadMentions, mentions,
+    mentionsLoaded, mentionsLoading, mentionsFailed,
+    total, refresh: poll, loadMentions, markSeen,
+  };
 }

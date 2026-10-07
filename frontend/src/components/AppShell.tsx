@@ -83,6 +83,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       total={notif.total}
       unreadMentions={notif.unreadMentions}
       mentions={notif.mentions}
+      mentionsLoaded={notif.mentionsLoaded}
+      mentionsFailed={notif.mentionsFailed}
       onOpen={notif.loadMentions}
       onMarkSeen={notif.markSeen}
     />

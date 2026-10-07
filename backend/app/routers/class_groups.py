@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from sqlalchemy import select, func, or_, case
+from sqlalchemy import and_, select, func, or_, case
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -97,12 +97,15 @@ def _mark_class_group_read(db: Session, user_id: str, class_id: str) -> None:
     db.commit()
 
 
-def mark_class_groups_delivered(db: Session, user: CurrentUser, school_id: str) -> None:
+def mark_class_groups_delivered(
+    db: Session, user: CurrentUser, school_id: str, class_ids: set[str] | None = None
+) -> None:
     """Records that this person's app just reached the server (their periodic
     notification poll, or opening the chat list) — so messages sent before now
     count as *delivered* to them, even if they haven't opened the chat yet.
     Writes only when a newer message exists, so frequent polling stays cheap."""
-    class_ids = _accessible_class_ids(db, user, school_id)
+    if class_ids is None:
+        class_ids = _accessible_class_ids(db, user, school_id)
     if not class_ids:
         return
     stmt = pg_insert(ClassGroupReadState).values(
@@ -134,8 +137,11 @@ def mark_class_groups_delivered(db: Session, user: CurrentUser, school_id: str) 
         set_={"last_delivered_at": func.clock_timestamp()},
         where=or_(ClassGroupReadState.last_delivered_at.is_(None), newer_message),
     )
-    db.execute(stmt)
-    db.commit()
+    result = db.execute(stmt)
+    # Nothing newer than the last delivery -> nothing was written -> no commit. Skipping it saves
+    # a round trip, and the fresh transaction (and tenant set_config) that a commit would start.
+    if result.rowcount:
+        db.commit()
 
 
 def _member_directory(db: Session, school_id: str, class_id: str) -> dict[str, dict]:
@@ -190,48 +196,40 @@ def _member_directory(db: Session, school_id: str, class_id: str) -> dict[str, d
     return members
 
 
-def unread_class_group_count_for_user(db: Session, user: CurrentUser, school_id: str) -> int:
-    """Read-only — used by the notifications summary endpoint, safe to
-    poll frequently since it never marks anything as read itself.
+def unread_class_groups_subquery(user_id: str, class_ids: set[str]):
+    """COUNT of messages this person hasn't read, as a scalar subquery so callers can fold it
+    into a single round trip with their other counts.
 
-    Two queries total regardless of how many grades the user belongs to —
-    originally this ran one COUNT query per class in a loop, which is fine
-    for a parent with one or two children but turns into real N+1 load at
-    poll-every-25-seconds scale once a school has staff or teachers who
-    are in a dozen+ groups. Fetching the (lightweight) candidate rows once
-    and counting in Python is one round-trip either way."""
+    Counts in the database (a LEFT JOIN to the person's read marker per class) rather than
+    pulling every message row from the last 90 days into Python: same answer, but one active
+    class group no longer costs thousands of rows over the wire on every poll. A message is
+    unread if the person never opened that class (no marker / placeholder epoch marker) or it
+    arrived after they last read it. Bounded to a rolling 90-day window, as before.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    return (
+        select(func.count())
+        .select_from(ClassGroupMessage)
+        .outerjoin(
+            ClassGroupReadState,
+            and_(ClassGroupReadState.class_id == ClassGroupMessage.class_id, ClassGroupReadState.user_id == user_id),
+        )
+        .where(
+            ClassGroupMessage.class_id.in_(class_ids),
+            ClassGroupMessage.sender_user_id != user_id,
+            ClassGroupMessage.created_at >= cutoff,
+            or_(ClassGroupReadState.last_read_at.is_(None), ClassGroupMessage.created_at > ClassGroupReadState.last_read_at),
+        )
+        .scalar_subquery()
+    )
+
+
+def unread_class_group_count_for_user(db: Session, user: CurrentUser, school_id: str) -> int:
+    """Read-only — safe to poll frequently since it never marks anything as read itself."""
     class_ids = _accessible_class_ids(db, user, school_id)
     if not class_ids:
         return 0
-
-    read_states = {
-        rs.class_id: rs.last_read_at
-        for rs in db.execute(
-            select(ClassGroupReadState).where(
-                ClassGroupReadState.user_id == user.user_id, ClassGroupReadState.class_id.in_(class_ids)
-            )
-        ).scalars().all()
-    }
-
-    # Bounded to a rolling 90-day window — unread counts don't need to
-    # scan a full school year of history as classes accumulate messages,
-    # and this keeps the query cost flat over time rather than growing
-    # with the group's total lifetime message volume.
-    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
-    rows = db.execute(
-        select(ClassGroupMessage.class_id, ClassGroupMessage.created_at).where(
-            ClassGroupMessage.class_id.in_(class_ids),
-            ClassGroupMessage.sender_user_id != user.user_id,
-            ClassGroupMessage.created_at >= cutoff,
-        )
-    ).all()
-
-    total = 0
-    for class_id, created_at in rows:
-        last_read = read_states.get(class_id)
-        if last_read is None or created_at > last_read:
-            total += 1
-    return total
+    return db.execute(select(unread_class_groups_subquery(user.user_id, class_ids))).scalar_one()
 
 
 def _preview(msg: ClassGroupMessage) -> str:

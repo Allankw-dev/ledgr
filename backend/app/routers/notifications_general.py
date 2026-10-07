@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select, func, update
+from sqlalchemy import literal, select, func, update
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -11,7 +11,7 @@ from app.models.message import Message
 from app.models.direct_message import DirectConversation, DirectMessage, DirectReport
 from app.models.school import User
 from app.models.student import SchoolClass
-from app.routers.class_groups import unread_class_group_count_for_user, mark_class_groups_delivered
+from app.routers.class_groups import _accessible_class_ids, mark_class_groups_delivered, unread_class_groups_subquery
 from app.schemas.notification import AllNotificationsSummary, MentionNotification, MarkMentionsSeenRequest
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"], dependencies=[Depends(get_current_user)])
@@ -27,35 +27,22 @@ def get_summary(
 ):
     """One poll for every "something new" indicator, for every role.
     Polling this also records that the person's app is online, which is what
-    turns a sender's single grey tick into two (delivered)."""
-    mark_class_groups_delivered(db, user, school_id)
+    turns a sender's single grey tick into two (delivered).
 
-    unread_messages = 0
-    if user.role == "PARENT":
-        unread_messages = db.execute(
-            select(func.count())
-            .select_from(Message)
-            .where(
-                Message.parent_user_id == user.user_id,
-                Message.sender_role == MessageSenderRole.STAFF,
-                Message.read_by_parent_at.is_(None),
-            )
-        ).scalar_one()
+    This runs every ~25 s for every logged-in person, and each database round trip costs a
+    real network hop to a hosted database (hundreds of ms when the app and database are in
+    different regions). It used to take 15 round trips; it now takes about 5: the person's
+    classes are looked up once, a poll that has nothing new to record writes and commits
+    nothing, and every count comes back from a single SELECT."""
+    class_ids = _accessible_class_ids(db, user, school_id)
+    mark_class_groups_delivered(db, user, school_id, class_ids)
 
-    groups = unread_class_group_count_for_user(db, user, school_id)
-    mentions = db.execute(
-        select(func.count())
-        .select_from(ClassGroupMention)
-        .where(ClassGroupMention.mentioned_user_id == user.user_id, ClassGroupMention.seen_at.is_(None))
-    ).scalar_one()
-
-    unread_direct = 0
     if user.role in ("TEACHER", "PARENT"):
         mine = select(DirectConversation.id).where(
             (DirectConversation.teacher_user_id == user.user_id) | (DirectConversation.parent_user_id == user.user_id)
         )
         # The person's app just reached the server: their incoming private messages are now "delivered".
-        db.execute(
+        delivered = db.execute(
             update(DirectMessage)
             .where(
                 DirectMessage.delivered_at.is_(None),
@@ -64,8 +51,9 @@ def get_summary(
             )
             .values(delivered_at=func.clock_timestamp())
         )
-        db.commit()
-        unread_direct = db.execute(
+        if delivered.rowcount:  # commit only when something changed — see the note above
+            db.commit()
+        unread_direct_q = (
             select(func.count())
             .select_from(DirectMessage)
             .where(
@@ -74,13 +62,41 @@ def get_summary(
                 DirectMessage.sender_user_id != user.user_id,
                 DirectMessage.conversation_id.in_(mine),
             )
-        ).scalar_one()
+            .scalar_subquery()
+        )
+    else:
+        unread_direct_q = literal(0)
 
-    open_reports = 0
-    if user.role == "SCHOOL_ADMIN":
-        open_reports = db.execute(
-            select(func.count()).select_from(DirectReport).where(DirectReport.status == "OPEN")
-        ).scalar_one()
+    if user.role == "PARENT":
+        unread_messages_q = (
+            select(func.count())
+            .select_from(Message)
+            .where(
+                Message.parent_user_id == user.user_id,
+                Message.sender_role == MessageSenderRole.STAFF,
+                Message.read_by_parent_at.is_(None),
+            )
+            .scalar_subquery()
+        )
+    else:
+        unread_messages_q = literal(0)
+
+    groups_q = unread_class_groups_subquery(user.user_id, class_ids) if class_ids else literal(0)
+    mentions_q = (
+        select(func.count())
+        .select_from(ClassGroupMention)
+        .where(ClassGroupMention.mentioned_user_id == user.user_id, ClassGroupMention.seen_at.is_(None))
+        .scalar_subquery()
+    )
+    reports_q = (
+        select(func.count()).select_from(DirectReport).where(DirectReport.status == "OPEN").scalar_subquery()
+        if user.role == "SCHOOL_ADMIN"
+        else literal(0)
+    )
+
+    unread_messages, groups, mentions, unread_direct, open_reports = db.execute(
+        select(unread_messages_q, groups_q, mentions_q, unread_direct_q, reports_q)
+    ).one()
 
     return AllNotificationsSummary(
         unread_messages=unread_messages,

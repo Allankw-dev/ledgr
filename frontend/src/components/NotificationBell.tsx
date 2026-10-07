@@ -9,6 +9,9 @@ interface Props {
   total: number;
   unreadMentions: number;
   mentions: MentionNotification[];
+  /** True once the first list has arrived. Until then an empty list means "not here yet", not "none". */
+  mentionsLoaded?: boolean;
+  mentionsFailed?: boolean;
   onOpen: () => void;
   onMarkSeen: (ids?: string[]) => Promise<void>;
 }
@@ -21,7 +24,7 @@ function timeAgo(iso: string) {
 }
 
 /** Bell with an unread badge and a dropdown of "X mentioned you" items. */
-export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMarkSeen }: Props) {
+export function NotificationBell({ total, unreadMentions, mentions, mentionsLoaded = true, mentionsFailed = false, onOpen, onMarkSeen }: Props) {
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.user?.role);
   const [open, setOpen] = useState(false);
@@ -115,14 +118,26 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
           <div className="flex items-center justify-between px-4 py-3 border-b border-ink-200">
             <p className="text-sm font-medium text-ink-900">Mentions</p>
             {unseen.length > 0 && (
-              <button onClick={() => onMarkSeen()} className="text-xs text-emerald-700 hover:underline">
+              <button onClick={() => void onMarkSeen()} className="text-xs text-emerald-700 hover:underline">
                 Mark all read
               </button>
             )}
           </div>
 
           <div className="min-h-0 max-h-80 overflow-y-auto">
-            {mentions.length === 0 ? (
+            {mentions.length === 0 && !mentionsLoaded && mentionsFailed ? (
+              <div className="px-4 py-8 text-center">
+                <p className="text-xs text-ink-600">Couldn't load your mentions.</p>
+                <button onClick={onOpen} className="mt-2 text-xs text-emerald-700 hover:underline">
+                  Try again
+                </button>
+              </div>
+            ) : mentions.length === 0 && !mentionsLoaded ? (
+              <div className="px-4 py-8 text-center" role="status" aria-live="polite">
+                <AtSign className="w-6 h-6 text-ink-400 mx-auto mb-2 animate-pulse" strokeWidth={1.5} />
+                <p className="text-xs text-ink-600">Loading your mentions…</p>
+              </div>
+            ) : mentions.length === 0 ? (
               <div className="px-4 py-8 text-center">
                 <AtSign className="w-6 h-6 text-ink-400 mx-auto mb-2" strokeWidth={1.5} />
                 <p className="text-xs text-ink-600">Nobody has mentioned you yet.</p>
@@ -131,9 +146,10 @@ export function NotificationBell({ total, unreadMentions, mentions, onOpen, onMa
               mentions.map((m) => (
                 <button
                   key={m.id}
-                  onClick={async () => {
+                  onClick={() => {
                     setOpen(false);
-                    if (!m.seen) await onMarkSeen([m.id]);
+                    // Go to the chat straight away; marking it read happens in the background.
+                    if (!m.seen) void onMarkSeen([m.id]);
                     navigate(`${chatPath}?class=${m.class_id}`);
                   }}
                   className={`w-full text-left px-4 py-3 border-b border-ink-100 hover:bg-ink-100 transition-colors ${

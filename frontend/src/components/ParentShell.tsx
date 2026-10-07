@@ -42,7 +42,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, total, loadMentions, markSeen } = useUnreadNotifications();
+  const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, mentionsLoaded, mentionsFailed, total, loadMentions, markSeen } = useUnreadNotifications();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed('ledgr.sidebar.parent');
@@ -210,7 +210,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
             </div>
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <BackButton className="!px-3 !py-1.5" />
-              <NotificationBell total={total} unreadMentions={unreadMentions} mentions={mentions} onOpen={loadMentions} onMarkSeen={markSeen} />
+              <NotificationBell total={total} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
               {/* Phone: avatar opens the account sheet (profile + sign out). */}
               <button
                 onClick={() => setSheetOpen(true)}
