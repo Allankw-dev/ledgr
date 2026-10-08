@@ -81,6 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const bell = (
     <NotificationBell
       total={notif.total}
+      counts={{ messages: notif.unreadMessages, classGroups: notif.unreadClassGroups, direct: notif.unreadDirect, chatReports: notif.openChatReports }}
       unreadMentions={notif.unreadMentions}
       mentions={notif.mentions}
       mentionsLoaded={notif.mentionsLoaded}

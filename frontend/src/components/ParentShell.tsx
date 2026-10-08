@@ -210,7 +210,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
             </div>
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <BackButton className="!px-3 !py-1.5" />
-              <NotificationBell total={total} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
+              <NotificationBell total={total} counts={{ messages: unreadMessages, classGroups: unreadClassGroups, direct: unreadDirect }} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
               {/* Phone: avatar opens the account sheet (profile + sign out). */}
               <button
                 onClick={() => setSheetOpen(true)}
