@@ -30,7 +30,7 @@ export function ParentDashboardPage() {
   const { children, loading, error, refetch } = useMyChildren();
   const user = useAuthStore((s) => s.user);
   const [phone, setPhone] = useState<string | null>(null);
-  const { polling, received, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
+  const { polling, received, watchingFor, receivedFor, watch: handlePaymentInitiated } = usePaymentWatch(children, refetch);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
   function toggleInvoice(id: string) {
@@ -46,6 +46,7 @@ export function ParentDashboardPage() {
     getMyProfile().then((profile) => setPhone(profile.phone)).catch(() => {});
   }, []);
 
+  const manyChildren = children.length > 1;
   const totalOutstanding = children.reduce((sum, c) => sum + Number(c.balance_due), 0);
   const welcomeChips: WelcomeChip[] = loading || children.length === 0 ? [] : [
     { icon: Users, label: `${children.length} ${children.length === 1 ? 'child' : 'children'} linked` },
@@ -82,7 +83,7 @@ export function ParentDashboardPage() {
         </div>
       )}
 
-      <PaymentStatusBanner polling={polling} received={received} />
+      <PaymentStatusBanner polling={polling} received={received} watchingFor={watchingFor} receivedFor={receivedFor} />
 
       {loading ? (
         <ListSkeleton rows={3} />
@@ -100,9 +101,12 @@ export function ParentDashboardPage() {
         <div className="flex flex-col gap-9">
           {children.map((child) => {
             const balance = Number(child.balance_due);
-            const unpaidInvoice = child.invoices.find(
-              (inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED'
-            );
+            // What can actually be collected right now: the same invoices the server
+            // counts (issued / part-paid / overdue), so the amount the parent is shown
+            // is never more than the server will accept.
+            const payable = child.invoices
+              .filter((inv) => inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID' || inv.status === 'OVERDUE')
+              .reduce((sum, inv) => sum + Math.max(Number(inv.total_amount) - Number(inv.amount_paid), 0), 0);
             const totalDue = child.invoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
             const totalPaid = child.invoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
             const safeTotal = totalDue > 0 ? totalDue : 0;
@@ -124,14 +128,16 @@ export function ParentDashboardPage() {
                         <AnimatedAmount value={balance} format={formatCurrency} />
                       </p>
                     </div>
-                    {balance > 0 && unpaidInvoice ? (
+                    {payable >= 1 ? (
                       <PayWithMpesa
-                        invoiceId={unpaidInvoice.id}
-                        balance={Number(unpaidInvoice.total_amount) - Number(unpaidInvoice.amount_paid)}
+                        studentId={child.id}
+                        childName={manyChildren ? child.full_name : undefined}
+                        detail="Whole outstanding balance · oldest invoice paid first"
+                        balance={payable}
                         defaultPhone={phone}
                         onInitiated={handlePaymentInitiated}
                         variant="primary"
-                        label="Pay with M-Pesa"
+                        label={manyChildren ? `Pay for ${child.full_name.trim().split(/\s+/)[0]} with M-Pesa` : 'Pay with M-Pesa'}
                         className="w-full sm:w-auto shrink-0 justify-center px-5 py-3.5 sm:py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
                       />
                     ) : (
@@ -225,6 +231,8 @@ export function ParentDashboardPage() {
                                   {invUnpaid && invBalance > 0 && (
                                     <PayWithMpesa
                                       invoiceId={inv.id}
+                                      childName={manyChildren ? child.full_name : undefined}
+                                      detail={`Invoice due ${new Date(inv.due_date).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                                       balance={invBalance}
                                       defaultPhone={phone}
                                       onInitiated={handlePaymentInitiated}
