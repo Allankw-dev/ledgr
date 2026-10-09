@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from sqlalchemy import and_, select, func, or_, case
+from sqlalchemy import and_, select, func, or_, case, literal_column
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -123,13 +123,19 @@ def mark_class_groups_delivered(
     # Only write when there's actually a newer message than the last delivery
     # we recorded — exact (a message is never missed) and, when nothing is new,
     # a poll costs no write at all.
+    # The two read-state columns are written as literals ON PURPOSE. Naming the ORM column here makes
+    # SQLAlchemy add class_group_read_state to the subquery's own FROM (there is no enclosing SELECT to
+    # correlate to inside ON CONFLICT ... WHERE), so the EXISTS scans the whole table instead of looking
+    # at the row being upserted: every poll then wrote as soon as anyone had a new message, and each
+    # one cost a full scan. As literals they bind to the conflicting row — a plain index lookup on
+    # ix_cgm_class_created. (tests/test_class_group_delivery.py pins this down.)
     newer_message = (
         select(1)
+        .select_from(ClassGroupMessage)
         .where(
-            ClassGroupMessage.class_id == ClassGroupReadState.class_id,
-            ClassGroupMessage.created_at > ClassGroupReadState.last_delivered_at,
+            ClassGroupMessage.class_id == literal_column("class_group_read_state.class_id"),
+            ClassGroupMessage.created_at > literal_column("class_group_read_state.last_delivered_at"),
         )
-        .correlate_except(ClassGroupMessage)
         .exists()
     )
     stmt = stmt.on_conflict_do_update(
