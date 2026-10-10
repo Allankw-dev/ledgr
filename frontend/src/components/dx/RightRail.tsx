@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Mail, MessageCircle, MessagesSquare, Phone, Sparkles, Users2, type LucideIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bell, ChevronRight, Mail, MessageCircle, MessagesSquare, Phone, Sparkles, Users2, type LucideIcon } from 'lucide-react';
 import { listAuditLogs, type AuditLogEntry } from '../../api/auditLogs';
 import { listTeachers } from '../../api/teachers';
 import type { Teacher } from '../../types';
@@ -254,11 +254,33 @@ const PARENT_SHORTCUTS: { to: string; name: string; sub: string; icon: LucideIco
   { to: '/parent/assistant', name: 'Ask Ledgr', sub: 'Questions about fees', icon: Sparkles },
 ];
 
+/** One shortcut: the whole row is a link, so a single tap goes there. The lime highlight just follows hover/focus. */
+function ShortcutRow({ to, name, sub, icon: Icon, hot, onHot }: { to: string; name: string; sub: string; icon: LucideIcon; hot: boolean; onHot: () => void }) {
+  return (
+    <li>
+      <Link
+        to={to}
+        onMouseEnter={onHot}
+        onFocus={onHot}
+        className={`flex items-center gap-3 rounded-full p-2 pr-4 transition-colors ${hot ? 'bg-lime text-[#0B1203]' : 'text-ink-900 hover:bg-white/[0.05]'}`}
+      >
+        <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${hot ? 'bg-[#0B1203] text-lime' : 'bg-white/[0.06] text-ink-600'}`}>
+          <Icon className="w-4 h-4" strokeWidth={2} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium truncate">{name}</span>
+          <span className={`block text-[11px] truncate ${hot ? 'text-[#0B1203]/65' : 'text-ink-400'}`}>{sub}</span>
+        </span>
+        <ChevronRight className={`w-4 h-4 shrink-0 ${hot ? 'opacity-80' : 'opacity-40'}`} strokeWidth={2} />
+      </Link>
+    </li>
+  );
+}
+
 /** The parent's version: unread things, then quick ways to reach the school. Recent payments are passed in as `activity`. */
 export function ParentRail({ activity }: { activity?: ReactNode }) {
   const notif = useShellNotifications();
-  const navigate = useNavigate();
-  const [selected, setSelected] = useState(PARENT_SHORTCUTS[0].to);
+  const [hot, setHot] = useState(PARENT_SHORTCUTS[0].to);
   const notices = buildParentNotices({
     unreadMessages: notif?.unreadMessages ?? 0,
     unreadClassGroups: notif?.unreadClassGroups ?? 0,
@@ -274,33 +296,9 @@ export function ParentRail({ activity }: { activity?: ReactNode }) {
       {activity}
       <RailSection title="Get in touch">
         <ul className="flex flex-col gap-1">
-          {PARENT_SHORTCUTS.map((s) => {
-            const Icon = s.icon;
-            const active = s.to === selected;
-            return (
-              <ContactRow
-                key={s.to}
-                name={s.name}
-                sub={s.sub}
-                active={active}
-                onSelect={() => (active ? navigate(s.to) : setSelected(s.to))}
-                avatar={
-                  <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${active ? 'bg-[#0B1203] text-lime' : 'bg-white/[0.06] text-ink-600'}`}>
-                    <Icon className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                }
-                actions={
-                  <Link
-                    to={s.to}
-                    aria-label={`Open ${s.name}`}
-                    className="px-3 h-8 rounded-full bg-[#0B1203] text-lime text-xs font-medium flex items-center hover:brightness-125 transition"
-                  >
-                    Open
-                  </Link>
-                }
-              />
-            );
-          })}
+          {PARENT_SHORTCUTS.map((s) => (
+            <ShortcutRow key={s.to} {...s} hot={s.to === hot} onHot={() => setHot(s.to)} />
+          ))}
         </ul>
       </RailSection>
     </div>

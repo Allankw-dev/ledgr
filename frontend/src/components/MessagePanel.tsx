@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MessageCircle, Send, ChevronDown } from 'lucide-react';
 import { getMyMessages, sendMyMessage, pingMyTyping, getStaffTypingStatus, type Message } from '../api/messages';
 import { MessageTicks } from './MessageTicks';
@@ -11,6 +12,17 @@ const TYPING_PING_THROTTLE_MS = 2000;
 
 export function MessagePanel() {
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Links like /parent/dashboard#messages (the "School office" shortcut) open this panel and bring it into
+  // view. Keyed on location.key as well, so using the link again while already here still works.
+  const location = useLocation();
+  useEffect(() => {
+    if (location.hash !== '#messages') return;
+    setOpen(true);
+    const t = window.setTimeout(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+    return () => window.clearTimeout(t);
+  }, [location.key, location.hash]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState('');
@@ -95,7 +107,7 @@ export function MessagePanel() {
   }
 
   return (
-    <div className="bg-panel border border-ink-200 rounded-lg overflow-hidden mt-6">
+    <div ref={panelRef} id="messages" className="bg-panel border border-ink-200 rounded-lg overflow-hidden mt-6">
       <button onClick={() => setOpen(!open)} className="w-full px-5 py-4 flex items-center justify-between text-left">
         <span className="flex items-center gap-2 font-display text-base text-ink-900 font-medium">
           <MessageCircle className="w-4 h-4" strokeWidth={2} />
