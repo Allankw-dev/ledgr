@@ -8,7 +8,6 @@ import {
   LogOut,
   Menu,
   MessageCircle,
-  MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Receipt,
@@ -23,7 +22,7 @@ import { AssistantFab } from './AssistantFab';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { BackButton } from './BackButton';
-import { NotificationBell, type BellItem } from './NotificationBell';
+import { NotificationBell } from './NotificationBell';
 import { BottomNav, type BottomNavItem } from './BottomNav';
 import { BottomSheet } from './BottomSheet';
 import { NotificationsProvider } from './NotificationsContext';
@@ -53,13 +52,6 @@ export function ParentShell({ children, wide = false }: { children: ReactNode; w
   const [collapsed, toggleCollapsed] = useSidebarCollapsed('ledgr.sidebar.parent');
 
   const counts: Record<BadgeKey, number> = { unreadMessages, unreadClassGroups, unreadDirect };
-
-  // What the bell lists besides @mentions — the same three counters that make up its badge.
-  const bellItems: BellItem[] = [
-    { key: 'school', label: 'Messages from the school office', count: unreadMessages, to: '/parent/dashboard#messages', icon: MessageCircle },
-    { key: 'class', label: 'Class group chat', count: unreadClassGroups, to: '/parent/class-group', icon: Users2 },
-    { key: 'direct', label: 'Teacher chats', count: unreadDirect, to: '/parent/chats', icon: MessagesSquare },
-  ];
 
   function handleLogout() {
     setSheetOpen(false);
@@ -219,7 +211,7 @@ export function ParentShell({ children, wide = false }: { children: ReactNode; w
             </div>
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <BackButton className="!px-3 !py-1.5" />
-              <NotificationBell total={total} items={bellItems} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
+              <NotificationBell total={total} counts={{ messages: unreadMessages, classGroups: unreadClassGroups, direct: unreadDirect }} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
               {/* Phone: avatar opens the account sheet (profile + sign out). */}
               <button
                 onClick={() => setSheetOpen(true)}

@@ -4,7 +4,7 @@ import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, 
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
-import { NotificationBell, type BellItem } from './NotificationBell';
+import { NotificationBell } from './NotificationBell';
 import { BottomNav, type BottomNavItem } from './BottomNav';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
@@ -82,21 +82,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const notif = useUnreadNotifications();
-  const isTeacherRole = useAuthStore((st) => st.user?.role === 'TEACHER');
-  // What the bell lists besides @mentions. Teachers have no school inbox; only teachers have private chats.
-  const bellItems: BellItem[] = isTeacherRole
-    ? [
-        { key: 'class', label: 'Class group chat', count: notif.unreadClassGroups, to: '/class-groups', icon: Users2 },
-        { key: 'direct', label: 'Private chats', count: notif.unreadDirect, to: '/chats', icon: MessagesSquare },
-      ]
-    : [
-        { key: 'school', label: 'Messages from parents', count: notif.unreadMessages, to: '/messages', icon: MessageCircle },
-        { key: 'class', label: 'Class group chat', count: notif.unreadClassGroups, to: '/class-groups', icon: Users2 },
-      ];
   const bell = (
     <NotificationBell
       total={notif.total}
-      items={bellItems}
+      counts={{ messages: notif.unreadMessages, classGroups: notif.unreadClassGroups, direct: notif.unreadDirect, chatReports: notif.openChatReports }}
       unreadMentions={notif.unreadMentions}
       mentions={notif.mentions}
       mentionsLoaded={notif.mentionsLoaded}
