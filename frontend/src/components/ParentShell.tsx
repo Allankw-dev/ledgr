@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Receipt,
@@ -22,9 +23,10 @@ import { AssistantFab } from './AssistantFab';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { BackButton } from './BackButton';
-import { NotificationBell } from './NotificationBell';
+import { NotificationBell, type BellItem } from './NotificationBell';
 import { BottomNav, type BottomNavItem } from './BottomNav';
 import { BottomSheet } from './BottomSheet';
+import { NotificationsProvider } from './NotificationsContext';
 
 type BadgeKey = 'unreadMessages' | 'unreadClassGroups' | 'unreadDirect';
 
@@ -38,16 +40,26 @@ const navItems: { to: string; label: string; icon: LucideIcon; badgeKey?: BadgeK
   { to: '/parent/profile', label: 'Profile', icon: UserRound },
 ];
 
-export function ParentShell({ children }: { children: ReactNode }) {
+/** `wide` lets a page (the dashboard) use a second column on large screens; everything else stays a readable single column. */
+export function ParentShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  const maxW = wide ? 'max-w-[1280px]' : 'max-w-4xl';
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, mentionsLoaded, mentionsFailed, total, loadMentions, markSeen } = useUnreadNotifications();
+  const notif = useUnreadNotifications();
+  const { unreadMessages, unreadClassGroups, unreadDirect, unreadMentions, mentions, mentionsLoaded, mentionsFailed, total, loadMentions, markSeen } = notif;
   const [sheetOpen, setSheetOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed('ledgr.sidebar.parent');
 
   const counts: Record<BadgeKey, number> = { unreadMessages, unreadClassGroups, unreadDirect };
+
+  // What the bell lists besides @mentions — the same three counters that make up its badge.
+  const bellItems: BellItem[] = [
+    { key: 'school', label: 'Messages from the school office', count: unreadMessages, to: '/parent/dashboard#messages', icon: MessageCircle },
+    { key: 'class', label: 'Class group chat', count: unreadClassGroups, to: '/parent/class-group', icon: Users2 },
+    { key: 'direct', label: 'Teacher chats', count: unreadDirect, to: '/parent/chats', icon: MessagesSquare },
+  ];
 
   function handleLogout() {
     setSheetOpen(false);
@@ -85,20 +97,16 @@ export function ParentShell({ children }: { children: ReactNode }) {
                 title={isCollapsed ? label : undefined}
                 onClick={onNavigate}
                 className={({ isActive }) =>
-                  `side-link flex items-center px-2 py-2 rounded-xl text-sm font-medium ${
-                    isActive ? 'text-ink-900' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-100/70'
+                  `flex items-center rounded-xl py-2.5 text-sm transition-colors ${isCollapsed ? 'justify-center px-0' : 'px-3'} ${
+                    isActive ? 'bg-lime text-[#0B1203] font-semibold' : 'font-medium text-ink-600 hover:text-ink-900 hover:bg-white/[0.05]'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <span
-                      className={`relative w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        isActive ? 'bg-green/15 text-green' : 'bg-ink-100/80 text-ink-600'
-                      }`}
-                    >
+                    <span className="relative w-5 h-5 flex items-center justify-center shrink-0">
                       <Icon className="w-[18px] h-[18px]" strokeWidth={isActive ? 2.25 : 1.75} />
-                      {isCollapsed && count > 0 && <span className="pop-in absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green ring-2 ring-[#0A0C16]" />}
+                      {isCollapsed && count > 0 && <span className={`pop-in absolute -top-1.5 -right-1.5 w-2.5 h-2.5 rounded-full bg-green ring-2 ${isActive ? 'ring-lime' : 'ring-[#0A0C16]'}`} />}
                     </span>
                     <span
                       className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
@@ -108,7 +116,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
                       {label}
                     </span>
                     {!isCollapsed && count > 0 && (
-                      <span className="pop-in ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] bg-green">
+                      <span className={`pop-in ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${isActive ? 'bg-[#0B1203] text-lime' : 'text-[#06110B] bg-green'}`}>
                         {count > 99 ? '99+' : count}
                       </span>
                     )}
@@ -170,6 +178,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
   ];
 
   return (
+    <NotificationsProvider value={notif}>
     <div className="min-h-dvh flex relative">
       {/* Desktop side panel: sticky, and it retracts to an icon rail. */}
       <aside
@@ -192,7 +201,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
 
       <div className="flex-1 min-w-0 relative">
         <header className="relative z-10">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+          <div className={`${maxW} mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3`}>
             <div className="flex items-center gap-2.5 shrink-0 md:invisible">
               <button
                 onClick={() => setDrawerOpen(true)}
@@ -210,7 +219,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
             </div>
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <BackButton className="!px-3 !py-1.5" />
-              <NotificationBell total={total} counts={{ messages: unreadMessages, classGroups: unreadClassGroups, direct: unreadDirect }} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
+              <NotificationBell total={total} items={bellItems} unreadMentions={unreadMentions} mentions={mentions} mentionsLoaded={mentionsLoaded} mentionsFailed={mentionsFailed} onOpen={loadMentions} onMarkSeen={markSeen} />
               {/* Phone: avatar opens the account sheet (profile + sign out). */}
               <button
                 onClick={() => setSheetOpen(true)}
@@ -223,7 +232,7 @@ export function ParentShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-2 md:pt-4 pb-32 md:pb-24 relative z-10">
+        <main className={`${maxW} mx-auto px-4 sm:px-6 pt-2 md:pt-4 pb-32 md:pb-24 relative z-10`}>
           <div key={location.pathname} className="page-enter">
             {children}
           </div>
@@ -260,5 +269,6 @@ export function ParentShell({ children }: { children: ReactNode }) {
         </div>
       </BottomSheet>
     </div>
+    </NotificationsProvider>
   );
 }

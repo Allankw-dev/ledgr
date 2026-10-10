@@ -12,6 +12,10 @@ import { MessagePanel } from '../components/MessagePanel';
 import { DownloadReceiptLink } from '../components/DownloadReceiptLink';
 import { DownloadStatementLink } from '../components/DownloadStatementLink';
 import { RecentActivityFeed } from '../components/RecentActivityFeed';
+import { KpiCard } from '../components/dx/KpiCard';
+import { GaugeCard } from '../components/dx/GaugeCard';
+import { ParentRail } from '../components/dx/RightRail';
+import { formatCompact, formatKpi, pluralize } from '../components/dx/format';
 import { PaymentPlanCard } from '../components/PaymentPlanCard';
 import { AnimatedAmount } from '../components/AnimatedAmount';
 import { WelcomeBanner, type WelcomeChip } from '../components/WelcomeBanner';
@@ -48,6 +52,13 @@ export function ParentDashboardPage() {
 
   const manyChildren = children.length > 1;
   const totalOutstanding = children.reduce((sum, c) => sum + Number(c.balance_due), 0);
+  // Across every child, the same way each child's own progress bar is worked out below.
+  const allInvoices = children.flatMap((c) => c.invoices);
+  const totalBilled = allInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+  const totalPaidAll = allInvoices.reduce((sum, inv) => sum + Number(inv.amount_paid), 0);
+  const overallPaidPct = totalBilled > 0 ? Math.min(100, Math.round((totalPaidAll / totalBilled) * 100)) : 100;
+  const unpaidCount = allInvoices.filter((inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED').length;
+  const paymentCount = allInvoices.reduce((sum, inv) => sum + inv.payments.length, 0);
   const welcomeChips: WelcomeChip[] = loading || children.length === 0 ? [] : [
     { icon: Users, label: `${children.length} ${children.length === 1 ? 'child' : 'children'} linked` },
     totalOutstanding > 0
@@ -56,7 +67,9 @@ export function ParentDashboardPage() {
   ];
 
   return (
-    <ParentShell>
+    <ParentShell wide>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-8 items-start">
+      <div className="min-w-0">
       <WelcomeBanner
         fullName={user?.full_name}
         role="Parent"
@@ -84,6 +97,28 @@ export function ParentDashboardPage() {
       )}
 
       <PaymentStatusBanner polling={polling} received={received} watchingFor={watchingFor} receivedFor={receivedFor} />
+
+      {/* Hidden on phones: the welcome banner already shows the outstanding total there, and the pay button
+           for each child should stay on the first screen. */}
+      {!loading && children.length > 0 && (
+        <div className="hidden md:grid grid-cols-3 gap-4 mb-8">
+          <KpiCard
+            label="Outstanding"
+            value={totalOutstanding}
+            format={formatKpi}
+            trend={unpaidCount > 0 ? `${pluralize(unpaidCount, 'invoice')} unpaid` : 'All paid up'}
+            direction={totalOutstanding > 0 ? 'down' : 'up'}
+          />
+          <KpiCard
+            label="Paid so far"
+            value={totalPaidAll}
+            format={formatKpi}
+            trend={paymentCount > 0 ? pluralize(paymentCount, 'payment') : undefined}
+            direction="up"
+          />
+          <GaugeCard label="Fees paid" percent={overallPaidPct} note={totalBilled > 0 ? `of ${formatCompact(totalBilled)}` : undefined} />
+        </div>
+      )}
 
       {loading ? (
         <ListSkeleton rows={3} />
@@ -256,15 +291,15 @@ export function ParentDashboardPage() {
         </div>
       )}
 
-      {!loading && children.length > 0 && (
-        <div className="mt-9">
-          <RecentActivityFeed children={children} />
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start mt-6">
         <ChatWidget />
         <MessagePanel />
+      </div>
+      </div>
+
+      <aside className="min-w-0 xl:pt-2">
+        <ParentRail activity={!loading && children.length > 0 ? <RecentActivityFeed variant="rail" children={children} limit={4} /> : null} />
+      </aside>
       </div>
     </ParentShell>
   );

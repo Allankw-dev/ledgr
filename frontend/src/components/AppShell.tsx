@@ -1,15 +1,17 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X, MessagesSquare, Flag, Pencil, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X, MessagesSquare, Flag, Pencil, PanelLeftClose, PanelLeftOpen, Search, RefreshCw, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
-import { NotificationBell } from './NotificationBell';
+import { NotificationBell, type BellItem } from './NotificationBell';
 import { BottomNav, type BottomNavItem } from './BottomNav';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { Modal } from './ui/Modal';
 import { EditStaffProfileForm } from './EditStaffProfileForm';
+import { NotificationsProvider } from './NotificationsContext';
+import { Avatar } from './dx/Avatar';
 
 interface NavEntry {
   to: string;
@@ -63,11 +65,13 @@ const teacherNavGroups: { label: string; items: NavEntry[] }[] = [
   },
 ];
 
-function CountBadge({ count, tone = 'green', title }: { count: number; tone?: 'green' | 'amber'; title?: string }) {
+function CountBadge({ count, tone = 'green', title, onLime }: { count: number; tone?: 'green' | 'amber'; title?: string; onLime?: boolean }) {
   return (
     <span
       title={title}
-      className={`pop-in ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center text-[#06110B] ${tone === 'amber' ? 'bg-amber' : 'bg-green'}`}
+      className={`pop-in ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${
+        onLime ? 'bg-[#0B1203] text-lime' : `text-[#06110B] ${tone === 'amber' ? 'bg-amber' : 'bg-green'}`
+      }`}
     >
       {count > 99 ? '99+' : count}
     </span>
@@ -78,10 +82,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const notif = useUnreadNotifications();
+  const isTeacherRole = useAuthStore((st) => st.user?.role === 'TEACHER');
+  // What the bell lists besides @mentions. Teachers have no school inbox; only teachers have private chats.
+  const bellItems: BellItem[] = isTeacherRole
+    ? [
+        { key: 'class', label: 'Class group chat', count: notif.unreadClassGroups, to: '/class-groups', icon: Users2 },
+        { key: 'direct', label: 'Private chats', count: notif.unreadDirect, to: '/chats', icon: MessagesSquare },
+      ]
+    : [
+        { key: 'school', label: 'Messages from parents', count: notif.unreadMessages, to: '/messages', icon: MessageCircle },
+        { key: 'class', label: 'Class group chat', count: notif.unreadClassGroups, to: '/class-groups', icon: Users2 },
+      ];
   const bell = (
     <NotificationBell
       total={notif.total}
-      counts={{ messages: notif.unreadMessages, classGroups: notif.unreadClassGroups, direct: notif.unreadDirect, chatReports: notif.openChatReports }}
+      items={bellItems}
       unreadMentions={notif.unreadMentions}
       mentions={notif.mentions}
       mentionsLoaded={notif.mentionsLoaded}
@@ -100,6 +115,42 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed('ledgr.sidebar.staff');
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Ctrl/Cmd+K jumps to the student search (staff only; teachers have no student list).
+  useEffect(() => {
+    if (isTeacher) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isTeacher]);
+
+  function submitSearch(e: FormEvent, onClose?: () => void) {
+    e.preventDefault();
+    const q = searchTerm.trim();
+    if (!q) return;
+    navigate(`/students?q=${encodeURIComponent(q)}`);
+    setSearchTerm('');
+    searchRef.current?.blur();
+    onClose?.();
+  }
+
+  // "Fees / Overview" — which group and page the current route belongs to.
+  const crumb = (() => {
+    for (const g of navGroups) {
+      for (const i of g.items) {
+        if (location.pathname === i.to || location.pathname.startsWith(`${i.to}/`)) return { group: g.label, page: i.label };
+      }
+    }
+    return null;
+  })();
 
   function handleLogout() {
     logout();
@@ -107,22 +158,64 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const displayName = user?.full_name || user?.email || '';
-  const initial = displayName.trim().charAt(0).toUpperCase() || '?';
+  const roleLabel = user?.role.toLowerCase().replace('_', ' ') ?? '';
 
   /** One panel for the desktop rail (can retract) and the phone drawer (always open). */
   const renderSidebar = (c: boolean, onClose?: () => void) => (
     <>
-      <div className={`flex items-center py-6 mb-1 ${c ? 'justify-center px-3' : 'gap-2.5 px-6'}`}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center shrink-0 shadow-[0_6px_18px_-4px_rgba(57,255,136,0.55)]">
-          <BookOpen className="w-[18px] h-[18px] text-[#06110B]" strokeWidth={2.25} />
-        </div>
-        {!c && <span className="font-display text-xl font-semibold tracking-tight">Ledgr</span>}
+      <div className={`flex items-center pt-5 pb-3 ${c ? 'justify-center px-3' : 'gap-2 px-4'}`}>
+        <button
+          onClick={() => {
+            setEditProfileOpen(true);
+            onClose?.();
+          }}
+          title={c ? displayName : 'Edit your details'}
+          className={`group flex items-center min-w-0 rounded-xl hover:bg-white/[0.05] transition-colors ${c ? 'p-1' : 'flex-1 gap-3 p-1.5 pr-3'}`}
+        >
+          <Avatar name={displayName || '?'} size={36} />
+          {!c && (
+            <>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block text-sm font-medium truncate text-ink-900">{displayName}</span>
+                <span className="block text-xs text-ink-400 capitalize">{roleLabel}</span>
+              </span>
+              <Pencil className="w-3.5 h-3.5 text-ink-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" strokeWidth={2} />
+            </>
+          )}
+        </button>
         {onClose && (
           <button onClick={onClose} aria-label="Close menu" className="ml-auto text-ink-600 hover:text-ink-900 md:hidden">
             <X className="w-5 h-5" strokeWidth={2} />
           </button>
         )}
       </div>
+
+      {!isTeacher &&
+        (c ? (
+          <button
+            onClick={() => navigate('/students')}
+            title="Search students"
+            aria-label="Search students"
+            className="mx-auto mb-3 w-10 h-10 rounded-xl bg-white/[0.05] text-ink-600 hover:text-ink-900 flex items-center justify-center transition-colors"
+          >
+            <Search className="w-[18px] h-[18px]" strokeWidth={1.75} />
+          </button>
+        ) : (
+          <form onSubmit={(e) => submitSearch(e, onClose)} className="px-4 pb-3" role="search">
+            <label className="relative block">
+              <span className="sr-only">Search students</span>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" strokeWidth={2} />
+              <input
+                ref={onClose ? undefined : searchRef}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search students…"
+                className="w-full rounded-xl bg-white/[0.05] border border-white/[0.06] pl-9 pr-12 py-2 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-lime/50 transition-colors"
+              />
+              <kbd className="hidden md:block absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-400 border border-white/10 rounded px-1.5 py-0.5">⌘K</kbd>
+            </label>
+          </form>
+        ))}
 
       <nav className="flex-1 px-3 flex flex-col gap-5 overflow-y-auto overflow-x-hidden pb-4">
         {navGroups.map((group) => (
@@ -145,25 +238,21 @@ export function AppShell({ children }: { children: ReactNode }) {
                   title={c ? label : undefined}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `side-link flex items-center px-2 py-2 rounded-xl text-sm font-medium ${
-                      isActive ? 'text-ink-900' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-100/70'
+                    `flex items-center rounded-xl py-2.5 text-sm transition-colors ${c ? 'justify-center px-0' : 'px-3'} ${
+                      isActive ? 'bg-lime text-[#0B1203] font-semibold' : 'font-medium text-ink-600 hover:text-ink-900 hover:bg-white/[0.05]'
                     }`
                   }
                 >
                   {({ isActive }) => (
                     <>
-                      <span
-                        className={`relative w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                          isActive ? 'bg-green/15 text-green' : 'bg-ink-100/80 text-ink-600'
-                        }`}
-                      >
+                      <span className="relative w-5 h-5 flex items-center justify-center shrink-0">
                         <Icon className="w-[18px] h-[18px]" strokeWidth={isActive ? 2.25 : 1.75} />
                         {c && badge.n > 0 && (
-                          <span className={`pop-in absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-[#0A0C16] ${badge.tone === 'amber' ? 'bg-amber' : 'bg-green'}`} />
+                          <span className={`pop-in absolute -top-1.5 -right-1.5 w-2.5 h-2.5 rounded-full ring-2 ${isActive ? 'ring-lime' : 'ring-[#0A0C16]'} ${badge.tone === 'amber' ? 'bg-amber' : 'bg-green'}`} />
                         )}
                       </span>
                       <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>{label}</span>
-                      {!c && badge.n > 0 && <CountBadge count={badge.n} tone={badge.tone} title={badge.title} />}
+                      {!c && badge.n > 0 && <CountBadge count={badge.n} tone={badge.tone} title={badge.title} onLime={isActive} />}
                     </>
                   )}
                 </NavLink>
@@ -173,46 +262,37 @@ export function AppShell({ children }: { children: ReactNode }) {
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-white/[0.07] flex flex-col gap-1">
+      <div className="px-3 py-3 border-t border-white/[0.07] flex flex-col gap-1">
         {/* Retract / expand — desktop only (the phone drawer just closes). */}
         {!onClose && (
           <button
             onClick={toggleCollapsed}
             aria-label={c ? 'Expand side panel' : 'Retract side panel'}
             title={c ? 'Expand' : 'Retract'}
-            className="flex items-center px-2 py-2 rounded-xl text-sm font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900 transition-colors"
+            className={`flex items-center rounded-xl py-2.5 text-sm font-medium text-ink-600 hover:bg-white/[0.05] hover:text-ink-900 transition-colors ${c ? 'justify-center px-0' : 'px-3'}`}
           >
-            <span className="w-8 h-8 rounded-lg bg-ink-100/80 flex items-center justify-center shrink-0">
+            <span className="w-5 h-5 flex items-center justify-center shrink-0">
               {c ? <PanelLeftOpen className="w-[18px] h-[18px]" strokeWidth={1.75} /> : <PanelLeftClose className="w-[18px] h-[18px]" strokeWidth={1.75} />}
             </span>
             <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>Retract</span>
           </button>
         )}
         <button
-          onClick={() => {
-            setEditProfileOpen(true);
-            onClose?.();
-          }}
-          title={c ? displayName : undefined}
-          className="w-full flex items-center px-2 py-2 rounded-xl text-left hover:bg-ink-100/70 transition-colors group"
-        >
-          <span className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-700 to-cyan text-[#06110B] text-sm font-bold flex items-center justify-center shrink-0">{initial}</span>
-          <span className={`min-w-0 flex-1 overflow-hidden transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>
-            <span className="block text-sm font-medium truncate text-ink-900">{displayName}</span>
-            <span className="block text-xs text-ink-400 capitalize">{user?.role.toLowerCase().replace('_', ' ')}</span>
-          </span>
-          {!c && <Pencil className="w-3.5 h-3.5 text-ink-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" strokeWidth={2} />}
-        </button>
-        <button
           onClick={handleLogout}
           title={c ? 'Sign out' : undefined}
-          className="w-full flex items-center px-2 py-2 rounded-xl text-sm font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900 transition-colors"
+          className={`flex items-center rounded-xl py-2.5 text-sm font-medium text-ink-600 hover:bg-white/[0.05] hover:text-ink-900 transition-colors ${c ? 'justify-center px-0' : 'px-3'}`}
         >
-          <span className="w-8 h-8 flex items-center justify-center shrink-0">
+          <span className="w-5 h-5 flex items-center justify-center shrink-0">
             <LogOut className="w-[18px] h-[18px]" strokeWidth={2} />
           </span>
           <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${c ? 'max-w-0 pl-0 opacity-0' : 'max-w-[11rem] pl-3 opacity-100'}`}>Sign out</span>
         </button>
+        <div className={`flex items-center pt-3 ${c ? 'justify-center' : 'gap-2.5 px-3'}`}>
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-700 to-cyan flex items-center justify-center shrink-0">
+            <BookOpen className="w-3.5 h-3.5 text-[#06110B]" strokeWidth={2.25} />
+          </div>
+          {!c && <span className="font-display text-base font-semibold tracking-tight text-ink-900">Ledgr</span>}
+        </div>
       </div>
     </>
   );
@@ -235,6 +315,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       ];
 
   return (
+    <NotificationsProvider value={notif}>
     <div className="min-h-dvh flex relative">
       {/* Phone top bar — the fixed sidebar only fits from md up. */}
       <div className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 py-3 glass-bar">
@@ -269,9 +350,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="flex-1 min-w-0 relative z-10 pt-14 md:pt-0 pb-28 md:pb-0">
         {/* Top-right actions: go back + notifications */}
-        <div className="hidden md:flex items-center justify-end gap-2 px-8 pt-4">
-          <BackButton />
-          {bell}
+        <div className="hidden md:flex items-center justify-between gap-4 px-6 xl:px-8 pt-5">
+          <div className="flex items-center gap-3 min-w-0">
+            <BackButton />
+            {crumb && (
+              <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm min-w-0">
+                <span className="text-ink-400">{crumb.group}</span>
+                <span className="text-ink-400" aria-hidden="true">/</span>
+                <span className="text-ink-900 font-medium truncate">{crumb.page}</span>
+              </nav>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              aria-label="Refresh"
+              title="Refresh"
+              className="w-10 h-10 rounded-full bg-dx border border-white/[0.08] flex items-center justify-center text-ink-600 hover:text-ink-900 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" strokeWidth={1.75} />
+            </button>
+            {bell}
+          </div>
         </div>
         <div key={location.pathname} className="page-enter">
           {children}
@@ -287,5 +387,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Modal>
       )}
     </div>
+    </NotificationsProvider>
   );
 }

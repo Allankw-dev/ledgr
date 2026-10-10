@@ -1,6 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+/* Neutral-dark dashboard surfaces + lime accent used by the "dx" dashboard components
+   (components/dx/*) and the lime active-nav pill. Added as its own block so the base palette
+   above is untouched. */
+@theme {
+  --color-lime: #B8F24B;
+  --color-lime-dim: #7FB82A;
+  --color-dx: #15171A;
+  --color-dx-2: #1C1F23;
+}
+
 @theme {
   /* Confident fintech, dark: near-black base with two neon accents used on
      purpose, not as decoration — green means "money that's good" (paid,

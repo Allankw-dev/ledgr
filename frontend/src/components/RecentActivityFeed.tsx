@@ -1,5 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { ParentStudentView } from '../types';
+import { RailSection } from './dx/RightRail';
 
 interface ActivityRow {
   id: string;
@@ -44,9 +45,36 @@ function buildActivity(children: ParentStudentView[], limit: number): ActivityRo
   return rows.slice(0, limit);
 }
 
-export function RecentActivityFeed({ children, limit = 6 }: { children: ParentStudentView[]; limit?: number }) {
+export function RecentActivityFeed({ children, limit = 6, variant = 'card' }: { children: ParentStudentView[]; limit?: number; variant?: 'card' | 'rail' }) {
   const activity = buildActivity(children, limit);
   const showChildName = children.length > 1;
+
+  if (variant === 'rail') {
+    return (
+      <RailSection title="Recent payments">
+        {activity.length === 0 ? (
+          <p className="text-sm text-ink-600">No payments yet. They'll show up here once confirmed.</p>
+        ) : (
+          <ol className="flex flex-col gap-3">
+            {activity.map((row) => (
+              <li key={row.id} className="flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-green-100 text-green flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" strokeWidth={2} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink-900 leading-snug">Payment confirmed{showChildName ? ` for ${row.childName}` : ''}</p>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    {formatMethod(row.method)} · {new Date(row.paidAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+                <p className="figure text-sm text-ink-900 shrink-0">{formatCurrency(row.amount)}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </RailSection>
+    );
+  }
 
   if (activity.length === 0) {
     return (

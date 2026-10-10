@@ -1,5 +1,6 @@
 import { ListSkeleton } from '../components/ui/Skeleton';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { UserPlus, Users, UserCog, UserMinus, Pencil, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { Button } from '../components/ui/Button';
@@ -23,7 +24,14 @@ export function StudentsPage() {
   const [addClassId, setAddClassId] = useState<string | undefined>(undefined);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  // The sidebar search (Ctrl/Cmd+K) lands here as /students?q=name — start from it, and follow it when
+  // the person searches again while already on this page.
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get('q') ?? '');
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q !== null) setQuery(q);
+  }, [searchParams]);
   const [openDetails, setOpenDetails] = useState<Set<string>>(new Set());
   const autoOpened = useRef<string | null>(null);
   const [editTarget, setEditTarget] = useState<Student | null>(null);
