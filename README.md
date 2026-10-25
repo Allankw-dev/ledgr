@@ -38,7 +38,7 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 
 - **Students, classes, terms and fee structures**, with single or bulk invoice generation by class and term.
 - **Payments**, recorded manually (cash, bank, cheque) or via M-Pesa: STK Push and direct paybill (C2B), auto-reconciled.
-- **Reconciliation tools:** stray paybill payments that don't auto-match go to a review queue, and money that fits no invoice sits in an "unallocated" view until a bursar applies it.
+- **Reconciliation tools:** stray paybill payments that don't auto-match go to a review queue, and money that fits no invoice sits in an "unallocated" view until a bursar applies it, and an M-Pesa payment confirmed for a different amount than was asked waits in a "mismatch" list (nothing is credited until a bursar records or dismisses it).
 - **Documents:** fee statements, itemized invoice PDFs and payment receipts.
 - **Payment plans:** a risk-aware installment recommender that parents can request and staff can offer.
 - **Automatic overdue reminders** by email and SMS, escalating at day 1, day 7 and day 14. Each tier is sent once per invoice.
@@ -79,7 +79,7 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 | **Auth** | JWT (python-jose), bcrypt, rotating refresh tokens, pyotp, WebAuthn, Google ID tokens |
 | **Background work** | Postgres-backed job queue (`FOR UPDATE SKIP LOCKED`), APScheduler for the daily sweep |
 | **Payments** | M-Pesa Daraja API (STK Push + C2B), sandbox and production |
-| **Messaging** | SMTP email, Africa's Talking SMS |
+| **Messaging** | Email over HTTPS (Brevo or Resend) or SMTP, Africa's Talking SMS |
 | **AI** | Gemini (free tier) or Claude via a shared provider layer, tool-calling only |
 | **ML** | scikit-learn (Isolation Forest anomaly detection) |
 | **Documents** | ReportLab (PDFs), openpyxl (exports) |
@@ -109,7 +109,7 @@ flowchart LR
 
     W[Job worker] -->|claims jobs| DB
     W --> SMS[Africa's Talking]
-    W --> MAIL[SMTP]
+    W --> MAIL[Brevo / Resend / SMTP]
     CRON[Daily 08:00 EAT sweep] --> DB
 ```
 
@@ -126,7 +126,7 @@ Worth knowing before you change the code:
 - **Payments are append-only.** A correction is a linked reversal row, so the ledger stays fully auditable.
 - **Invoice status is derived, not hand-set.** `recalculate_invoice_status` recomputes `PAID` / `PARTIALLY_PAID` / `OVERDUE` from confirmed payments every time money moves.
 - **Payment, audit row and notification commit together.** Notifications use a transactional outbox (`core/jobs.py`), so a rolled-back payment never leaves a stray text behind, and a committed one never loses its notification.
-- **M-Pesa is never trusted blindly.** A callback only resolves a `PENDING` payment that Ledgr created, and an amount mismatch leaves the payment pending and flags it for a human. Duplicate callbacks are serialized with row locks.
+- **M-Pesa is never trusted blindly.** A callback only resolves a `PENDING` payment that Ledgr created, and an amount mismatch leaves the payment pending and lists it for a bursar to record or dismiss. Duplicate callbacks are serialized with row locks. The pending payment row is written **before** the STK prompt is sent, so money can never arrive for a payment Ledgr has no record of.
 - **Whole-balance payments are allocated at confirmation time**, oldest invoice first, against the balances as they are then, so a cash payment recorded mid-prompt can't cause an overpayment. Leftovers become unallocated rows for the bursar.
 - **The ML features stay honest about data volume.** Risk scoring and anomaly detection are rules-based and statistical by design. Every scored invoice is logged (`invoice_risk_snapshots` + `invoice_outcomes`) so a trained model becomes possible once a school has enough resolved invoices.
 - **Both assistants are tool-calling, not free-generation.** They answer only from data queried that turn. The bursar assistant is read-only. The parent assistant's tools are hard-scoped to that parent's approved children.
@@ -223,10 +223,13 @@ python -m app.worker            # as its own process
 | **Core** | `DATABASE_URL`, `APP_DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGINS`, `FRONTEND_URL`, `ENVIRONMENT` |
 | **M-Pesa** | `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY`, `MPESA_CALLBACK_URL`, `MPESA_CALLBACK_SECRET`, `MPESA_C2B_VALIDATION_URL`, `MPESA_C2B_CONFIRMATION_URL`, `MPESA_ALLOWED_IPS` (optional) |
 | **AI assistants** | `GEMINI_API_KEY` *or* `ANTHROPIC_API_KEY`, `AI_PROVIDER` (`auto` / `gemini` / `anthropic`) |
-| **Reminders** | `SMTP_*` for email, `AFRICASTALKING_USERNAME` / `AFRICASTALKING_API_KEY` for SMS |
+| **Email** | `BREVO_API_KEY` *or* `RESEND_API_KEY`, plus `EMAIL_FROM_EMAIL` / `EMAIL_FROM_NAME`, optionally `EMAIL_PROVIDER`. `SMTP_*` still works where outbound SMTP isn't blocked |
+| **SMS** | `AFRICASTALKING_USERNAME` / `AFRICASTALKING_API_KEY` |
 | **Sign-in** | `GOOGLE_CLIENT_ID` (also `VITE_GOOGLE_CLIENT_ID` in the frontend), `WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME` |
 | **Chat** | `MESSAGE_ENCRYPTION_KEYS`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` for attachments |
 | **Scale and ops** | `REDIS_URL`, `SENTRY_DSN`, `MONITOR_TOKEN`, `SWEEP_HEARTBEAT_URL`, `RUN_SCHEDULER`, `RUN_JOB_WORKER` |
+
+**Email on Render's free tier:** outbound SMTP ports (25/465/587) are blocked there, so `SMTP_*` times out. Use `BREVO_API_KEY` or `RESEND_API_KEY`, then run `python -m scripts.dev.check_email you@example.com` from a Render shell.
 
 **Required when `ENVIRONMENT=production`** (the app refuses to start without them):
 

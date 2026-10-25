@@ -4,6 +4,7 @@ import { ListSkeleton } from '../components/ui/Skeleton';
 import { AppShell } from '../components/AppShell';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { UnallocatedPaymentsCard } from '../components/UnallocatedPaymentsCard';
+import { MpesaMismatchCard } from '../components/MpesaMismatchCard';
 import { AreaTrendCard } from '../components/dx/AreaTrendCard';
 import { BalancesTable } from '../components/dx/BalancesTable';
 import { DonutCard, type DonutSegment } from '../components/dx/DonutCard';
@@ -110,6 +111,7 @@ export function DashboardPage() {
             )}
           </div>
 
+          {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'BURSAR') && <MpesaMismatchCard />}
           {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'BURSAR') && <UnallocatedPaymentsCard />}
 
           {error && (

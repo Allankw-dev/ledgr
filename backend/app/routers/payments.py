@@ -9,6 +9,8 @@ from app.core.deps import get_school_scope, require_roles, get_current_user, Cur
 from app.models.payment import Payment
 from app.schemas.payment import (
     ApplyPaymentRequest,
+    DismissMismatchRequest,
+    MpesaMismatchResponse,
     PaymentResponse,
     RecordPaymentRequest,
     ReversePaymentRequest,
@@ -16,7 +18,10 @@ from app.schemas.payment import (
 )
 from app.schemas.anomaly import PaymentAnomalyResponse
 from app.services.payment_service import (
+    accept_mpesa_mismatch,
     apply_unallocated_payment,
+    dismiss_mpesa_mismatch,
+    list_mpesa_mismatches,
     list_unallocated_payments,
     record_confirmed_payment,
     reverse_payment,
@@ -138,6 +143,69 @@ def apply_unallocated_payment_endpoint(
             201,
             PaymentResponse.model_validate(
                 apply_unallocated_payment(db, school_id, payment_id, data.invoice_id, user.user_id)
+            ).model_dump(mode="json"),
+        ),
+    )
+
+
+@router.get("/mpesa-mismatches", response_model=list[MpesaMismatchResponse])
+def get_mpesa_mismatches(
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+):
+    """M-Pesa payments where Safaricom reported a different amount than the prompt asked for.
+    Nothing is credited until a bursar accepts or dismisses each one."""
+    return list_mpesa_mismatches(db, school_id)
+
+
+@router.post("/{payment_id}/accept-mpesa-amount", response_model=PaymentResponse, status_code=201)
+@limiter.limit("15/minute")
+def accept_mpesa_amount_endpoint(
+    request: Request,  # required by @limiter.limit — unused otherwise
+    payment_id: str,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    return run_idempotent(
+        db,
+        school_id=school_id,
+        user_id=user.user_id,
+        scope=f"payments.accept-mismatch:{payment_id}",
+        key=idempotency_key,
+        request_body={},
+        action=lambda: (
+            201,
+            PaymentResponse.model_validate(
+                accept_mpesa_mismatch(db, school_id, payment_id, user.user_id)
+            ).model_dump(mode="json"),
+        ),
+    )
+
+
+@router.post("/{payment_id}/dismiss-mpesa", response_model=PaymentResponse, status_code=201)
+@limiter.limit("15/minute")
+def dismiss_mpesa_endpoint(
+    request: Request,  # required by @limiter.limit — unused otherwise
+    payment_id: str,
+    data: DismissMismatchRequest,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    return run_idempotent(
+        db,
+        school_id=school_id,
+        user_id=user.user_id,
+        scope=f"payments.dismiss-mismatch:{payment_id}",
+        key=idempotency_key,
+        request_body=data.model_dump(mode="json"),
+        action=lambda: (
+            201,
+            PaymentResponse.model_validate(
+                dismiss_mpesa_mismatch(db, school_id, payment_id, data.reason, user.user_id)
             ).model_dump(mode="json"),
         ),
     )

@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -21,6 +22,8 @@ from app.models.school import School
 
 router = APIRouter(prefix="/api/teachers", tags=["teachers"])
 
+
+logger = logging.getLogger(__name__)
 
 PHONE_ONLY_EMAIL_DOMAIN = "phone.ledgr.invalid"  # reserved-invalid TLD: can never receive mail
 
@@ -51,9 +54,9 @@ def _send_invite(db: Session, teacher: User, school_id: str) -> list[str]:
             )
             sent.append("email")
         except NotificationConfigError:
-            pass
+            logger.warning("Teacher invite email not sent: email isn't configured")
         except Exception:  # noqa: BLE001 — a mail outage must not undo account creation
-            pass
+            logger.warning("Teacher invite email failed", exc_info=True)
 
     if teacher.phone:
         try:
@@ -64,9 +67,9 @@ def _send_invite(db: Session, teacher: User, school_id: str) -> list[str]:
             )
             sent.append("sms")
         except NotificationConfigError:
-            pass
+            logger.warning("Teacher invite SMS not sent: SMS isn't configured")
         except Exception:  # noqa: BLE001
-            pass
+            logger.warning("Teacher invite SMS failed", exc_info=True)
     return sent
 
 

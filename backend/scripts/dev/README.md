@@ -10,10 +10,12 @@ python -m scripts.dev.test_conn    # can the owner + ledgr_app roles connect?
 python -m scripts.dev.diag         # schools / recent parents / students (PII masked)
 python -m scripts.dev.diag2        # list students' admission numbers
 python -m scripts.dev.diag3 <school_id> <admission_number>   # what RLS lets ledgr_app see
+python -m scripts.dev.check_gemini # does the Gemini key/model work end to end?
+python -m scripts.dev.check_email you@example.com   # does email actually send from here?
 ```
 
-`fix_enum*.py` are historical repairs for orphaned Postgres enum types left behind
-by a failed migration (`DROP TYPE IF EXISTS ...`). Only needed if you hit
-"type ... already exists" while migrating.
+(The old `fix_enum*.py` repair scripts were removed: they ran `DROP TYPE` against whatever
+`DATABASE_URL` was in `.env`. If a failed migration ever leaves an orphaned enum type
+("type ... already exists"), drop that one type by hand in the SQL editor instead.)
 
 They connect to whatever `DATABASE_URL` is in `.env` — check which database that is first.

@@ -56,3 +56,21 @@ class UnallocatedPaymentResponse(BaseModel):
     paid_at: datetime | None = None
     notes: str | None = None
     open_invoices: list[UnallocatedInvoiceOption]
+
+
+class MpesaMismatchResponse(BaseModel):
+    """An M-Pesa payment whose reported amount differs from the prompt we sent. Nothing has
+    been credited; a bursar decides whether to accept the reported amount or dismiss it."""
+
+    id: str
+    student_id: str
+    student_name: str
+    admission_number: str
+    expected_amount: Decimal
+    reported_amount: Decimal
+    mpesa_receipt: str | None = None
+    created_at: datetime | None = None
+
+
+class DismissMismatchRequest(BaseModel):
+    reason: str = Field(min_length=3)

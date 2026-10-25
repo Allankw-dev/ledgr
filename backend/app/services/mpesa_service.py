@@ -13,6 +13,12 @@ from app.core.config import settings
 DARAJA_BASE_URL = settings.mpesa_base_url or "https://sandbox.safaricom.co.ke"
 
 
+class MpesaOutcomeUnknown(Exception):
+    """The STK push request left our server but no answer came back (timeout, dropped
+    connection), so Safaricom may well have prompted the phone. Callers must not assume
+    either way — see routers/mpesa.py."""
+
+
 class MpesaConfigError(Exception):
     """Raised when M-Pesa credentials aren't configured — lets callers give
     a clear message instead of a confusing downstream HTTP failure."""
@@ -98,12 +104,18 @@ async def initiate_stk_push(
     }
 
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest",
-            json=payload,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=15,
-        )
+        try:
+            resp = await client.post(
+                f"{DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15,
+            )
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            raise  # never connected, so nothing can have been sent
+        except httpx.TransportError as exc:
+            # Connected, then the answer was lost (read timeout, reset). The prompt may be out.
+            raise MpesaOutcomeUnknown(str(exc) or exc.__class__.__name__) from exc
         if resp.status_code >= 400:
             # Safaricom's error responses contain a genuinely useful message
             # (e.g. "Invalid PhoneNumber", "Bad Request - Invalid Shortcode")

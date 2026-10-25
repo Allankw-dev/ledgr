@@ -2,18 +2,30 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import select
+import logging
+
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.core import cache
 from app.core.jobs import enqueue
-from app.models.payment import Payment
+from app.models.payment import AuditLog, Payment
 from app.models.invoice import Invoice
 from app.models.student import Student, StudentGuardian
 from app.models.school import School, User
 from app.models.enums import GuardianLinkStatus, PaymentMethod, PaymentStatus
 from app.services.invoice_service import OPEN_INVOICE_STATUSES, lock_invoice, recalculate_invoice_status, student_open_balance, student_open_invoices
 from app.services.audit_service import log_audit
+
+logger = logging.getLogger(__name__)
+
+# A payment row is created BEFORE the STK push goes out (so the money can never arrive for a
+# payment we have no record of). Until Safaricom answers with the real CheckoutRequestID, the row
+# carries this placeholder in external_txn_id.
+UNSENT_PREFIX = "unsent:"
+# What a payment's notes start with while it waits for a bursar after an amount mismatch.
+MISMATCH_NOTE_PREFIX = "Amount mismatch"
+MISMATCH_AUDIT_ACTION = "MPESA_CALLBACK_AMOUNT_MISMATCH"
 
 
 def record_confirmed_payment(
@@ -118,6 +130,55 @@ def create_pending_mpesa_payment(
     # No invoice/cache change yet — a PENDING payment isn't counted until the
     # callback confirms it (recalculate_invoice_status only sums CONFIRMED rows).
     return payment
+
+
+def attach_checkout_request_id(db: Session, payment_id: str, checkout_request_id: str) -> None:
+    """Swaps the placeholder for the real CheckoutRequestID once Daraja has accepted the push.
+    Only touches a payment that is still PENDING, so it can never disturb a settled one."""
+    try:
+        result = db.execute(
+            update(Payment)
+            .where(Payment.id == payment_id, Payment.status == PaymentStatus.PENDING)
+            .values(external_txn_id=checkout_request_id)
+        )
+        if result.rowcount != 1:
+            raise RuntimeError(f"payment {payment_id} is no longer pending")
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def discard_unsent_payment(db: Session, payment_id: str) -> None:
+    """Removes the PENDING row of a push that Safaricom definitely did not accept — the parent
+    was never prompted, so there is nothing to keep. Only ever deletes a still-unsent PENDING row."""
+    try:
+        db.execute(
+            delete(Payment).where(
+                Payment.id == payment_id,
+                Payment.status == PaymentStatus.PENDING,
+                Payment.external_txn_id.like(f"{UNSENT_PREFIX}%"),
+            )
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001 — cleanup must never mask the original failure
+        db.rollback()
+        logger.exception("Could not remove the unsent pending payment %s", payment_id)
+
+
+def flag_unconfirmed_push(db: Session, payment_id: str) -> None:
+    """The request to Safaricom may or may not have gone through (the reply was lost). Keep the
+    row, and say so on it, rather than guessing either way."""
+    try:
+        db.execute(
+            update(Payment)
+            .where(Payment.id == payment_id, Payment.status == PaymentStatus.PENDING)
+            .values(notes="STK push outcome unknown: Safaricom's reply never arrived, so the prompt may still have reached the phone")
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Could not flag the unconfirmed STK push %s", payment_id)
 
 
 def queue_payment_notification(
@@ -263,14 +324,30 @@ def resolve_mpesa_callback(
     # it for a human instead of marking the invoice paid.
     if result_code == 0 and paid_amount is not None:
         if Decimal(str(paid_amount)) != Decimal(str(payment.amount)):
-            log_audit(
-                db,
-                school_id=payment.school_id,
-                action="MPESA_CALLBACK_AMOUNT_MISMATCH",
-                entity_type="Payment",
-                entity_id=payment.id,
-                metadata={"expected": str(payment.amount), "reported": str(paid_amount)},
-            )
+            # Safaricom retries callbacks, so only record the first one. The note is what puts
+            # this payment in the bursar's "needs a decision" list (see list_mpesa_mismatches).
+            if not (payment.notes or "").startswith(MISMATCH_NOTE_PREFIX):
+                payment.notes = (
+                    f"{MISMATCH_NOTE_PREFIX}: we asked for KES {payment.amount:,.0f}, "
+                    f"M-Pesa reported KES {Decimal(str(paid_amount)):,.2f}"
+                )
+                payment.reference_code = mpesa_receipt_number
+                log_audit(
+                    db,
+                    school_id=payment.school_id,
+                    action=MISMATCH_AUDIT_ACTION,
+                    entity_type="Payment",
+                    entity_id=payment.id,
+                    metadata={
+                        "expected": str(payment.amount),
+                        "reported": str(paid_amount),
+                        "mpesa_receipt": mpesa_receipt_number,
+                    },
+                )
+                logger.error(
+                    "M-Pesa amount mismatch on payment %s: asked %s, reported %s (receipt %s)",
+                    payment.id, payment.amount, paid_amount, mpesa_receipt_number,
+                )
             db.commit()
             return None
 
@@ -515,3 +592,137 @@ def apply_unallocated_payment(
     db.refresh(applied)
     cache.bump(school_id, "fin")
     return applied
+
+
+# --- M-Pesa amount mismatches --------------------------------------------------
+# Safaricom said "paid", but for a different amount than the prompt we sent. We never guess:
+# the payment stays PENDING (nothing is credited) and lands in a bursar's list to decide.
+
+
+def _mismatch_filter(school_id: str):
+    return (
+        Payment.school_id == school_id,
+        Payment.method == PaymentMethod.MPESA,
+        Payment.status == PaymentStatus.PENDING,
+        Payment.notes.like(f"{MISMATCH_NOTE_PREFIX}%"),
+    )
+
+
+def _mismatch_details(db: Session, payment_ids: list[str]) -> dict[str, dict]:
+    """payment_id -> {"reported": Decimal, "receipt": str | None}, from the audit entry written
+    when the callback arrived (the audit log is the authoritative record of what M-Pesa said)."""
+    if not payment_ids:
+        return {}
+    rows = db.execute(
+        select(AuditLog)
+        .where(AuditLog.action == MISMATCH_AUDIT_ACTION, AuditLog.entity_id.in_(payment_ids))
+        .order_by(AuditLog.created_at.asc())
+    ).scalars().all()
+    details: dict[str, dict] = {}
+    for row in rows:  # oldest first, so the first callback's figures win
+        meta = row.log_metadata or {}
+        details.setdefault(
+            row.entity_id,
+            {"reported": Decimal(str(meta.get("reported", "0"))), "receipt": meta.get("mpesa_receipt")},
+        )
+    return details
+
+
+def list_mpesa_mismatches(db: Session, school_id: str) -> list[dict]:
+    from app.models.student import Student
+
+    rows = db.execute(
+        select(Payment, Student)
+        .join(Student, Student.id == Payment.student_id)
+        .where(*_mismatch_filter(school_id))
+        .order_by(Payment.created_at.asc())
+    ).all()
+    details = _mismatch_details(db, [p.id for p, _ in rows])
+    return [
+        {
+            "id": payment.id,
+            "student_id": student.id,
+            "student_name": student.full_name,
+            "admission_number": student.admission_number,
+            "expected_amount": payment.amount,
+            "reported_amount": details.get(payment.id, {}).get("reported", Decimal("0")),
+            "mpesa_receipt": details.get(payment.id, {}).get("receipt"),
+            "created_at": payment.created_at,
+        }
+        for payment, student in rows
+    ]
+
+
+def _lock_mismatched_payment(db: Session, school_id: str, payment_id: str) -> Payment:
+    payment = db.execute(
+        select(Payment).where(Payment.id == payment_id, Payment.school_id == school_id).with_for_update()
+    ).scalar_one_or_none()
+    if not payment:
+        raise HTTPException(404, "Payment not found")
+    if (
+        payment.method != PaymentMethod.MPESA
+        or payment.status != PaymentStatus.PENDING
+        or not (payment.notes or "").startswith(MISMATCH_NOTE_PREFIX)
+    ):
+        raise HTTPException(422, "This payment is not waiting on an amount decision")
+    return payment
+
+
+def accept_mpesa_mismatch(db: Session, school_id: str, payment_id: str, actor_user_id: str | None = None) -> Payment:
+    """Records the payment at the amount M-Pesa actually reported, and applies it the way a
+    whole-balance payment is applied: oldest open invoice first, anything left over becomes an
+    unallocated row for the bursar. The parent is told it arrived."""
+    payment = _lock_mismatched_payment(db, school_id, payment_id)
+    info = _mismatch_details(db, [payment.id]).get(payment.id)
+    if not info or info["reported"] <= 0:
+        raise HTTPException(422, "There is no reported amount on record for this payment")
+
+    asked = payment.amount
+    payment.amount = info["reported"]
+    payment.status = PaymentStatus.CONFIRMED
+    payment.paid_at = datetime.now(timezone.utc)
+    payment.reference_code = info["receipt"] or payment.reference_code
+    payment.invoice_id = None  # allocate against what is owed now, not what was owed at prompt time
+    payment.notes = f"Confirmed by bursar at the amount M-Pesa reported (the prompt asked for KES {asked:,.0f})"
+
+    total, slices = _allocate_to_open_invoices(db, payment)
+    for part in slices:
+        recalculate_invoice_status(db, part["invoice_id"], commit=False)
+    remaining = student_open_balance(db, payment.student_id)
+
+    log_audit(
+        db,
+        school_id=school_id,
+        action="MPESA_MISMATCH_ACCEPTED",
+        entity_type="Payment",
+        entity_id=payment.id,
+        user_id=actor_user_id,
+        metadata={"asked": str(asked), "recorded": str(total), "mpesa_receipt": info["receipt"], "allocation": slices},
+    )
+    queue_payment_notification(db, payment, succeeded=True, amount=total, remaining=remaining)
+    db.commit()
+    db.refresh(payment)
+    cache.bump(school_id, "fin")
+    return payment
+
+
+def dismiss_mpesa_mismatch(
+    db: Session, school_id: str, payment_id: str, reason: str, actor_user_id: str | None = None
+) -> Payment:
+    """The bursar decided nothing should be recorded (e.g. the money was returned by Safaricom or
+    handled outside Ledgr). The payment is marked FAILED with their reason; the parent is not texted."""
+    payment = _lock_mismatched_payment(db, school_id, payment_id)
+    payment.status = PaymentStatus.FAILED
+    payment.notes = f"{payment.notes} | Dismissed by bursar: {reason}"
+    log_audit(
+        db,
+        school_id=school_id,
+        action="MPESA_MISMATCH_DISMISSED",
+        entity_type="Payment",
+        entity_id=payment.id,
+        user_id=actor_user_id,
+        metadata={"reason": reason},
+    )
+    db.commit()
+    db.refresh(payment)
+    return payment

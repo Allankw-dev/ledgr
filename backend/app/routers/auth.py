@@ -2,6 +2,7 @@ from typing import Union
 from datetime import datetime, timezone
 import logging
 import secrets
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, or_
@@ -26,10 +27,12 @@ from app.core.security import (
     _email_fingerprint,
 )
 from app.core.totp import diagnose_failed_code, generate_totp_secret, get_provisioning_uri, verify_totp_code
-from app.core import login_throttle
+from app.core import background, login_throttle
+from app.core.jobs import enqueue
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user, require_roles, CurrentUser
-from app.services.notification_service import send_email, send_sms, NotificationConfigError
+from app.services.job_handlers import deliver_password_reset
+from app.services.notification_service import send_email, NotificationConfigError
 from app.services.audit_service import log_audit
 from app.services.refresh_token_service import (
     issue_refresh_token,
@@ -515,33 +518,43 @@ def forgot_password(request: Request, data: ForgotPasswordRequest, db: Session =
     """Always returns the same generic response whether or not the email
     is registered — an attacker enumerating emails shouldn't be able to
     tell the difference. The actual reset link is only ever sent by email,
-    never returned in the response body."""
+    never returned in the response body.
+
+    Delivery is queued, never done inside this request: a slow or failing mail provider
+    must not make the page hang for seconds and then show a 500 (which also told an
+    attacker that the account exists). The job worker retries with backoff."""
     user = _find_user_by_identifier(db, data.email)
     if user and user.is_active:
-        token = create_password_reset_token(user.id, user.password_hash)
-        reset_link = f"{settings.frontend_url}/reset-password?token={token}"
-        has_real_email = not user.email.endswith("@phone.ledgr.invalid")
-        if has_real_email:
-            try:
-                send_email(
-                    user.email,
-                    "Reset your Ledgr password",
-                    f"Hi {user.full_name},\n\n"
-                    f"Click the link below to reset your password. This link expires in 30 minutes "
-                    f"and can only be used once:\n\n{reset_link}\n\n"
-                    f"If you didn't request this, you can safely ignore this email.",
-                )
-            except NotificationConfigError:
-                # Email isn't configured on this deployment — fail quietly from
-                # the user's perspective (same generic response either way) but
-                # this is worth knowing about server-side.
-                pass
+        channels: list[str] = []
+        if not user.email.endswith("@phone.ledgr.invalid"):
+            channels.append("email")
         if user.phone and user.role == UserRole.TEACHER and "@" not in data.email.strip():
             # Phone-based reset: only when they asked by phone number.
+            channels.append("sms")
+
+        bucket = int(time.time() // 120)  # a double-click or retry inside 2 minutes sends once
+        for channel in channels:
             try:
-                send_sms(user.phone, f"Ledgr password reset (valid 30 min, one use): {reset_link}")
-            except NotificationConfigError:
-                pass
+                if user.school_id:
+                    enqueue(
+                        db,
+                        school_id=user.school_id,
+                        kind="password_reset",
+                        payload={"user_id": user.id, "channel": channel},
+                        dedupe_key=f"pwreset:{user.id}:{channel}:{bucket}",
+                        urgent=True,
+                    )
+                else:
+                    # Platform-level accounts belong to no school, and a job row needs one.
+                    background.submit(deliver_password_reset, user.id, channel)
+            except Exception:  # noqa: BLE001 — same response either way; just make it visible in the logs
+                logger.exception("Could not queue the password reset (%s)", channel)
+                db.rollback()
+        try:
+            db.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not save the queued password reset")
+            db.rollback()
     return ForgotPasswordResponse()
 
 
@@ -650,6 +663,9 @@ def request_email_change(
         # Unlike forgot-password, this must NOT pretend it worked: the parent is
         # signed in and waiting on a link that will never arrive.
         raise HTTPException(503, "Email isn't set up for this school yet, so we can't send the confirmation link. Contact the school office.")
+    except Exception:  # noqa: BLE001 — provider down / refused: say so plainly instead of a bare 500
+        logger.exception("Could not send the email-change confirmation")
+        raise HTTPException(502, "We couldn't send the confirmation email right now. Please try again in a few minutes.")
 
     return {"message": f"We sent a confirmation link to {new_email}. It expires in {settings.email_change_expires_minutes} minutes."}
 

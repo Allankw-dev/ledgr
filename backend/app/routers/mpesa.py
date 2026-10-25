@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import uuid
 from decimal import Decimal
 
 from starlette.concurrency import run_in_threadpool
@@ -19,8 +21,15 @@ from app.schemas.mpesa import (
     MpesaTransactionLookup,
     MatchTransactionRequest,
 )
-from app.services.mpesa_service import initiate_stk_push, normalize_phone_number, MpesaConfigError
-from app.services.payment_service import create_pending_mpesa_payment, resolve_mpesa_callback
+from app.services.mpesa_service import initiate_stk_push, normalize_phone_number, MpesaConfigError, MpesaOutcomeUnknown
+from app.services.payment_service import (
+    UNSENT_PREFIX,
+    attach_checkout_request_id,
+    create_pending_mpesa_payment,
+    discard_unsent_payment,
+    flag_unconfirmed_push,
+    resolve_mpesa_callback,
+)
 from app.services.mpesa_reconciliation_service import (
     find_unmatched_transaction,
     match_transaction_to_invoice,
@@ -130,8 +139,20 @@ async def request_stk_push(
     concurrent duplicate request waits instead of also calling Daraja), then
     store the result after. If Daraja itself fails, the reservation is
     released so a genuine retry isn't stuck behind a dead key.
+
+    Order of events: (1) reserve the key, (2) write the PENDING payment with a
+    placeholder id, (3) ask Safaricom to prompt the phone, (4) replace the
+    placeholder with the CheckoutRequestID it returns. Writing the row first
+    means money can never arrive for a payment we have no record of. A push
+    Safaricom definitely refused deletes the row; one whose answer was lost
+    keeps it, flagged, because the phone may have been prompted.
     """
     invoice, pay_amount, student = await run_in_threadpool(_prepare_stk_push, db, data, user, school_id)
+    # Read what's needed from the ORM objects now: every commit below expires them, and touching an
+    # expired attribute from this async function would run a blocking query on the event loop.
+    student_id = student.id
+    account_reference = student.admission_number or "Ledgr"
+    target_invoice_id = invoice.id if invoice else None
 
     if not settings.mpesa_callback_url:
         raise HTTPException(503, "M-Pesa is not fully configured yet — missing callback URL")
@@ -152,40 +173,85 @@ async def request_stk_push(
             _, stored_response = reservation
             return StkPushResponse.model_validate(stored_response)
 
+    async def _release() -> None:
+        if idempotency_key:
+            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
+
+    # Record the payment BEFORE asking Safaricom to prompt the phone. The other order has a
+    # hole: if the prompt goes out and this write then fails, the parent can pay money we have no
+    # row for, and the callback has nothing to match. The row starts with a placeholder id and
+    # gets Safaricom's CheckoutRequestID as soon as it answers.
+    try:
+        pending = await run_in_threadpool(
+            create_pending_mpesa_payment,
+            db,
+            school_id=school_id,
+            student_id=student_id,
+            invoice_id=target_invoice_id,  # None = whole-balance payment, allocated on the callback
+            amount=pay_amount,
+            checkout_request_id=f"{UNSENT_PREFIX}{uuid.uuid4()}",
+        )
+    except Exception:
+        await _release()  # nothing was sent; don't leave the key stuck behind a request that never happened
+        raise
+    payment_id = pending.id
+
     try:
         phone = normalize_phone_number(data.phone_number)
         result = await initiate_stk_push(
             phone_number=phone,
             amount=int(pay_amount),
-            account_reference=student.admission_number if student else "Ledgr",
+            account_reference=account_reference,
             transaction_desc="School fees",
             callback_url=settings.mpesa_callback_url,
         )
     except MpesaConfigError as exc:
-        if idempotency_key:
-            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
-        raise HTTPException(503, str(exc))
-    except Exception as exc:  # noqa: BLE001 — any Daraja/network failure should surface as a clean 502, not crash
+        logger.error("STK push refused: %s", exc)
+        await run_in_threadpool(discard_unsent_payment, db, payment_id)
+        await _release()
+        raise HTTPException(503, "M-Pesa isn't available right now. Please contact the school office.")
+    except MpesaOutcomeUnknown as exc:
+        # The request may have reached Safaricom. Keep the row (flagged) instead of deleting it,
+        # and make the parent check their phone rather than blindly firing a second prompt.
+        logger.error("STK push outcome unknown for payment %s: %s", payment_id, exc)
+        await run_in_threadpool(flag_unconfirmed_push, db, payment_id)
+        await _release()
+        raise HTTPException(
+            502,
+            "We couldn't confirm that the M-Pesa prompt was sent. Check your phone before trying again, "
+            "and contact the school office if money was taken.",
+        )
+    except Exception:  # noqa: BLE001 — any Daraja/network failure should surface as a clean 502, not crash
+        # Never echo the exception to the client: it can carry URLs, credentials-adjacent detail or
+        # Safaricom's raw error body. The full thing is in the logs.
         logger.exception("STK push failed")
-        if idempotency_key:
-            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
-        raise HTTPException(502, f"Could not reach M-Pesa: {exc}")
+        await run_in_threadpool(discard_unsent_payment, db, payment_id)
+        await _release()
+        raise HTTPException(502, "Could not reach M-Pesa right now. Please try again in a moment.")
 
     checkout_request_id = result.get("CheckoutRequestID")
     if not checkout_request_id:
-        if idempotency_key:
-            await run_in_threadpool(release_key, db, school_id=school_id, user_id=user.user_id, scope="mpesa.stk_push", key=idempotency_key)
+        logger.error("Daraja accepted the STK push but returned no CheckoutRequestID: %s", result)
+        await run_in_threadpool(discard_unsent_payment, db, payment_id)
+        await _release()
         raise HTTPException(502, "M-Pesa did not return a valid request ID")
 
-    await run_in_threadpool(
-        create_pending_mpesa_payment,
-        db,
-        school_id=school_id,
-        student_id=student.id,
-        invoice_id=invoice.id if invoice else None,  # None = whole-balance payment, allocated on the callback
-        amount=pay_amount,
-        checkout_request_id=checkout_request_id,
-    )
+    attached = False
+    for attempt in range(3):
+        try:
+            await run_in_threadpool(attach_checkout_request_id, db, payment_id, checkout_request_id)
+            attached = True
+            break
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not record CheckoutRequestID (attempt %d of 3)", attempt + 1)
+            await asyncio.sleep(0.4 * (attempt + 1))
+    if not attached:
+        # The prompt is already on the parent's phone, so don't fail the request. Make it loud:
+        # this payment can only be matched by hand.
+        logger.critical(
+            "STK push sent but NOT linked: payment_id=%s checkout_request_id=%s school=%s amount=%s",
+            payment_id, checkout_request_id, school_id, pay_amount,
+        )
 
     response = StkPushResponse(
         checkout_request_id=checkout_request_id,

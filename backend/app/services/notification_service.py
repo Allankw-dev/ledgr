@@ -1,13 +1,18 @@
 """
-Fee reminder delivery — email via SMTP (any provider, incl. Gmail with an
-app password), SMS via Africa's Talking.
+Fee reminder delivery — email over HTTPS (Brevo or Resend) or SMTP, SMS via
+Africa's Talking.
 
-Both are independently optional: if only email is configured, reminders
+Why HTTPS first: hosts such as Render's free tier block outbound SMTP ports
+(25/465/587), so `smtplib` simply times out there. A provider's HTTP API goes out
+on port 443, which is never blocked. SMTP stays available for hosts that allow it.
+
+Both channels are independently optional: if only email is configured, reminders
 still work over email alone, and vice versa. A guardian with no phone on
 file simply doesn't get an SMS attempt; one with no email doesn't get an
 email attempt — neither is treated as an error.
 """
 
+import logging
 import smtplib
 from dataclasses import dataclass
 from datetime import datetime
@@ -19,6 +24,13 @@ import httpx
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+RESEND_URL = "https://api.resend.com/emails"
+# Tests swap this for an httpx.MockTransport; production leaves it None.
+_transport: httpx.BaseTransport | None = None
+
 AT_SANDBOX_URL = "https://api.sandbox.africastalking.com/version1/messaging"
 AT_LIVE_URL = "https://api.africastalking.com/version1/messaging"
 
@@ -26,6 +38,11 @@ AT_LIVE_URL = "https://api.africastalking.com/version1/messaging"
 class NotificationConfigError(Exception):
     """Raised when a channel is used without being configured — lets
     callers give a clear message instead of a confusing downstream failure."""
+
+
+class EmailDeliveryError(Exception):
+    """The email provider was reached but refused the message (bad key, unverified
+    sender, invalid recipient...). The provider's own explanation is in the message."""
 
 
 ESCALATION_LABELS = {1: "Reminder", 2: "Second reminder", 3: "Final notice"}
@@ -151,20 +168,108 @@ def compose_payment_failed(student_name: str, school_name: str, amount: Decimal,
     return subject, body, sms_text
 
 
-def send_email(to_email: str, subject: str, body: str) -> None:
-    if not (settings.smtp_host and settings.smtp_username and settings.smtp_password and settings.smtp_from_email):
-        raise NotificationConfigError("Email is not configured (missing SMTP settings)")
+def _smtp_configured() -> bool:
+    return bool(settings.smtp_host and settings.smtp_username and settings.smtp_password and _from_email())
 
+
+def _from_email() -> str | None:
+    return settings.email_from_email or settings.smtp_from_email
+
+
+def _from_name() -> str:
+    return settings.email_from_name or settings.smtp_from_name or "Ledgr"
+
+
+def active_email_provider() -> str | None:
+    """Which channel send_email will use, or None when email isn't set up."""
+    if not _from_email():
+        return None
+    pref = (settings.email_provider or "auto").strip().lower()
+    available = {
+        "brevo": bool(settings.brevo_api_key),
+        "resend": bool(settings.resend_api_key),
+        "smtp": _smtp_configured(),
+    }
+    if pref in available:
+        return pref if available[pref] else None
+    for name in ("brevo", "resend", "smtp"):  # "auto"
+        if available[name]:
+            return name
+    return None
+
+
+def _explain_http_error(resp: httpx.Response) -> str:
+    try:
+        data = resp.json()
+        detail = data.get("message") or data.get("error") or data.get("name") or data
+    except ValueError:
+        detail = resp.text
+    return f"{resp.status_code}: {str(detail)[:300]}"
+
+
+def _send_via_brevo(to_email: str, subject: str, body: str) -> None:
+    with httpx.Client(transport=_transport, timeout=15) as client:
+        resp = client.post(
+            BREVO_URL,
+            headers={"api-key": settings.brevo_api_key or "", "accept": "application/json"},
+            json={
+                "sender": {"name": _from_name(), "email": _from_email()},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "textContent": body,
+            },
+        )
+    if resp.status_code >= 400:
+        raise EmailDeliveryError(f"Brevo refused the email ({_explain_http_error(resp)})")
+
+
+def _send_via_resend(to_email: str, subject: str, body: str) -> None:
+    with httpx.Client(transport=_transport, timeout=15) as client:
+        resp = client.post(
+            RESEND_URL,
+            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+            json={
+                "from": f"{_from_name()} <{_from_email()}>",
+                "to": [to_email],
+                "subject": subject,
+                "text": body,
+            },
+        )
+    if resp.status_code >= 400:
+        raise EmailDeliveryError(f"Resend refused the email ({_explain_http_error(resp)})")
+
+
+def _send_via_smtp(to_email: str, subject: str, body: str) -> None:
     msg = MIMEMultipart()
-    msg["From"] = f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
+    msg["From"] = f"{_from_name()} <{_from_email()}>"
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-        server.starttls()
+    if settings.smtp_port == 465:
+        server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15)
+    else:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15)
+    with server:
+        if settings.smtp_port != 465:
+            server.starttls()
         server.login(settings.smtp_username, settings.smtp_password)
         server.send_message(msg)
+
+
+def send_email(to_email: str, subject: str, body: str) -> None:
+    provider = active_email_provider()
+    if provider is None:
+        raise NotificationConfigError(
+            "Email is not configured (set BREVO_API_KEY or RESEND_API_KEY plus EMAIL_FROM_EMAIL, "
+            "or the SMTP_* settings)"
+        )
+    if provider == "brevo":
+        _send_via_brevo(to_email, subject, body)
+    elif provider == "resend":
+        _send_via_resend(to_email, subject, body)
+    else:
+        _send_via_smtp(to_email, subject, body)
 
 
 def send_sms(phone_number: str, message: str) -> dict:

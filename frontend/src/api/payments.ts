@@ -46,3 +46,40 @@ export async function markPaymentRefunded(paymentId: string, note: string) {
   );
   return data;
 }
+
+export interface MpesaMismatch {
+  id: string;
+  student_id: string;
+  student_name: string;
+  admission_number: string;
+  expected_amount: string;
+  reported_amount: string;
+  mpesa_receipt: string | null;
+  created_at: string | null;
+}
+
+/** M-Pesa payments where Safaricom reported a different amount than the prompt asked for. Nothing is credited yet. */
+export async function getMpesaMismatches(): Promise<MpesaMismatch[]> {
+  const { data } = await apiClient.get<MpesaMismatch[]>('/api/payments/mpesa-mismatches');
+  return data;
+}
+
+/** Record the payment at the amount M-Pesa actually reported. */
+export async function acceptMpesaMismatch(paymentId: string) {
+  const { data } = await apiClient.post(
+    `/api/payments/${paymentId}/accept-mpesa-amount`,
+    {},
+    { headers: { 'Idempotency-Key': crypto.randomUUID() } }
+  );
+  return data;
+}
+
+/** Record nothing; the payment is marked failed with the bursar's reason. */
+export async function dismissMpesaMismatch(paymentId: string, reason: string) {
+  const { data } = await apiClient.post(
+    `/api/payments/${paymentId}/dismiss-mpesa`,
+    { reason: reason.trim() },
+    { headers: { 'Idempotency-Key': crypto.randomUUID() } }
+  );
+  return data;
+}

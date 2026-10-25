@@ -88,9 +88,22 @@ class Settings(BaseSettings):
     # server-side authorization-code exchange.
     google_client_id: str | None = None
 
-    # Reminders — email via SMTP, SMS via Africa's Talking
+    # Email. Many hosts (Render's free tier, among others) block outbound SMTP ports
+    # 25/465/587, so mail is sent over HTTPS (port 443) through a provider's API when a
+    # key is set. EMAIL_PROVIDER "auto" picks Brevo if BREVO_API_KEY is set, else Resend if
+    # RESEND_API_KEY is set, else SMTP if the SMTP_* settings are complete. Force one with
+    # "brevo" / "resend" / "smtp".
+    email_provider: str = "auto"
+    brevo_api_key: str | None = None
+    resend_api_key: str | None = None
+    # The From address. Must be a sender/domain verified with the provider. Falls back to
+    # SMTP_FROM_EMAIL / SMTP_FROM_NAME so existing setups keep working.
+    email_from_email: str | None = None
+    email_from_name: str | None = None
+
+    # Email via SMTP (only works where outbound SMTP isn't blocked), SMS via Africa's Talking
     smtp_host: str | None = None
-    smtp_port: int = 587
+    smtp_port: int = 587  # 465 = implicit TLS (SMTP_SSL), anything else = STARTTLS
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_from_email: str | None = None

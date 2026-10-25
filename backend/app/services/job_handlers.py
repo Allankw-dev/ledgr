@@ -13,8 +13,10 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.database import SystemSessionLocal
 from app.core.jobs import enqueue_many, enqueue, job_handler
+from app.core.security import create_password_reset_token
 from app.models.enums import GuardianLinkStatus
 from app.models.invoice import Invoice
 from app.models.payment import Payment
@@ -77,7 +79,50 @@ def handle_send_email(payload: dict[str, Any]) -> None:
     try:
         send_email(user.email, payload["subject"], payload["body"])
     except NotificationConfigError:
-        return  # email isn't set up on this deployment; retrying can't help
+        # Email isn't set up on this deployment; retrying can't help. Say so in the logs,
+        # otherwise every message silently vanishes and nobody can tell why.
+        logger.warning("Email not sent: no email provider is configured (see EMAIL_PROVIDER / BREVO_API_KEY)")
+        return
+
+
+def deliver_password_reset(user_id: str, channel: str) -> None:
+    """Sends a password-reset link by "email" or "sms".
+
+    The token is created HERE, when the job runs, rather than when it was queued: that keeps a
+    live reset token out of the jobs table, and a retry after a provider outage still sends a
+    fresh, valid link. Safe to run twice — the worst case is two emails, and only the newest
+    link matters because using any of them changes the password fingerprint all the others check.
+    """
+    with SystemSessionLocal() as db:
+        user = db.get(User, user_id)
+        if not user or not user.is_active:
+            return
+        token = create_password_reset_token(user.id, user.password_hash)
+        full_name, email, phone = user.full_name, user.email, user.phone
+
+    link = f"{settings.frontend_url}/reset-password?token={token}"
+    try:
+        if channel == "email":
+            if not email or email.lower().endswith(PLACEHOLDER_EMAIL_DOMAIN):
+                return
+            send_email(
+                email,
+                "Reset your Ledgr password",
+                f"Hi {full_name},\n\n"
+                f"Click the link below to reset your password. This link expires in 30 minutes "
+                f"and can only be used once:\n\n{link}\n\n"
+                f"If you didn't request this, you can safely ignore this email.",
+            )
+        elif channel == "sms":
+            if phone:
+                send_sms(phone, f"Ledgr password reset (valid 30 min, one use): {link}")
+    except NotificationConfigError:
+        logger.warning("Password reset by %s not sent: that channel isn't configured on this deployment", channel)
+
+
+@job_handler("password_reset")
+def handle_password_reset(payload: dict[str, Any]) -> None:
+    deliver_password_reset(payload["user_id"], payload["channel"])
 
 
 @job_handler("send_sms")
