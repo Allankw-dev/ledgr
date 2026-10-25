@@ -43,3 +43,5 @@ class ParentStudentView(BaseModel):
     class_name: str | None
     invoices: list[ParentInvoiceView]
     balance_due: Decimal
+    # Money the school is holding for this child that isn't against an invoice yet (e.g. an overpayment).
+    credit_held: Decimal = Decimal("0")

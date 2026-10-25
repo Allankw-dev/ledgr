@@ -192,7 +192,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
 
   function completeLogin(token: string, user: Parameters<typeof setSession>[1], refreshToken?: string | null) {
     setSession(token, user, refreshToken);
-    navigate(user.role === 'PARENT' ? '/parent/dashboard' : user.role === 'TEACHER' ? '/class-groups' : '/dashboard');
+    navigate(user.role === 'PARENT' ? '/parent/dashboard' : user.role === 'TEACHER' ? '/class-groups' : user.role === 'SUPER_ADMIN' ? '/platform' : '/dashboard');
   }
 
   async function handleFingerprintSignIn() {

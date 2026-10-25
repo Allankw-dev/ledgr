@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,8 @@ from app.core.deps import get_current_user, get_school_scope, require_roles
 from app.models.invoice import Invoice
 from app.models.student import Student, SchoolClass, Term
 from app.models.school import School
+from app.schemas.aging import AgingReport, BucketKey
+from app.services.aging_service import ROW_LIMIT, aging_csv, get_aging_report
 from app.schemas.analytics import DashboardAnalyticsResponse, TermCollectionPoint, TopRiskInvoice
 from app.services.export_service import BursarReportRow, generate_bursar_report_csv, generate_bursar_report_xlsx
 from app.services.analytics_service import get_summary_stats, get_collection_by_term, get_top_risk_invoices
@@ -134,3 +136,36 @@ def dashboard_analytics(
     # loads doesn't re-run the same scans over and over.
     data = cache.cached(school_id, "fin", "dashboard-analytics", load)
     return DashboardAnalyticsResponse.model_validate(data)
+
+
+@router.get("/aging", response_model=AgingReport)
+def aging_report(
+    bucket: BucketKey | None = None,
+    class_id: str | None = None,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    _user=Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
+):
+    """Open invoices grouped by how late they are: the five bucket totals, plus the worst invoices first."""
+    if not school_id:
+        raise HTTPException(400, "SUPER_ADMIN must act within a specific school for the aging report")
+    return get_aging_report(db, school_id, bucket=bucket, class_id=class_id)
+
+
+@router.get("/aging/export")
+def aging_export(
+    bucket: BucketKey | None = None,
+    class_id: str | None = None,
+    school_id: str = Depends(get_school_scope),
+    db: Session = Depends(get_db),
+    _user=Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
+):
+    """The same report as a CSV for Excel — every matching invoice, not just the page shown on screen."""
+    if not school_id:
+        raise HTTPException(400, "SUPER_ADMIN must act within a specific school for the aging report")
+    report = get_aging_report(db, school_id, bucket=bucket, class_id=class_id, limit=100_000)
+    return Response(
+        content="\ufeff" + aging_csv(report),  # BOM so Excel reads UTF-8 names correctly
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="aging-report.csv"'},
+    )

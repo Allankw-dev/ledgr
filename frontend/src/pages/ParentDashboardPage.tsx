@@ -162,6 +162,11 @@ export function ParentDashboardPage() {
                       <p className={`figure text-3xl sm:text-4xl font-medium mt-1.5 ${balance > 0 ? 'text-ink-900' : 'text-emerald-700'}`}>
                         <AnimatedAmount value={balance} format={formatCurrency} />
                       </p>
+                      {Number(child.credit_held ?? 0) > 0 && (
+                        <p className="text-xs text-green mt-2 max-w-[34ch]">
+                          {formatCurrency(Number(child.credit_held))} credit held by the school. The office will apply it to your next invoice.
+                        </p>
+                      )}
                     </div>
                     {payable >= 1 ? (
                       <PayWithMpesa

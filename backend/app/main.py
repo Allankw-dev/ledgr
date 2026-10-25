@@ -26,7 +26,7 @@ from app.core.locks import try_advisory_lock
 from app.core.jobs import worker_loop
 from app.core.rate_limit import limiter
 from app.models.school import School
-from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth, notifications_general, attachments, direct_messages
+from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth, notifications_general, attachments, direct_messages, subscription, platform
 from app.routers.students import guardian_requests_router
 from app.services.overdue_automation_service import run_overdue_reminder_sweep
 
@@ -208,6 +208,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):  # noqa
     return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
+app.include_router(subscription.router)
+app.include_router(platform.router)
 app.include_router(auth.router)
 app.include_router(students.router)
 app.include_router(invoices.router)

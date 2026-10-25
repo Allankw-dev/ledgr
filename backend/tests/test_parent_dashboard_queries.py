@@ -19,7 +19,7 @@ from tests.conftest import needs_db
 
 pytestmark = needs_db
 D = Decimal
-MAX_QUERIES = 7  # links, students, classes, invoices, items, payments, plans — one per table
+MAX_QUERIES = 8  # links, students, classes, invoices, items, payments, plans, held credit — one per table
 
 
 def _family(db, w, extra_children: int):
@@ -93,3 +93,13 @@ def test_every_child_gets_their_own_invoices_balances_and_payments(db, world):
     # nothing leaks between siblings
     assert {p.id for inv in sib.invoices for p in inv.payments}.isdisjoint({p.id for inv in by_name["Sibling 1"].invoices for p in inv.payments})
     assert kids[0].id == first.id
+
+
+def test_held_credit_is_reported_per_child_in_the_same_fixed_cost(db, world):
+    """Money the school is holding for a child (an overpayment) shows on that child only."""
+    kids = _family(db, world, extra_children=1)  # noqa: F841 — builds the family; the parent sees all of it
+    ps.record_confirmed_payment(db, world.school.id, world.student.id, D(world.invoice.total_amount) + D("750"), PaymentMethod.CASH, invoice_id=world.invoice.id)
+    me = CurrentUser(user_id=world.parent.id, school_id=world.school.id, role="PARENT")
+    result = {c.full_name: c for c in parent_router.list_my_children(db=db, user=me, _school_id=world.school.id)}
+    assert result["Kid One"].credit_held == D("750.00")
+    assert all(c.credit_held == 0 for name, c in result.items() if name != "Kid One")

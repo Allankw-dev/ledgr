@@ -64,6 +64,8 @@ export interface ParentStudentView {
   class_name: string | null;
   invoices: ParentInvoiceView[];
   balance_due: string;
+  /** Money the school is holding for this child that isn't against an invoice yet (e.g. an overpayment). */
+  credit_held?: string;
 }
 
 export interface AuthUser {

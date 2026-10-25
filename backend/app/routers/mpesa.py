@@ -28,6 +28,7 @@ from app.services.payment_service import (
     create_pending_mpesa_payment,
     discard_unsent_payment,
     flag_unconfirmed_push,
+    pending_mpesa_total,
     resolve_mpesa_callback,
 )
 from app.services.mpesa_reconciliation_service import (
@@ -111,7 +112,20 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
             raise HTTPException(422, "There is nothing left to pay for this student")
         owed_on = "this student's account"
 
-    pay_amount = _resolve_pay_amount(data.amount, balance, owed_on)
+    # A prompt that was sent a moment ago and not answered yet may still arrive. Count it, so tapping twice (or
+    # two phones) can't ask for the same shillings twice and overpay.
+    pending = pending_mpesa_total(db, student.id, invoice.id if invoice is not None else None)
+    available = balance - pending
+    if available < 1:
+        raise HTTPException(
+            409,
+            f"A payment of KES {pending:,.0f} is already waiting for confirmation on {owed_on}. "
+            "Finish it on your phone, or try again in a few minutes.",
+        )
+    if pending > 0:
+        owed_on = f"{owed_on} after the KES {pending:,.0f} payment already waiting"
+
+    pay_amount = _resolve_pay_amount(data.amount, available, owed_on)
     return invoice, pay_amount, student
 
 

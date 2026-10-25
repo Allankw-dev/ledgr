@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
 import logging
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core import cache
@@ -26,6 +26,54 @@ UNSENT_PREFIX = "unsent:"
 # What a payment's notes start with while it waits for a bursar after an amount mismatch.
 MISMATCH_NOTE_PREFIX = "Amount mismatch"
 MISMATCH_AUDIT_ACTION = "MPESA_CALLBACK_AMOUNT_MISMATCH"
+
+
+# An M-Pesa prompt that was sent but never answered (no PIN, phone off) stays PENDING. Within this window it
+# still counts as money that might arrive, so a second prompt can't ask for the same shillings again.
+PENDING_WINDOW = timedelta(minutes=3)
+
+
+def pending_mpesa_total(db: Session, student_id: str, invoice_id: str | None) -> Decimal:
+    """M-Pesa prompts sent recently and not answered yet, that could land on what the caller is about to ask for.
+    For one invoice: prompts on that invoice, plus whole-balance prompts (which may be split onto it). For the
+    whole balance: every pending prompt for the student."""
+    query = select(func.coalesce(func.sum(Payment.amount), 0)).where(
+        Payment.student_id == student_id,
+        Payment.method == PaymentMethod.MPESA,
+        Payment.status == PaymentStatus.PENDING,
+        Payment.created_at > func.now() - PENDING_WINDOW,
+    )
+    if invoice_id:
+        query = query.where(or_(Payment.invoice_id == invoice_id, Payment.invoice_id.is_(None)))
+    return Decimal(db.scalar(query) or 0)
+
+
+def _owed_on_invoice(db: Session, invoice_id: str) -> Decimal:
+    """What the invoice still owes RIGHT NOW. Takes the invoice lock first (and re-reads the row), so a payment
+    that confirmed a moment ago on another request is already counted."""
+    invoice = lock_invoice(db, invoice_id)
+    db.refresh(invoice)
+    return max(Decimal(0), invoice.total_amount - invoice.amount_paid)
+
+
+def _credit_row(payment: Payment, amount: Decimal, notes: str) -> Payment:
+    """The part of a payment that doesn't fit its invoice: real money, attached to no invoice, so it lands in the
+    bursar's "unallocated" list (and the parent's "credit held") instead of silently overpaying the invoice."""
+    return Payment(
+        school_id=payment.school_id,
+        student_id=payment.student_id,
+        invoice_id=None,
+        amount=amount,
+        method=payment.method,
+        status=PaymentStatus.CONFIRMED,
+        reference_code=payment.reference_code,
+        external_txn_id=payment.external_txn_id,
+        paid_at=payment.paid_at,
+        notes=notes,
+    )
+
+
+EXCESS_NOTE = "Unallocated: this payment came to more than the invoice still owed"
 
 
 def record_confirmed_payment(
@@ -56,10 +104,22 @@ def record_confirmed_payment(
     if amount <= 0:
         raise HTTPException(422, "Payment amount must be greater than zero")
 
+    paid_total = amount
+    excess = Decimal(0)
+    requested_invoice_id = invoice_id
     if invoice_id:
         # Exclusive invoice lock BEFORE the payment INSERT (see lock_invoice) —
         # otherwise two simultaneous payments on one invoice can deadlock.
-        lock_invoice(db, invoice_id)
+        owed = _owed_on_invoice(db, invoice_id)
+        if amount > owed:
+            # More than the invoice still owes: the invoice takes what it owes and the rest is held as credit,
+            # never silently recorded as an overpayment (paid > total).
+            if owed > 0:
+                excess, amount = amount - owed, owed
+            else:
+                invoice_id = None  # nothing owed any more: the whole payment waits for the bursar
+
+    held_whole = requested_invoice_id is not None and invoice_id is None
 
     payment = Payment(
         school_id=school_id,
@@ -84,6 +144,21 @@ def record_confirmed_payment(
         user_id=actor_user_id,
         metadata={"amount": str(amount), "method": method.value},
     )
+
+    if held_whole:
+        payment.notes = EXCESS_NOTE
+    if excess > 0:
+        db.add(_credit_row(payment, excess, EXCESS_NOTE))
+    if excess > 0 or held_whole:
+        log_audit(
+            db,
+            school_id=school_id,
+            action="PAYMENT_EXCESS_HELD",
+            entity_type="Payment",
+            entity_id=payment.id,
+            user_id=actor_user_id,
+            metadata={"paid": str(paid_total), "applied": str(amount if not held_whole else 0), "held": str(excess if excess > 0 else amount)},
+        )
 
     if invoice_id:
         recalculate_invoice_status(db, invoice_id, commit=False)
@@ -362,7 +437,30 @@ def resolve_mpesa_callback(
         notify_amount = notify_remaining = None
         slices: list[dict] = []
         if payment.invoice_id:
-            recalculate_invoice_status(db, payment.invoice_id, commit=False)
+            invoice_id = payment.invoice_id
+            full_amount = payment.amount
+            # The invoice may have been paid (cash, or another prompt) between the push and the PIN.
+            owed = _owed_on_invoice(db, invoice_id)
+            if full_amount > owed:
+                if owed > 0:
+                    payment.amount = owed
+                    db.add(_credit_row(payment, full_amount - owed, EXCESS_NOTE))
+                else:
+                    payment.invoice_id = None  # nothing owed any more: the whole payment waits for the bursar
+                    payment.notes = EXCESS_NOTE
+                log_audit(
+                    db,
+                    school_id=payment.school_id,
+                    action="MPESA_PAYMENT_EXCESS_HELD",
+                    entity_type="Payment",
+                    entity_id=payment.id,
+                    metadata={"paid": str(full_amount), "applied": str(owed), "held": str(full_amount - owed)},
+                )
+                # The parent paid the full amount, so the message should say so and report what is still owed overall.
+                notify_amount = full_amount
+                db.flush()
+                notify_remaining = student_open_balance(db, payment.student_id)
+            recalculate_invoice_status(db, invoice_id, commit=False)
         else:
             notify_amount, slices = _allocate_to_open_invoices(db, payment)
             for part in slices:

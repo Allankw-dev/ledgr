@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X, MessagesSquare, Flag, Pencil, PanelLeftClose, PanelLeftOpen, Search, RefreshCw, type LucideIcon } from 'lucide-react';
+import { BookOpen, LayoutGrid, Users, FileText, ShieldCheck, UserCheck, LogOut, Sparkles, Megaphone, ScrollText, MessageCircle, GraduationCap, Users2, Menu, X, MessagesSquare, Flag, Pencil, PanelLeftClose, PanelLeftOpen, Search, RefreshCw, Hourglass, type LucideIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { AssistantFab } from './AssistantFab';
 import { BackButton } from './BackButton';
@@ -11,6 +11,8 @@ import { useSidebarCollapsed } from '../hooks/useSidebarCollapsed';
 import { Modal } from './ui/Modal';
 import { EditStaffProfileForm } from './EditStaffProfileForm';
 import { NotificationsProvider } from './NotificationsContext';
+import { SubscriptionBanner } from './SubscriptionBanner';
+import { useSubscription } from '../hooks/useSubscription';
 import { Avatar } from './dx/Avatar';
 
 interface NavEntry {
@@ -29,6 +31,7 @@ const staffNavGroups: { label: string; items: NavEntry[] }[] = [
       { to: '/classes', label: 'Grades', icon: GraduationCap },
       { to: '/teachers', label: 'Teachers', icon: Users2 },
       { to: '/invoices', label: 'Invoices', icon: FileText },
+      { to: '/aging', label: 'Aging report', icon: Hourglass },
     ],
   },
   {
@@ -104,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed('ledgr.sidebar.staff');
+  const subscription = useSubscription(true);
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -363,7 +367,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div key={location.pathname} className="page-enter">
-          {children}
+          <SubscriptionBanner subscription={subscription} />
+        {children}
         </div>
       </main>
 

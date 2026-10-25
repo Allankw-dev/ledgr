@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db, system_engine
 from app.core.security import decode_access_token
+from app.services.subscription_service import READ_ONLY_MESSAGE, get_school_state
 
 bearer_scheme = HTTPBearer()
 
@@ -90,7 +91,14 @@ def require_roles(*roles: str):
     return checker
 
 
+# Roles that run a school. Parents are deliberately NOT here: a school's subscription must never stop a
+# parent paying fees.
+_STAFF_ROLES = ("SCHOOL_ADMIN", "BURSAR", "TEACHER")
+_READ_METHODS = ("GET", "HEAD", "OPTIONS")
+
+
 def get_school_scope(
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> str:
@@ -126,6 +134,10 @@ def get_school_scope(
 
     if not user.school_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "User is not attached to a school")
+
+    # Subscription over (or switched off): the school's staff can still look, but not change anything.
+    if user.role in _STAFF_ROLES and request.method not in _READ_METHODS and get_school_state(user.school_id).read_only:
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, READ_ONLY_MESSAGE)
 
     db.info["school_id"] = user.school_id
     db.execute(

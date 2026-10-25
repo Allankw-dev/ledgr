@@ -9,6 +9,8 @@ import { LiveBackground } from './components/LiveBackground';
 // the login screen could render. Now a first visit only pulls the chunk
 // for the route actually being hit; everything else loads on demand as
 // the person navigates there.
+const AgingPage = lazy(() => import('./pages/AgingPage').then((m) => ({ default: m.AgingPage })));
+const PlatformPage = lazy(() => import('./pages/PlatformPage').then((m) => ({ default: m.PlatformPage })));
 const AuthPage = lazy(() => import('./pages/AuthPage').then((m) => ({ default: m.AuthPage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
@@ -70,6 +72,22 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={[...STAFF_ROLES]}>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/aging"
+          element={
+            <ProtectedRoute allowedRoles={['SCHOOL_ADMIN', 'BURSAR']}>
+              <AgingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/platform"
+          element={
+            <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+              <PlatformPage />
             </ProtectedRoute>
           }
         />

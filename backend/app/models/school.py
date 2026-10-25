@@ -25,6 +25,14 @@ class School(Base):
     address: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Subscription (see services/subscription_service.py). `subscription_status` is what the platform
+    # operator sets: ACTIVE, TRIAL or SUSPENDED. Whether the school is actually in good standing also depends
+    # on the dates, which is worked out there. A school with ACTIVE and no `paid_until` never expires.
+    plan: Mapped[str] = mapped_column(String, default="STANDARD", server_default="STANDARD", nullable=False)
+    subscription_status: Mapped[str] = mapped_column(String, default="ACTIVE", server_default="ACTIVE", nullable=False)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    learner_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

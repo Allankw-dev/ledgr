@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
@@ -114,6 +114,22 @@ def list_my_children(
             ).scalars().all()
         )
 
+    # Money the school is holding for a child that isn't against any invoice (an overpayment, or a payment that
+    # arrived after the invoice was cleared). One grouped query for all the children.
+    credit_by_student = dict(
+        db.execute(
+            select(Payment.student_id, func.coalesce(func.sum(Payment.amount), 0))
+            .where(
+                Payment.student_id.in_(student_ids),
+                Payment.invoice_id.is_(None),
+                Payment.status == PaymentStatus.CONFIRMED,
+                Payment.amount > 0,
+                Payment.reversal_of_id.is_(None),
+            )
+            .group_by(Payment.student_id)
+        ).all()
+    )
+
     results = []
     for student in students:
         student_invoices = invoices_by_student.get(student.id, [])
@@ -137,6 +153,7 @@ def list_my_children(
                     for inv in student_invoices
                 ],
                 balance_due=sum((inv.total_amount - inv.amount_paid for inv in student_invoices), Decimal("0")),
+                credit_held=Decimal(credit_by_student.get(student.id, 0)),
             )
         )
 
