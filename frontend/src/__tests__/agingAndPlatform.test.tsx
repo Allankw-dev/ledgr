@@ -1,18 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AxiosError } from 'axios';
 import type { AgingReport } from '../api/aging';
-import type { PlatformSchool } from '../api/subscription';
+import type { CreatedSchool, PlatformSchool } from '../api/subscription';
 
 vi.mock('../components/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock('../api/aging', () => ({ getAgingReport: vi.fn(), downloadAgingCsv: vi.fn() }));
-vi.mock('../api/subscription', () => ({ listPlatformSchools: vi.fn(), updateSchoolSubscription: vi.fn(), getMySubscription: vi.fn() }));
+vi.mock('../api/subscription', () => ({ listPlatformSchools: vi.fn(), updateSchoolSubscription: vi.fn(), getMySubscription: vi.fn(), createSchool: vi.fn() }));
 vi.mock('../store/authStore', () => ({
   useAuthStore: (sel: (s: unknown) => unknown) => sel({ logout: vi.fn(), user: { full_name: 'Allan', email: 'a@x.test' } }),
 }));
 
 import { downloadAgingCsv, getAgingReport } from '../api/aging';
-import { listPlatformSchools, updateSchoolSubscription } from '../api/subscription';
+import { createSchool, listPlatformSchools, updateSchoolSubscription } from '../api/subscription';
 import { AgingPage } from '../pages/AgingPage';
 import { PlatformPage } from '../pages/PlatformPage';
 
@@ -92,6 +93,7 @@ describe('PlatformPage', () => {
   beforeEach(() => {
     vi.mocked(listPlatformSchools).mockReset();
     vi.mocked(updateSchoolSubscription).mockReset();
+    vi.mocked(createSchool).mockReset();
   });
 
   it('lists each school with its standing and learner usage', async () => {
@@ -140,6 +142,62 @@ describe('PlatformPage', () => {
     fireEvent.change(screen.getByLabelText(/Paid until/), { target: { value: '2027-03-31' } });
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() => expect(updateSchoolSubscription).toHaveBeenCalledWith('sc1', { paid_until: '2027-03-31T23:59:59Z', learner_limit: null }));
+  });
+
+  const fillAddSchool = () => {
+    fireEvent.click(screen.getByText('Add school'));
+    fireEvent.change(screen.getByLabelText(/School name/), { target: { value: '  Brand New Academy ' } });
+    fireEvent.change(screen.getByLabelText(/Administrator's full name/), { target: { value: 'Ada Admin' } });
+    fireEvent.change(screen.getByLabelText(/Administrator's email/), { target: { value: 'ada@newschool.test' } });
+    fireEvent.change(screen.getByLabelText(/Learner limit/), { target: { value: '150' } });
+  };
+  const created = (over: Partial<CreatedSchool> = {}): CreatedSchool => ({
+    ...school({ id: 'sc9', name: 'Brand New Academy', contact_email: 'ada@newschool.test', status: 'TRIAL', subscription_status: 'TRIAL', learner_count: 0, learner_limit: 150 }),
+    invite_sent: true,
+    ...over,
+  });
+
+  it('adds a school, shows it straight away and says the admin was emailed', async () => {
+    vi.mocked(listPlatformSchools).mockResolvedValue([school()]);
+    vi.mocked(createSchool).mockResolvedValue(created());
+    render(<MemoryRouter><PlatformPage /></MemoryRouter>);
+    await waitFor(() => screen.getByText('Greenfield Academy'));
+    fillAddSchool();
+    fireEvent.click(screen.getByText('Create school'));
+    await waitFor(() =>
+      expect(createSchool).toHaveBeenCalledWith({
+        school_name: 'Brand New Academy',
+        admin_full_name: 'Ada Admin',
+        admin_email: 'ada@newschool.test',
+        trial_days: 30,
+        learner_limit: 150,
+      }),
+    );
+    await waitFor(() => expect(screen.getByText('Brand New Academy')).toBeTruthy());
+    expect(screen.getByRole('status').textContent).toMatch(/ada@newschool\.test has an email/);
+    expect(screen.queryByText('Create school')).toBeNull(); // the form closed
+  });
+
+  it('tells the operator what to do when the invite email could not be sent', async () => {
+    vi.mocked(listPlatformSchools).mockResolvedValue([]);
+    vi.mocked(createSchool).mockResolvedValue(created({ invite_sent: false }));
+    render(<MemoryRouter><PlatformPage /></MemoryRouter>);
+    await waitFor(() => screen.getByText('Add school'));
+    fillAddSchool();
+    fireEvent.click(screen.getByText('Create school'));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/Forgot password/));
+  });
+
+  it('keeps the form open and shows the reason when the school cannot be created', async () => {
+    vi.mocked(listPlatformSchools).mockResolvedValue([]);
+    const err = new AxiosError('Request failed', '409', undefined, undefined, { status: 409, data: { detail: 'An account with that email already exists' } } as never);
+    vi.mocked(createSchool).mockRejectedValue(err);
+    render(<MemoryRouter><PlatformPage /></MemoryRouter>);
+    await waitFor(() => screen.getByText('Add school'));
+    fillAddSchool();
+    fireEvent.click(screen.getByText('Create school'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/already exists/));
+    expect(screen.getByText('Create school')).toBeTruthy();
   });
 
   it('shows a retry when the list will not load', async () => {

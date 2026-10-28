@@ -13,6 +13,7 @@ from google.auth.transport import requests as google_requests
 from app.core.config import settings
 from app.core.database import get_system_db
 from app.core.deps import invalidate_user_state
+from app.core.emails import email_equals, normalize_email
 from app.core.phone import normalize_phone, phone_key
 from app.core.security import (
     hash_password,
@@ -74,7 +75,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 def get_setup_status(db: Session = Depends(get_system_db)):
     """
     Public, unauthenticated — lets the frontend check whether this Ledgr
-    instance already has its one school set up, before even showing the
+    instance has been through first-run setup yet, before even showing the
     registration form. Reveals nothing sensitive (not the school's name,
     just whether setup has happened), so it's safe to leave unauthenticated.
     """
@@ -82,72 +83,70 @@ def get_setup_status(db: Session = Depends(get_system_db)):
     return {"is_set_up": is_set_up}
 
 
-@router.post("/register-parent", response_model=TokenResponse, status_code=201)
-@limiter.limit("30/minute")  # per IP; many parents sign up from the school's wifi on enrolment day
-def register_parent(request: Request, data: RegisterParentRequest, db: Session = Depends(get_system_db)):
-    """
-    Public self-signup for a parent. Deliberately creates ONLY the account
-    here — no student link yet. Linking happens as a separate, explicit
-    step (POST /api/students/{id}/request-link) after they type in their
-    child's admission number.
+def _resolve_parent_school_id(db: Session, email: str, phone_key_value: str | None = None) -> str:
+    """Which school a self-registering parent belongs to. Used by BOTH register-parent and Google sign-in,
+    so the two can never disagree.
 
-    Which SCHOOL this parent belongs to is resolved, in order:
-      1. A GuardianInvite matching this phone number OR this email (a
-         bursar already entered this parent's details via "Add student" or
-         "Link parent") — trust it, since the school itself told us this
-         contact belongs to them. Phone is the field bursars are always
-         expected to have on file, so this is the normal case once bursars
-         use that feature: signup just works, with no ambiguity.
-      2. No invite anywhere for this phone or email, but only one school
-         exists in this deployment at all — use it. Most deployments are
-         one school.
-      3. Otherwise we refuse to guess. This used to silently grab
-         `School.first()`, which could (and did) attach a parent to the
-         wrong school the moment a second school existed — same admission
-         number, wrong tenant, "student not found" with no clue why.
+    In order:
+      1. A GuardianInvite matching this phone number OR this email (a bursar already entered this parent's
+         details via "Add student" or "Link parent"): the school itself told us this contact is theirs.
+      2. No invite, but only one school exists in this deployment: use it.
+      3. Otherwise refuse to guess. Silently grabbing the first school attached parents to the wrong one
+         the moment a second school existed.
     """
-    normalized_phone = normalize_phone(data.phone)
-    if not normalized_phone:
-        raise HTTPException(400, "Enter a valid phone number")
-
-    match_filters = [func.lower(GuardianInvite.email) == data.email.lower()]
-    key = phone_key(normalized_phone)
-    if key:
-        match_filters.append(func.ledgr_phone_key(GuardianInvite.phone) == key)
+    match_filters = [func.lower(GuardianInvite.email) == normalize_email(email)]
+    if phone_key_value:
+        match_filters.append(func.ledgr_phone_key(GuardianInvite.phone) == phone_key_value)
 
     invite_school_ids = [
-        row[0]
-        for row in db.query(GuardianInvite.school_id).filter(or_(*match_filters)).distinct().all()
+        row[0] for row in db.query(GuardianInvite.school_id).filter(or_(*match_filters)).distinct().all()
     ]
 
     if len(invite_school_ids) == 1:
-        school_id = invite_school_ids[0]
-    elif len(invite_school_ids) > 1:
+        return invite_school_ids[0]
+    if len(invite_school_ids) > 1:
         raise HTTPException(
             409,
             "This phone number or email is expected by more than one school. Contact the school office to "
             "confirm which one you should sign up with.",
         )
-    else:
-        schools = db.query(School.id).limit(2).all()
-        if len(schools) == 1:
-            school_id = schools[0][0]
-        elif len(schools) == 0:
-            raise HTTPException(503, "This school hasn't been set up yet. Contact the school office.")
-        else:
-            raise HTTPException(
-                409,
-                "We couldn't tell which school you belong to. Ask the school office to add you as your child's "
-                "parent first (they'll just need your phone number), then sign up again with that same number.",
-            )
 
-    existing = db.query(User).filter(User.email == data.email).first()
+    schools = db.query(School.id).limit(2).all()
+    if len(schools) == 1:
+        return schools[0][0]
+    if len(schools) == 0:
+        raise HTTPException(503, "This school hasn't been set up yet. Contact the school office.")
+    raise HTTPException(
+        409,
+        "We couldn't tell which school you belong to. Ask the school office to add you as your child's "
+        "parent first (they'll just need your phone number or email), then sign up again with the same one.",
+    )
+
+
+@router.post("/register-parent", response_model=TokenResponse, status_code=201)
+@limiter.limit("30/minute")  # per IP; many parents sign up from the school's wifi on enrolment day
+def register_parent(request: Request, data: RegisterParentRequest, db: Session = Depends(get_system_db)):
+    """
+    Public self-signup for a parent. Deliberately creates ONLY the account
+    here, with no student link yet. Linking is a separate, explicit step
+    (POST /api/students/{id}/request-link) once they type in their child's
+    admission number. Which school they belong to is decided by
+    _resolve_parent_school_id.
+    """
+    normalized_phone = normalize_phone(data.phone)
+    if not normalized_phone:
+        raise HTTPException(400, "Enter a valid phone number")
+
+    key = phone_key(normalized_phone)
+    school_id = _resolve_parent_school_id(db, data.email, key)
+
+    existing = db.query(User).filter(email_equals(User.email, data.email)).first()
     if existing:
         raise HTTPException(409, "An account with this email already exists")
 
     parent = User(
         school_id=school_id,
-        email=data.email,
+        email=normalize_email(data.email),
         phone=normalized_phone,
         password_hash=hash_password(data.password),
         role=UserRole.PARENT,
@@ -168,7 +167,7 @@ def _find_user_by_identifier(db: Session, identifier: str) -> User | None:
     otherwise let a stranger who owns it request a reset link for that account."""
     identifier = identifier.strip()
     if "@" in identifier:
-        return db.query(User).filter(User.email == identifier).first()
+        return db.query(User).filter(email_equals(User.email, identifier)).first()
     phone = normalize_phone(identifier)
     if not phone:
         return None
@@ -199,7 +198,7 @@ def _authenticate(db: Session, identifier: str, password: str) -> User | None:
     """
     identifier = identifier.strip()
     if "@" in identifier:
-        candidates = [u for u in [db.query(User).filter(User.email == identifier).first()] if u]
+        candidates = [u for u in [db.query(User).filter(email_equals(User.email, identifier)).first()] if u]
     else:
         key = phone_key(identifier)
         candidates = (
@@ -228,7 +227,7 @@ def _audit_failed_login(db: Session, identifier: str, request: Request) -> None:
     try:
         identifier = identifier.strip()
         if "@" in identifier:
-            user = db.query(User).filter(User.email == identifier).first()
+            user = db.query(User).filter(email_equals(User.email, identifier)).first()
         else:
             key = phone_key(identifier)
             users = (
@@ -279,12 +278,11 @@ def _build_token_response(db: Session, user: User, school_name: str | None = Non
 @limiter.limit("5/minute")
 def register_school(request: Request, data: RegisterSchoolRequest, db: Session = Depends(get_system_db)):
     """
-    Onboards THE school + its first SCHOOL_ADMIN user — singular, deliberately.
-    This Ledgr instance is built for one specific school, not a multi-tenant
-    platform, so once a school exists this endpoint permanently refuses to
-    create a second one. That check runs before anything else and is not
-    conditional on who's calling — an already-set-up instance rejects this
-    request from anyone, authenticated or not, forever.
+    First-run setup: creates the very first school and its SCHOOL_ADMIN. This public endpoint refuses once
+    any school exists, from anyone, so a stranger can never open a second school on a live system.
+
+    Every further school is created by the platform operator (a SUPER_ADMIN) through
+    POST /api/platform/schools.
     """
     if db.query(School).first() is not None:
         raise HTTPException(
@@ -293,7 +291,7 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
             "admin account, ask your school's existing administrator to create one for you.",
         )
 
-    existing = db.query(User).filter(User.email == data.admin_email).first()
+    existing = db.query(User).filter(email_equals(User.email, data.admin_email)).first()
     if existing:
         raise HTTPException(409, "An account with this email already exists")
 
@@ -301,14 +299,14 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
         name=data.school_name,
         country=data.country.upper(),
         currency=data.currency.upper(),
-        contact_email=data.admin_email,
+        contact_email=normalize_email(data.admin_email),
     )
     db.add(school)
     db.flush()
 
     admin = User(
         school_id=school.id,
-        email=data.admin_email,
+        email=normalize_email(data.admin_email),
         password_hash=hash_password(data.admin_password),
         role=UserRole.SCHOOL_ADMIN,
         full_name=data.admin_full_name,
@@ -371,22 +369,21 @@ def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends
     if not idinfo.get("email_verified"):
         raise HTTPException(401, "Your Google account's email isn't verified. Please use a verified Google account.")
 
-    email = idinfo["email"]
-    user = db.query(User).filter(User.email == email).first()
+    email = normalize_email(idinfo["email"])
+    user = db.query(User).filter(email_equals(User.email, email)).first()
 
     if user:
         if not user.is_active:
             raise HTTPException(401, "This account has been deactivated. Contact your school office.")
         return _complete_login(user, db)
 
-    # No matching account — self-register as a parent, mirroring register-parent.
-    school = db.query(School).first()
-    if not school:
-        raise HTTPException(503, "This school hasn't been set up yet. Contact the school office.")
+    # No matching account: self-register as a parent, the same way register-parent does. Google gives us an
+    # email but no phone, so only an invite on that email (or a one-school deployment) can place them.
+    school_id = _resolve_parent_school_id(db, email)
 
     full_name = idinfo.get("name") or email.split("@")[0]
     new_user = User(
-        school_id=school.id,
+        school_id=school_id,
         email=email,
         # Random, never issued to anyone — a Google-only account simply has
         # no working password until/unless the person sets one separately.

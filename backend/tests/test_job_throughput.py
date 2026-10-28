@@ -112,11 +112,24 @@ def test_payment_notifications_are_marked_urgent(db, world):
     from decimal import Decimal
     from app.models.enums import PaymentMethod
     from app.services import payment_service as ps
-    from datetime import datetime, timezone
 
     ps.record_confirmed_payment(db, world.school.id, world.student.id, Decimal("1000"), PaymentMethod.CASH, invoice_id=world.invoice.id)
     job = db.execute(select(Job).where(Job.kind == "notify_payment_result")).scalar_one()
-    assert job.run_at < datetime.now(timezone.utc) - jobs.URGENT_HEAD_START / 2
+    assert job.priority == jobs.URGENT_PRIORITY
+
+
+def test_normal_jobs_have_normal_priority_and_urgent_ones_keep_their_delay(db, world):
+    from datetime import datetime, timedelta, timezone
+
+    _enqueue(db, world, "plain")
+    _enqueue(db, world, "rush-later", urgent=True, delay_seconds=3600)
+    db.commit()
+    plain = db.execute(select(Job).where(Job.payload["name"].astext == "plain")).scalar_one()
+    later = db.execute(select(Job).where(Job.payload["name"].astext == "rush-later")).scalar_one()
+    assert plain.priority == jobs.NORMAL_PRIORITY
+    assert later.priority == jobs.URGENT_PRIORITY
+    # Urgent no longer rewrites run_at: a delayed urgent job still waits for its time.
+    assert later.run_at > datetime.now(timezone.utc) + timedelta(minutes=30)
 
 
 # --- enqueue_many: one statement for many jobs ---------------------------------

@@ -112,3 +112,31 @@ def world(db):
     w = W()
     w.school, w.bursar, w.parent, w.student, w.term, w.invoice = school, bursar, parent, student, term, invoice
     return w
+
+
+PHONE_KEY_SQL = r"""
+CREATE OR REPLACE FUNCTION ledgr_phone_key(p text) RETURNS text
+LANGUAGE sql IMMUTABLE
+SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT CASE
+    WHEN d = '' THEN NULL
+    WHEN d LIKE '00%' THEN substr(d, 3)
+    WHEN d LIKE '0%' THEN '254' || substr(d, 2)
+    WHEN d LIKE '254%' AND length(d) >= 12 THEN d
+    WHEN length(d) IN (9, 10) AND left(d, 1) IN ('7', '1') THEN '254' || d
+    ELSE d
+  END
+  FROM (SELECT regexp_replace(coalesce(p, ''), '\D', '', 'g') AS d) t
+$$
+"""
+
+
+def install_phone_key_function(db) -> None:
+    """The ledgr_phone_key() SQL function comes from an Alembic migration (a8f3c1d6e2b9), not from the models,
+    so a schema built with create_all doesn't have it. Tests that go through phone matching install the same
+    definition here so they exercise the real logic."""
+    from sqlalchemy import text
+
+    db.execute(text(PHONE_KEY_SQL))
+    db.commit()

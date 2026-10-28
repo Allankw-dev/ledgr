@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut } from 'lucide-react';
+import { BookOpen, LogOut, Plus } from 'lucide-react';
 import { DxCard } from '../components/dx/DxCard';
-import { listPlatformSchools, updateSchoolSubscription, type PlatformSchool, type SubscriptionStatus, type SubscriptionUpdate } from '../api/subscription';
+import { createSchool, listPlatformSchools, updateSchoolSubscription, type CreatedSchool, type PlatformSchool, type SubscriptionStatus, type SubscriptionUpdate } from '../api/subscription';
+import { getErrorMessage } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 
 const PILL: Record<SubscriptionStatus, string> = {
@@ -123,12 +124,85 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
   );
 }
 
+const FIELD = 'mt-1 w-full rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2 text-sm text-ink-900';
+
+function AddSchoolForm({ onCreated, onCancel }: { onCreated: (s: CreatedSchool) => void; onCancel: () => void }) {
+  const [schoolName, setSchoolName] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [trialDays, setTrialDays] = useState('30');
+  const [limit, setLimit] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      onCreated(
+        await createSchool({
+          school_name: schoolName.trim(),
+          admin_full_name: adminName.trim(),
+          admin_email: adminEmail.trim(),
+          trial_days: trialDays.trim() === '' ? undefined : Number(trialDays),
+          learner_limit: limit.trim() === '' ? undefined : Number(limit),
+        }),
+      );
+    } catch (err) {
+      setError(getErrorMessage(err, "That school couldn't be created. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <DxCard className="p-5">
+      <h2 className="font-display text-lg text-ink-900">Add a school</h2>
+      <p className="text-xs text-ink-400 mt-1">The school's administrator gets an email with a link to set their own password.</p>
+      <form className="mt-4 grid sm:grid-cols-2 gap-3" onSubmit={submit}>
+        <label className="text-xs text-ink-400">
+          School name
+          <input required minLength={2} value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className={FIELD} />
+        </label>
+        <label className="text-xs text-ink-400">
+          Administrator's full name
+          <input required minLength={2} value={adminName} onChange={(e) => setAdminName(e.target.value)} className={FIELD} />
+        </label>
+        <label className="text-xs text-ink-400">
+          Administrator's email
+          <input required type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} className={FIELD} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs text-ink-400">
+            Trial days (blank = none)
+            <input type="number" min={1} max={120} value={trialDays} onChange={(e) => setTrialDays(e.target.value)} className={FIELD} />
+          </label>
+          <label className="text-xs text-ink-400">
+            Learner limit (blank = none)
+            <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={FIELD} />
+          </label>
+        </div>
+        <div className="sm:col-span-2 flex items-center gap-3">
+          <button disabled={busy} className="rounded-full bg-lime text-[#0B1203] font-semibold text-sm px-5 py-2 disabled:opacity-50">
+            {busy ? 'Creating…' : 'Create school'}
+          </button>
+          <button type="button" onClick={onCancel} className="text-sm text-ink-600 hover:text-ink-900">Cancel</button>
+        </div>
+      </form>
+      {error && <p role="alert" className="mt-3 text-xs text-coral">{error}</p>}
+    </DxCard>
+  );
+}
+
 export function PlatformPage() {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const [schools, setSchools] = useState<PlatformSchool[] | null>(null);
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(() => {
     setError('');
@@ -164,10 +238,40 @@ export function PlatformPage() {
       </header>
 
       <main className="px-4 sm:px-8 py-6 max-w-[1000px] mx-auto flex flex-col gap-5">
-        <div>
-          <h1 className="font-display text-3xl text-ink-900">Schools and billing</h1>
-          <p className="text-sm text-ink-600 mt-1">Renew, start a trial, or switch a school off. Parents can always pay, whatever the status.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-3xl text-ink-900">Schools and billing</h1>
+            <p className="text-sm text-ink-600 mt-1">Renew, start a trial, or switch a school off. Parents can always pay, whatever the status.</p>
+          </div>
+          {!adding && (
+            <button
+              onClick={() => {
+                setNotice('');
+                setAdding(true);
+              }}
+              className="flex items-center gap-1.5 rounded-full bg-lime text-[#0B1203] font-semibold text-sm px-4 py-2"
+            >
+              <Plus className="w-4 h-4" strokeWidth={2.5} />
+              Add school
+            </button>
+          )}
         </div>
+
+        {notice && <div role="status" className="bg-green-100 text-green rounded-md px-4 py-3 text-sm">{notice}</div>}
+        {adding && (
+          <AddSchoolForm
+            onCancel={() => setAdding(false)}
+            onCreated={(created) => {
+              setSchools((cur) => [...(cur ?? []), created]);
+              setAdding(false);
+              setNotice(
+                created.invite_sent
+                  ? `${created.name} was created. ${created.contact_email} has an email with a link to set their password.`
+                  : `${created.name} was created, but the invite email could not be sent. Ask ${created.contact_email} to use "Forgot password" on the sign-in page.`,
+              );
+            }}
+          />
+        )}
 
         {schools && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

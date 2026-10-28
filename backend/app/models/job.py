@@ -21,8 +21,13 @@ class Job(Base):
 
     __tablename__ = "jobs"
     __table_args__ = (
-        # The claim query scans only what is actually waiting.
-        Index("ix_jobs_pending_run_at", "run_at", postgresql_where=text("status = 'pending'")),
+        # The claim query takes the highest priority first, then the oldest run_at, among what is waiting.
+        Index(
+            "ix_jobs_pending_priority_run_at",
+            text("priority DESC"),
+            "run_at",
+            postgresql_where=text("status = 'pending'"),
+        ),
         Index("ix_jobs_running_locked_at", "locked_at", postgresql_where=text("status = 'running'")),
         # Same dedupe_key can't be enqueued twice (idempotent fan-out).
         Index("ux_jobs_dedupe_key", "dedupe_key", unique=True, postgresql_where=text("dedupe_key IS NOT NULL")),
@@ -35,6 +40,8 @@ class Job(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending", server_default="pending")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5, server_default="5")
+    # Higher runs first (0 = normal, see core/jobs.py URGENT_PRIORITY). Ties go to the oldest run_at.
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_by: Mapped[str | None] = mapped_column(String, nullable=True)

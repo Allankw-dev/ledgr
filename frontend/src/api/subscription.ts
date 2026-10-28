@@ -56,3 +56,25 @@ export async function updateSchoolSubscription(schoolId: string, body: Subscript
   const { data } = await apiClient.patch<PlatformSchool>(`/api/platform/schools/${schoolId}/subscription`, body);
   return data;
 }
+
+/** What the operator fills in to onboard a school. The admin gets an emailed link to set their own password. */
+export interface CreateSchoolRequest {
+  school_name: string;
+  admin_full_name: string;
+  admin_email: string;
+  country?: string;
+  currency?: string;
+  plan?: string;
+  learner_limit?: number;
+  trial_days?: number;
+}
+
+/** The new school's row, plus whether the admin's set-password email actually went out. */
+export interface CreatedSchool extends PlatformSchool {
+  invite_sent: boolean;
+}
+
+export async function createSchool(body: CreateSchoolRequest): Promise<CreatedSchool> {
+  const { data } = await apiClient.post<CreatedSchool>('/api/platform/schools', body);
+  return data;
+}

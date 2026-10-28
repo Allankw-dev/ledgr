@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_school_scope, require_roles, CurrentUser
+from app.core.emails import email_equals, normalize_email
 from app.core.security import hash_password, create_password_reset_token
 from app.core.config import settings
 from app.core.phone import normalize_phone
@@ -154,7 +155,7 @@ def create_teacher(
     phone = normalize_phone(data.phone) if data.phone and data.phone.strip() else None
 
     if data.email:
-        if db.execute(select(User).where(User.email == data.email)).scalar_one_or_none():
+        if db.execute(select(User).where(email_equals(User.email, data.email))).scalar_one_or_none():
             raise HTTPException(409, "An account with this email already exists")
     if phone:
         # Teachers sign in by phone, so a teacher's number must be unique platform-wide.
@@ -172,7 +173,7 @@ def create_teacher(
         school_id=school_id,
         # Phone-only teachers get a placeholder address on a reserved-invalid
         # domain (the users table requires a unique email); it's hidden in the UI.
-        email=data.email or f"t-{uuid.uuid4().hex[:12]}@{PHONE_ONLY_EMAIL_DOMAIN}",
+        email=normalize_email(data.email) if data.email else f"t-{uuid.uuid4().hex[:12]}@{PHONE_ONLY_EMAIL_DOMAIN}",
         phone=phone,
         password_hash=hash_password(uuid.uuid4().hex),
         role=UserRole.TEACHER,

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer, func, Enum as SAEnum
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Index, Integer, func, text, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -41,6 +41,9 @@ class School(Base):
 
 class User(Base):
     __tablename__ = "users"
+    # Emails are compared case-insensitively everywhere (core/emails.py); this makes the database refuse a
+    # second account that differs only by case, even if two requests race past the application check.
+    __table_args__ = (Index("ux_users_email_lower", func.lower(text("email")), unique=True),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.id"), nullable=True)  # null for SUPER_ADMIN

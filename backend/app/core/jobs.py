@@ -8,6 +8,7 @@ silently drops it, and a failure is logged and forgotten. Here a job is a row:
     "payment confirmed" and "text the parent" commit together or not at all.
   * Workers claim rows with FOR UPDATE SKIP LOCKED, so any number of worker
     processes/instances can run side by side without double-processing.
+    Higher `priority` is claimed first (urgent notifications), then the oldest run_at.
   * A failed job is retried with exponential backoff + jitter, then parked as
     'dead' (kept for inspection, never silently lost).
   * A job whose worker died mid-run (status 'running' past the visibility
@@ -69,21 +70,19 @@ def enqueue(
     """Add a job inside the caller's transaction (does NOT commit). Returns
     False if a job with this dedupe_key already exists.
 
-    urgent=True puts the job ahead of everything queued normally. Workers take jobs in run_at
-    order, so without this a "payment received" text queued behind a 10,000-message broadcast
-    would wait hours. (Implemented as a one-day head start on run_at rather than a priority
-    column so it needs no database migration; a real priority column is the tidier long-term fix.)"""
+    urgent=True gives the job a higher priority, so it is claimed ahead of everything queued normally,
+    for example a "payment received" text that would otherwise wait behind a 10,000-message broadcast.
+    It still honours delay_seconds."""
     values: dict[str, Any] = {
         "school_id": school_id,
         "kind": kind,
         "payload": payload,
         "dedupe_key": dedupe_key,
         "max_attempts": max_attempts or settings.job_max_attempts,
+        "priority": URGENT_PRIORITY if urgent else NORMAL_PRIORITY,
     }
     values["id"] = str(uuid.uuid4())
-    if urgent:
-        values["run_at"] = datetime.now(timezone.utc) - URGENT_HEAD_START
-    elif delay_seconds:
+    if delay_seconds:
         values["run_at"] = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
     stmt = pg_insert(Job).values(**values)
     if dedupe_key:
@@ -92,7 +91,8 @@ def enqueue(
     return result.rowcount == 1
 
 
-URGENT_HEAD_START = timedelta(days=1)
+NORMAL_PRIORITY = 0
+URGENT_PRIORITY = 10
 
 
 def enqueue_many(db: Session, rows: list[dict[str, Any]]) -> set[str]:
@@ -114,7 +114,8 @@ def enqueue_many(db: Session, rows: list[dict[str, Any]]) -> set[str]:
             "payload": r["payload"],
             "dedupe_key": r["dedupe_key"],
             "max_attempts": r.get("max_attempts") or settings.job_max_attempts,
-            "run_at": now - URGENT_HEAD_START if r.get("urgent") else now,
+            "priority": URGENT_PRIORITY if r.get("urgent") else NORMAL_PRIORITY,
+            "run_at": now,
         }
         for r in rows
     ]
@@ -136,7 +137,7 @@ _CLAIM_SQL = text(
         SELECT id FROM jobs
         WHERE (status = 'pending' AND run_at <= now())
            OR (status = 'running' AND locked_at < now() - make_interval(secs => :visibility))
-        ORDER BY run_at
+        ORDER BY priority DESC, run_at
         FOR UPDATE SKIP LOCKED
         LIMIT :n
     )

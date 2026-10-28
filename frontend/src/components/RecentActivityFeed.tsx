@@ -25,9 +25,9 @@ function formatMethod(method: string) {
  * ever sends here — see parent.py), so every row is a real receipt, not a
  * pending or failed attempt.
  */
-function buildActivity(children: ParentStudentView[], limit: number): ActivityRow[] {
+function buildActivity(kids: ParentStudentView[], limit: number): ActivityRow[] {
   const rows: ActivityRow[] = [];
-  for (const child of children) {
+  for (const child of kids) {
     for (const invoice of child.invoices) {
       for (const payment of invoice.payments) {
         if (!payment.paid_at) continue;
@@ -45,9 +45,9 @@ function buildActivity(children: ParentStudentView[], limit: number): ActivityRo
   return rows.slice(0, limit);
 }
 
-export function RecentActivityFeed({ children, limit = 6, variant = 'card' }: { children: ParentStudentView[]; limit?: number; variant?: 'card' | 'rail' }) {
-  const activity = buildActivity(children, limit);
-  const showChildName = children.length > 1;
+export function RecentActivityFeed({ kids, limit = 6, variant = 'card' }: { kids: ParentStudentView[]; limit?: number; variant?: 'card' | 'rail' }) {
+  const activity = buildActivity(kids, limit);
+  const showChildName = kids.length > 1;
 
   if (variant === 'rail') {
     return (

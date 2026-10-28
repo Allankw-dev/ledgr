@@ -303,7 +303,7 @@ export function ParentDashboardPage() {
       </div>
 
       <aside className="min-w-0 xl:pt-2">
-        <ParentRail activity={!loading && children.length > 0 ? <RecentActivityFeed variant="rail" children={children} limit={4} /> : null} />
+        <ParentRail activity={!loading && children.length > 0 ? <RecentActivityFeed variant="rail" kids={children} limit={4} /> : null} />
       </aside>
       </div>
     </ParentShell>

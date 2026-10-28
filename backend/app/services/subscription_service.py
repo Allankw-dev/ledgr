@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from fastapi import HTTPException
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
@@ -118,6 +119,29 @@ def get_school_state(school_id: str) -> SubscriptionState:
 
 def learner_count(db: Session, school_id: str) -> int:
     return db.scalar(select(func.count()).select_from(Student).where(Student.school_id == school_id, Student.is_active.is_(True))) or 0
+
+
+LEARNER_LIMIT_MESSAGE = (
+    "This school's plan allows up to {limit} active learners and {count} are already enrolled, so no more "
+    "can be added. Contact the Ledgr team to raise the limit."
+)
+
+
+def enforce_learner_limit(db: Session, school_id: str, adding: int = 1) -> None:
+    """Refuses to add `adding` more active learners if that would pass the school's `learner_limit`.
+    No limit set (None) means no cap. Runs inside the caller's transaction and locks the school's row until
+    it commits, so two bursars adding a student at the same moment can't both slip under the limit.
+
+    A school already over its limit (the operator lowered it) keeps every learner it has; it just can't add
+    more until it is back under."""
+    limit = db.execute(
+        select(School.learner_limit).where(School.id == school_id).with_for_update()
+    ).scalar_one_or_none()
+    if limit is None:
+        return
+    count = learner_count(db, school_id)
+    if count + adding > limit:
+        raise HTTPException(402, LEARNER_LIMIT_MESSAGE.format(limit=limit, count=count))
 
 
 _UNSET = object()

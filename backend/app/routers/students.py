@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
+from app.core.emails import email_equals
+from app.services.subscription_service import enforce_learner_limit
 from app.core.rate_limit import limiter
 from app.core.phone import normalize_phone, phone_key
 from app.services.audit_service import log_audit
@@ -280,7 +282,7 @@ def _link_or_invite_guardian(
 
     user = None
     if email:
-        user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+        user = db.execute(select(User).where(email_equals(User.email, email))).scalar_one_or_none()
     if not user and key:
         # Only auto-link on an UNAMBIGUOUS phone match — same rule the
         # phone-based login uses — since a number can legitimately be
@@ -394,6 +396,7 @@ def create_student(
     guardian_full_name = fields.pop("guardian_full_name", None)
     guardian_relationship_type = fields.pop("guardian_relationship_type", None)
 
+    enforce_learner_limit(db, school_id)  # 402 if the school's plan is full; locks the school row until commit
     student = Student(school_id=school_id, **fields)
     db.add(student)
     db.flush()
