@@ -1,8 +1,9 @@
 from urllib.parse import quote  # noqa: F401
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 
+from app.core.rate_limit import limiter
 from app.services import storage_service
 
 # No login header here on purpose: <img src> and <a href> can't send one. The
@@ -12,7 +13,8 @@ router = APIRouter(prefix="/api/attachments", tags=["attachments"])
 
 
 @router.get("/download")
-def download_attachment(token: str):
+@limiter.limit("120/minute")  # public by design (the signed token is the credential), so cap guessing
+def download_attachment(request: Request, token: str):
     payload = storage_service.decode_download_token(token)
     path = storage_service.read_local_file(payload["key"])
     mime = payload["mime"]

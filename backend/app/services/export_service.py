@@ -16,6 +16,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app.services.text_safety import csv_safe, xlsx_text
+
 INK_900 = "16213D"
 SURFACE_100 = "F4F2EC"
 
@@ -47,6 +49,7 @@ def generate_bursar_report_xlsx(
     # Title block
     ws.merge_cells("A1:G1")
     ws["A1"] = f"{school_name} — {term_name} Fee Report"
+    xlsx_text(ws["A1"])  # typed text must never become a formula
     ws["A1"].font = Font(bold=True, size=14, color=INK_900)
 
     header_row = 3
@@ -59,15 +62,15 @@ def generate_bursar_report_xlsx(
     first_data_row = header_row + 1
     r = first_data_row
     for row in rows:
-        ws.cell(row=r, column=1, value=row.admission_number)
-        ws.cell(row=r, column=2, value=row.full_name)
-        ws.cell(row=r, column=3, value=row.class_name)
+        xlsx_text(ws.cell(row=r, column=1, value=row.admission_number))
+        xlsx_text(ws.cell(row=r, column=2, value=row.full_name))
+        xlsx_text(ws.cell(row=r, column=3, value=row.class_name))
         ws.cell(row=r, column=4, value=float(row.total_amount)).number_format = money_fmt
         ws.cell(row=r, column=5, value=float(row.amount_paid)).number_format = money_fmt
         # Real formula, not a pre-computed value — stays correct if a
         # bursar edits a billed/paid figure directly in the sheet.
         ws.cell(row=r, column=6, value=f"=D{r}-E{r}").number_format = money_fmt
-        ws.cell(row=r, column=7, value=row.status)
+        xlsx_text(ws.cell(row=r, column=7, value=row.status))
         r += 1
     last_data_row = r - 1
 
@@ -99,7 +102,7 @@ def generate_bursar_report_csv(
     buffer = io.StringIO()
     writer = csv.writer(buffer)
 
-    writer.writerow([f"{school_name} — {term_name} Fee Report"])
+    writer.writerow([csv_safe(f"{school_name} — {term_name} Fee Report")])
     writer.writerow([])
     writer.writerow(HEADERS)
 
@@ -111,13 +114,13 @@ def generate_bursar_report_csv(
         total_paid += row.amount_paid
         writer.writerow(
             [
-                row.admission_number,
-                row.full_name,
-                row.class_name,
+                csv_safe(row.admission_number),
+                csv_safe(row.full_name),
+                csv_safe(row.class_name),
                 f"{row.total_amount:.2f}",
                 f"{row.amount_paid:.2f}",
                 f"{balance:.2f}",
-                row.status,
+                csv_safe(row.status),
             ]
         )
 

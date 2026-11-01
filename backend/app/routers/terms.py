@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles
 from app.schemas.term import CreateTermRequest, TermResponse, CreateClassRequest, ClassResponse
@@ -18,7 +19,9 @@ def list_terms(school_id: str = Depends(get_school_scope), db: Session = Depends
 
 
 @router.post("", response_model=TermResponse, status_code=201)
+@limiter.limit("60/minute")
 def create_term(
+    request: Request,
     data: CreateTermRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -42,7 +45,9 @@ def list_classes(school_id: str = Depends(get_school_scope), db: Session = Depen
 
 
 @classes_router.post("", response_model=ClassResponse, status_code=201)
+@limiter.limit("60/minute")
 def create_class(
+    request: Request,
     data: CreateClassRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

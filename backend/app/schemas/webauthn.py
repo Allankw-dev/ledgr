@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class WebAuthnRegisterOptionsResponse(BaseModel):
@@ -10,9 +10,9 @@ class WebAuthnRegisterOptionsResponse(BaseModel):
 
 
 class WebAuthnRegisterVerifyRequest(BaseModel):
-    challenge_id: str
+    challenge_id: str = Field(max_length=64)
     credential: dict[str, Any]
-    device_name: str | None = None
+    device_name: str | None = Field(default=None, max_length=150)
 
 
 class WebAuthnLoginOptionsResponse(BaseModel):
@@ -21,7 +21,7 @@ class WebAuthnLoginOptionsResponse(BaseModel):
 
 
 class WebAuthnLoginVerifyRequest(BaseModel):
-    challenge_id: str
+    challenge_id: str = Field(max_length=64)
     credential: dict[str, Any]
 
 

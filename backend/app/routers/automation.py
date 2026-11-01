@@ -32,7 +32,9 @@ def get_automation_settings(
 
 
 @router.put("/settings", response_model=AutomationSettingsResponse)
+@limiter.limit("30/minute")
 def update_automation_settings(
+    request: Request,
     payload: UpdateAutomationSettingsRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

@@ -100,6 +100,10 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
         ).scalar_one_or_none()
         if not link:
             raise HTTPException(403, "You can only pay fees for your own children")
+    elif user.role not in ("SCHOOL_ADMIN", "BURSAR"):
+        # Without this a teacher (or any other role) skipped authorization completely and could send M-Pesa
+        # prompts to any phone for any student in the school.
+        raise HTTPException(403, "Only a parent (for their own child) or the school's bursar can start a payment")
 
     if invoice is not None:
         balance = invoice.total_amount - invoice.amount_paid
@@ -130,7 +134,9 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
 
 
 @router.post("/stk-push", response_model=StkPushResponse, status_code=201)
+@limiter.limit("10/minute")
 async def request_stk_push(
+    request: Request,
     data: StkPushRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
@@ -366,7 +372,9 @@ def lookup_c2b_transaction(
 
 
 @router.post("/reconciliation/{transaction_id}/match")
+@limiter.limit("60/minute")
 def match_c2b_transaction(
+    request: Request,
     transaction_id: str,
     data: MatchTransactionRequest,
     db: Session = Depends(get_db),

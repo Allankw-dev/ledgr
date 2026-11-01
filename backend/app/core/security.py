@@ -1,15 +1,42 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt, JWTError
+import jwt  # PyJWT. Replaced python-jose, which has an open advisory with no fixed release and no maintenance.
+from jwt import PyJWTError as JWTError  # one error type for "this token is bad", re-exported for other modules
 from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt, cost 12 (set explicitly so a library default change can never silently weaken new hashes).
+# "deprecated=auto" + needs_update() lets us raise the cost later: everyone is re-hashed at their next login.
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+
+# bcrypt only reads the first 72 BYTES of a password. Anything longer is silently cut off, so two long
+# passwords that start the same would be one password. We refuse them instead (see schemas/passwords.py).
+BCRYPT_MAX_BYTES = 72
 
 
 def hash_password(plain: str) -> str:
     return pwd_context.hash(plain)
+
+
+def password_needs_rehash(hashed: str) -> bool:
+    """True when a stored hash uses weaker settings than we use today (older cost, retired scheme)."""
+    try:
+        return pwd_context.needs_update(hashed)
+    except (ValueError, TypeError):
+        return False
+
+
+def decode_token(token: str) -> dict:
+    """The one place every token is verified: signature checked against the single algorithm we configured
+    (never whatever the token's own header claims), and an expiry is REQUIRED, so a token minted without one
+    can never live forever. Raises JWTError (any problem) for the caller to turn into a 401/400."""
+    return jwt.decode(
+        token,
+        settings.jwt_secret,
+        algorithms=[settings.jwt_algorithm],
+        options={"require": ["exp"]},
+    )
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -30,9 +57,14 @@ def create_access_token(user_id: str, school_id: str | None, role: str, token_ve
 
 def decode_access_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = decode_token(token)
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
+    # Reset, 2FA-challenge and email-change tokens are signed with the same secret. They already lack the
+    # claims a session needs, but refuse anything labelled for another purpose outright.
+    if "purpose" in payload:
+        raise ValueError("Invalid or expired token")
+    return payload
 
 
 def create_2fa_challenge_token(user_id: str) -> str:
@@ -52,7 +84,7 @@ def create_2fa_challenge_token(user_id: str) -> str:
 def decode_2fa_challenge_token(token: str) -> str:
     """Returns the user_id if valid, raises ValueError otherwise."""
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = decode_token(token)
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
 
@@ -80,7 +112,7 @@ def create_password_reset_token(user_id: str, password_hash: str) -> str:
 def decode_password_reset_token(token: str, current_password_hash: str) -> str:
     """Returns the user_id if valid and still fresh, raises ValueError otherwise."""
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = decode_token(token)
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
 
@@ -116,7 +148,7 @@ def create_email_change_token(user_id: str, current_email: str, new_email: str) 
 def decode_email_change_token(token: str) -> tuple[str, str, str]:
     """Returns (user_id, new_email, current_email_fingerprint) or raises ValueError."""
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = decode_token(token)
     except JWTError as exc:
         raise ValueError("Invalid or expired link") from exc
     if payload.get("purpose") != "email_change" or not payload.get("new_email"):

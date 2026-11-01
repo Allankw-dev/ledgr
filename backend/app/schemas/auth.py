@@ -1,24 +1,26 @@
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.passwords import NewPassword
+
 
 class RegisterSchoolRequest(BaseModel):
-    school_name: str = Field(min_length=2)
+    school_name: str = Field(min_length=2, max_length=150)
     country: str = Field(min_length=2, max_length=2)  # ISO country code
     currency: str = Field(min_length=3, max_length=3)  # ISO 4217
     admin_email: EmailStr
-    admin_password: str = Field(min_length=8)
-    admin_full_name: str = Field(min_length=2)
+    admin_password: NewPassword
+    admin_full_name: str = Field(min_length=2, max_length=150)
 
 
 class LoginRequest(BaseModel):
     # An email address, or (for teachers) a phone number. Field name kept as
     # `email` so existing clients keep working.
     email: str = Field(min_length=3, max_length=254)
-    password: str
+    password: str = Field(min_length=1, max_length=200)
 
 
 class GoogleAuthRequest(BaseModel):
-    credential: str  # the ID token JWT string Google's Sign In button returns
+    credential: str = Field(max_length=4000)  # the ID token JWT string Google's Sign In button returns
 
 
 class TokenResponse(BaseModel):
@@ -43,11 +45,11 @@ class TwoFactorEnableRequest(BaseModel):
 
 
 class TwoFactorDisableRequest(BaseModel):
-    password: str
+    password: str = Field(min_length=1, max_length=200)
 
 
 class TwoFactorVerifyLoginRequest(BaseModel):
-    challenge_token: str
+    challenge_token: str = Field(max_length=2000)
     code: str = Field(min_length=6, max_length=8)  # up to 8 so "123 456" pastes; spaces are stripped server-side
 
 
@@ -56,8 +58,8 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str = Field(min_length=8)
+    token: str = Field(max_length=2000)
+    new_password: NewPassword
 
 
 class ForgotPasswordResponse(BaseModel):
@@ -76,4 +78,4 @@ class EmailChangeRequest(BaseModel):
 
 
 class EmailChangeConfirmRequest(BaseModel):
-    token: str
+    token: str = Field(max_length=2000)

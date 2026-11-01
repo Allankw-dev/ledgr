@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class SendAnnouncementRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=150)
     message: str = Field(min_length=1, max_length=2000)
-    class_id: str | None = None  # a single grade (kept for older clients)
+    class_id: str | None = Field(default=None, max_length=64)  # a single grade (kept for older clients)
     # One or more grades. Empty/omitted (and no class_id) = every active student in the school.
     class_ids: list[str] = Field(default_factory=list, max_length=100)
 

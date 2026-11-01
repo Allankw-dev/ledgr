@@ -18,7 +18,7 @@ if not settings.app_database_url:
         "in .env to close this gap.",
         stacklevel=1,
     )
-    if settings.environment == "production":
+    if settings.is_production_like:
         # A Python warning is easy to miss in hosting logs. In production this is a real
         # security gap (the second tenant wall is off), so log it as an ERROR on every boot.
         # Deliberately not fatal: refusing to start would turn a config slip into an outage.
@@ -47,6 +47,16 @@ _connect_args = {
     "keepalives_interval": 10,
     "keepalives_count": 5,
 }
+
+# Encrypt the connection to any database that isn't on this machine. psycopg2's default ("prefer") quietly
+# falls back to plain text if TLS can't be negotiated. Supabase and Render Postgres both support TLS, and an
+# explicit sslmode in the URL always wins.
+from sqlalchemy.engine import make_url  # noqa: E402
+
+_runtime_target = make_url(_runtime_url)
+_is_local_db = (_runtime_target.host or "") in ("", "localhost", "127.0.0.1", "::1") or (_runtime_target.host or "").startswith("/")
+if settings.is_production_like and not _is_local_db and "sslmode" not in _runtime_target.query:
+    _connect_args["sslmode"] = "require"
 
 engine = create_engine(
     _runtime_url,

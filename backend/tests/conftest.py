@@ -140,3 +140,15 @@ def install_phone_key_function(db) -> None:
 
     db.execute(text(PHONE_KEY_SQL))
     db.commit()
+
+
+def fake_request():
+    """A real starlette Request for tests that call a rate-limited route function directly instead of going
+    through HTTP: slowapi insists on one. Also clears the limiter so call counts from other tests (all
+    arriving from the same fake client address) can't leak in."""
+    from starlette.requests import Request
+
+    from app.core.rate_limit import limiter
+
+    limiter.reset()
+    return Request({"type": "http", "method": "POST", "path": "/", "headers": [], "query_string": b"", "client": ("203.0.113.9", 4321)})

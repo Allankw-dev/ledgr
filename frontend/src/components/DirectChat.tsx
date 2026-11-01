@@ -1,5 +1,6 @@
 import { friendlyName } from '../lib/names';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { safeUrl } from '../lib/safeUrl';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Ban, Download, FileText, Flag, Image as ImageIcon, Lock, MessageSquarePlus, MoreVertical, Paperclip, Search, Send, ShieldOff, Trash2, X } from 'lucide-react';
 import {
@@ -111,8 +112,8 @@ function DirectAttachment({ conversationId, messageId, attachment }: { conversat
     return (
       <div className="mb-1.5">
         {url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer">
-            <img src={url} alt={attachment.name} className="rounded-md max-h-64 max-w-full object-cover" />
+          <a href={safeUrl(url)} target="_blank" rel="noopener noreferrer">
+            <img src={safeUrl(url)} alt={attachment.name} className="rounded-md max-h-64 max-w-full object-cover" />
           </a>
         ) : (
           <div className="w-52 h-36 rounded-md bg-ink-800 flex items-center justify-center text-ink-400 text-xs">

@@ -23,13 +23,14 @@ from urllib.parse import quote
 
 import httpx
 from fastapi import HTTPException
-from jose import JWTError, jwt
+import jwt
+
+from app.core.security import JWTError, decode_token
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-ALGORITHM = "HS256"
 
 # extension -> (mime, kind).  kind: image | pdf | office | ole | text
 ALLOWED_TYPES: dict[str, tuple[str, str]] = {
@@ -161,13 +162,13 @@ def _download_token(key: str, name: str, mime: str) -> str:
     return jwt.encode(
         {"purpose": "attachment", "key": key, "name": name, "mime": mime, "exp": exp},
         settings.jwt_secret,
-        algorithm=ALGORITHM,
+        algorithm=settings.jwt_algorithm,
     )
 
 
 def decode_download_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[ALGORITHM])
+        payload = decode_token(token)
     except JWTError:
         raise HTTPException(403, "This download link is invalid or has expired")
     if payload.get("purpose") != "attachment":

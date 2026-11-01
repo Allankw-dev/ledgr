@@ -32,7 +32,7 @@ class DirectConversationOut(BaseModel):
 
 
 class StartConversationRequest(BaseModel):
-    user_id: str
+    user_id: str = Field(max_length=64)
 
 
 class SendDirectMessageRequest(BaseModel):
@@ -59,7 +59,7 @@ class DirectMessageOut(BaseModel):
 
 
 class BlockRequest(BaseModel):
-    user_id: str
+    user_id: str = Field(max_length=64)
 
 
 ReportCategory = Literal["HARASSMENT", "INAPPROPRIATE", "SPAM", "SAFETY_CONCERN", "OTHER"]

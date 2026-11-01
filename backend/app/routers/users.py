@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.database import get_system_db
 from app.core.deps import get_current_user, CurrentUser
 from app.schemas.user import UpdateMyProfileRequest, MyProfileResponse
@@ -21,7 +22,9 @@ def get_my_profile(db: Session = Depends(get_system_db), user: CurrentUser = Dep
 
 
 @router.patch("/me", response_model=MyProfileResponse)
+@limiter.limit("20/minute")
 def update_my_profile(
+    request: Request,
     data: UpdateMyProfileRequest,
     db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(get_current_user),

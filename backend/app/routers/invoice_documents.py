@@ -7,10 +7,11 @@ plan) too, so this follows the same pattern as receipts.py and the
 authorization check inside each handler instead.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, CurrentUser
 from app.models.invoice import Invoice, InvoiceItem, FeeStructure
@@ -129,7 +130,9 @@ def get_active_payment_plan(
 
 
 @router.post("/{invoice_id}/payment-plan/accept", response_model=TrackedPaymentPlan)
+@limiter.limit("30/minute")
 def accept_payment_plan(
+    request: Request,
     invoice_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -144,7 +147,9 @@ def accept_payment_plan(
 
 
 @router.post("/{invoice_id}/payment-plan/cancel", response_model=TrackedPaymentPlan)
+@limiter.limit("30/minute")
 def cancel_active_payment_plan(
+    request: Request,
     invoice_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

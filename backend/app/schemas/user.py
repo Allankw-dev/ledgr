@@ -5,8 +5,8 @@ class UpdateMyProfileRequest(BaseModel):
     # Both optional — a user can update just their phone without resending
     # their name, etc. At least one field should be provided in practice,
     # but we don't hard-require it since a no-op PATCH is harmless.
-    phone: str | None = Field(default=None, description="e.g. +254712345678")
-    full_name: str | None = Field(default=None, min_length=2)
+    phone: str | None = Field(default=None, description="e.g. +254712345678", max_length=32)
+    full_name: str | None = Field(default=None, min_length=2, max_length=150)
 
 
 class MyProfileResponse(BaseModel):

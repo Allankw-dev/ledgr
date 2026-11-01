@@ -7,9 +7,9 @@ class StkPushRequest(BaseModel):
     # Exactly one of these: pay toward ONE invoice, or toward a student's whole
     # outstanding balance (the money is then applied to their oldest open
     # invoice first — see payment_service.resolve_mpesa_callback).
-    invoice_id: str | None = None
-    student_id: str | None = None
-    phone_number: str = Field(description="Any common format — 07XX, +2547XX, 2547XX")
+    invoice_id: str | None = Field(default=None, max_length=64)
+    student_id: str | None = Field(default=None, max_length=64)
+    phone_number: str = Field(description="Any common format — 07XX, +2547XX, 2547XX", max_length=32)
     amount: Decimal | None = Field(
         default=None,
         gt=0,
@@ -76,4 +76,4 @@ class MpesaTransactionLookup(BaseModel):
 
 
 class MatchTransactionRequest(BaseModel):
-    invoice_id: str
+    invoice_id: str = Field(max_length=64)

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { safeUrl } from '../lib/safeUrl';
 import { useSearchParams } from 'react-router-dom';
 import { AtSign, ChevronDown, Download, FileText, Image as ImageIcon, Paperclip, Send, Users, X } from 'lucide-react';
 import {
@@ -126,9 +127,9 @@ function AttachmentView({ classId, messageId, attachment }: { classId: string; m
     return (
       <div className="mb-1.5">
         {data ? (
-          <a href={data.url} target="_blank" rel="noopener noreferrer">
+          <a href={safeUrl(data.url)} target="_blank" rel="noopener noreferrer">
             <img
-              src={data.url}
+              src={safeUrl(data.url)}
               alt={attachment.name}
               loading="lazy"
               onError={() => {
@@ -149,7 +150,7 @@ function AttachmentView({ classId, messageId, attachment }: { classId: string; m
 
   return (
     <a
-      href={data?.url}
+      href={safeUrl(data?.url)}
       target="_blank"
       rel="noopener noreferrer"
       download={attachment.name}

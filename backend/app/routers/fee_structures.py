@@ -1,9 +1,10 @@
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_school_scope, require_roles
 from app.schemas.fee_structure import CreateFeeStructureRequest, FeeStructureResponse, UpdateFeeStructureRequest
@@ -43,7 +44,9 @@ def list_fee_structures(
 
 
 @router.post("", response_model=FeeStructureResponse, status_code=201)
+@limiter.limit("60/minute")
 def create_fee_structure(
+    request: Request,
     data: CreateFeeStructureRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -67,7 +70,9 @@ def create_fee_structure(
 
 
 @router.patch("/{fee_structure_id}", response_model=FeeStructureResponse)
+@limiter.limit("60/minute")
 def update_fee_structure(
+    request: Request,
     fee_structure_id: str,
     data: UpdateFeeStructureRequest,
     school_id: str = Depends(get_school_scope),
@@ -108,7 +113,9 @@ def update_fee_structure(
 
 
 @router.delete("/{fee_structure_id}", status_code=204)
+@limiter.limit("60/minute")
 def delete_fee_structure(
+    request: Request,
     fee_structure_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

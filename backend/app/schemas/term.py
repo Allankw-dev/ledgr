@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class CreateTermRequest(BaseModel):
-    name: str = Field(min_length=2)
+    name: str = Field(min_length=2, max_length=150)
     start_date: datetime
     end_date: datetime
 
@@ -21,7 +21,7 @@ class TermResponse(BaseModel):
 
 
 class CreateClassRequest(BaseModel):
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=150)
 
 
 class ClassResponse(BaseModel):

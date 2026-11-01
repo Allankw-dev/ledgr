@@ -7,15 +7,15 @@ from app.models.enums import PaymentMethod
 
 
 class RecordPaymentRequest(BaseModel):
-    student_id: str
-    invoice_id: str | None = None
+    student_id: str = Field(max_length=64)
+    invoice_id: str | None = Field(default=None, max_length=64)
     amount: Decimal = Field(gt=0)
     method: PaymentMethod
-    reference_code: str | None = None
+    reference_code: str | None = Field(default=None, max_length=100)
 
 
 class ReversePaymentRequest(BaseModel):
-    reason: str = Field(min_length=3)
+    reason: str = Field(min_length=3, max_length=500)
 
 
 class PaymentResponse(BaseModel):
@@ -32,7 +32,7 @@ class PaymentResponse(BaseModel):
 
 
 class ApplyPaymentRequest(BaseModel):
-    invoice_id: str
+    invoice_id: str = Field(max_length=64)
 
 
 class UnallocatedInvoiceOption(BaseModel):
@@ -73,4 +73,4 @@ class MpesaMismatchResponse(BaseModel):
 
 
 class DismissMismatchRequest(BaseModel):
-    reason: str = Field(min_length=3)
+    reason: str = Field(min_length=3, max_length=500)

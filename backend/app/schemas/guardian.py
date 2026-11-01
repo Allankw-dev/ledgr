@@ -12,10 +12,10 @@ class LinkGuardianRequest(BaseModel):
     email, they're connected to this student automatically rather than
     waiting on approval.
     """
-    phone: str = Field(min_length=7, description="e.g. +254712345678")
+    phone: str = Field(min_length=7, description="e.g. +254712345678", max_length=32)
     email: EmailStr | None = None
-    full_name: str = Field(min_length=2)
-    relationship_type: str = Field(min_length=2, examples=["mother", "father", "guardian"])
+    full_name: str = Field(min_length=2, max_length=150)
+    relationship_type: str = Field(min_length=2, examples=["mother", "father", "guardian"], max_length=40)
     is_primary: bool = True
 
 

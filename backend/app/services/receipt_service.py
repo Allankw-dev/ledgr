@@ -15,6 +15,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+from app.services.text_safety import pdf_markup
 
 INK_900 = colors.HexColor("#16213D")
 INK_600 = colors.HexColor("#3D5280")
@@ -58,7 +59,7 @@ def generate_receipt_pdf(
 
     story = []
 
-    story.append(Paragraph(school_name, title_style))
+    story.append(Paragraph(pdf_markup(school_name), title_style))  # Paragraph reads tags: escape typed text
     story.append(Paragraph("Payment Receipt", subtitle_style))
     story.append(Spacer(1, 4 * mm))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#E4E2DA")))

@@ -15,6 +15,7 @@ from app.models.invoice import Invoice
 from app.models.student import SchoolClass, Student, Term
 from app.schemas.aging import AgingBucket, AgingReport, AgingRow
 from app.services.invoice_service import OPEN_INVOICE_STATUSES
+from app.services.text_safety import csv_safe
 
 BUCKETS: list[tuple[str, str]] = [
     ("current", "Not yet due"),
@@ -111,5 +112,5 @@ def aging_csv(report: AgingReport) -> str:
     w = csv.writer(out)
     w.writerow(["Student", "Admission no.", "Class", "Term", "Due date", "Days late", "Bucket", "Balance"])
     for r in report.rows:
-        w.writerow([r.student_name, r.admission_number, r.class_name or "", r.term_name or "", r.due_date.date().isoformat(), max(r.days_overdue, 0), r.bucket, f"{r.balance:.2f}"])
+        w.writerow([csv_safe(r.student_name), csv_safe(r.admission_number), csv_safe(r.class_name or ""), csv_safe(r.term_name or ""), r.due_date.date().isoformat(), max(r.days_overdue, 0), r.bucket, f"{r.balance:.2f}"])
     return out.getvalue()

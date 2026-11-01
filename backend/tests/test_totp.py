@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from app.core import totp
 from app.core.deps import CurrentUser
 from app.routers import auth as auth_router
-from tests.conftest import needs_db
+from tests.conftest import fake_request, needs_db
 
 SECRET = pyotp.random_base32()
 
@@ -46,12 +46,12 @@ def test_diagnose_reports_clock_offset_and_distinguishes_a_typo():
 @needs_db
 def test_setup_refused_while_2fa_is_on_so_the_working_secret_is_not_overwritten(db, world):
     user = CurrentUser(user_id=world.bursar.id, school_id=world.school.id, role="BURSAR")
-    first = auth_router.setup_2fa(db=db, user=user)
+    first = auth_router.setup_2fa(request=fake_request(), db=db, user=user)
     code = pyotp.TOTP(first.secret).now()
-    assert auth_router.enable_2fa(auth_router.TwoFactorEnableRequest(code=code), db=db, user=user) == {"enabled": True}
+    assert auth_router.enable_2fa(request=fake_request(), data=auth_router.TwoFactorEnableRequest(code=code), db=db, user=user) == {"enabled": True}
 
     with pytest.raises(HTTPException) as e:
-        auth_router.setup_2fa(db=db, user=user)
+        auth_router.setup_2fa(request=fake_request(), db=db, user=user)
     assert e.value.status_code == 409
     db.refresh(world.bursar)
     assert world.bursar.totp_secret == first.secret  # unchanged — their authenticator still works
@@ -61,6 +61,6 @@ def test_setup_refused_while_2fa_is_on_so_the_working_secret_is_not_overwritten(
 @needs_db
 def test_setup_can_be_redone_before_enabling(db, world):
     user = CurrentUser(user_id=world.bursar.id, school_id=world.school.id, role="BURSAR")
-    a = auth_router.setup_2fa(db=db, user=user)
-    b = auth_router.setup_2fa(db=db, user=user)  # half-finished setup, start over: allowed
+    a = auth_router.setup_2fa(request=fake_request(), db=db, user=user)
+    b = auth_router.setup_2fa(request=fake_request(), db=db, user=user)  # half-finished setup, start over: allowed
     assert a.secret != b.secret

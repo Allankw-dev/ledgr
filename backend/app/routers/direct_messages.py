@@ -319,7 +319,9 @@ def list_conversations(
 
 
 @router.post("/conversations", response_model=DirectConversationOut)
+@limiter.limit("30/minute")
 def start_conversation(
+    request: Request,
     data: StartConversationRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -514,7 +516,9 @@ def download_attachment(
 
 
 @router.delete("/conversations/{conversation_id}/messages/{message_id}", status_code=204)
+@limiter.limit("60/minute")
 def delete_message(
+    request: Request,
     conversation_id: str,
     message_id: str,
     db: Session = Depends(get_db),
@@ -563,7 +567,9 @@ def list_blocks(
 
 
 @router.post("/blocks", status_code=204)
+@limiter.limit("30/minute")
 def block_user(
+    request: Request,
     data: BlockRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -591,7 +597,9 @@ def block_user(
 
 
 @router.delete("/blocks/{blocked_user_id}", status_code=204)
+@limiter.limit("60/minute")
 def unblock_user(
+    request: Request,
     blocked_user_id: str,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
@@ -736,7 +744,9 @@ def get_report(
 
 
 @router.patch("/reports/{report_id}", response_model=ReportSummary)
+@limiter.limit("60/minute")
 def update_report(
+    request: Request,
     report_id: str,
     data: UpdateReportRequest,
     school_id: str = Depends(get_school_scope),

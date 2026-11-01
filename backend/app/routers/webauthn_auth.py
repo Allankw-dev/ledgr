@@ -177,7 +177,9 @@ def list_credentials(
 
 
 @router.delete("/credentials/{credential_id}", status_code=204)
+@limiter.limit("10/minute")
 def delete_credential(
+    request: Request,
     credential_id: str,
     db: Session = Depends(get_db),
     _school_id: str = Depends(get_school_scope),

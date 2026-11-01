@@ -4,9 +4,9 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
 
 
 class CreateStudentRequest(BaseModel):
-    class_id: str | None = None
-    admission_number: str = Field(min_length=1)
-    full_name: str = Field(min_length=2)
+    class_id: str | None = Field(default=None, max_length=64)
+    admission_number: str = Field(min_length=1, max_length=50)
+    full_name: str = Field(min_length=2, max_length=150)
     date_of_birth: datetime | None = None
 
     # Optional AS A GROUP — fill these in alongside the student so their
@@ -17,10 +17,10 @@ class CreateStudentRequest(BaseModel):
     # become required together: phone is what a returning parent's signup
     # gets matched against (see _link_or_invite_guardian), so a name with no
     # phone can't be matched to anyone later. Email stays optional.
-    guardian_full_name: str | None = Field(default=None, min_length=2)
-    guardian_phone: str | None = Field(default=None, description="e.g. +254712345678")
+    guardian_full_name: str | None = Field(default=None, min_length=2, max_length=150)
+    guardian_phone: str | None = Field(default=None, description="e.g. +254712345678", max_length=32)
     guardian_email: EmailStr | None = None
-    guardian_relationship_type: str | None = Field(default=None, examples=["mother", "father", "guardian"])
+    guardian_relationship_type: str | None = Field(default=None, examples=["mother", "father", "guardian"], max_length=40)
 
     @model_validator(mode="after")
     def _guardian_group_requires_phone(self) -> "CreateStudentRequest":
@@ -34,7 +34,7 @@ class CreateStudentRequest(BaseModel):
 
 
 class UpdateStudentClassRequest(BaseModel):
-    class_id: str | None = None  # None clears the assignment (unassigned/no grade)
+    class_id: str | None = Field(default=None, max_length=64)  # None clears the assignment (unassigned/no grade)
 
 
 class UpdateStudentRequest(BaseModel):
@@ -43,8 +43,8 @@ class UpdateStudentRequest(BaseModel):
     UpdateStudentClassRequest so a routine grade promotion and a details
     correction stay two distinct, independently-auditable actions."""
 
-    admission_number: str | None = Field(default=None, min_length=1)
-    full_name: str | None = Field(default=None, min_length=2)
+    admission_number: str | None = Field(default=None, min_length=1, max_length=50)
+    full_name: str | None = Field(default=None, min_length=2, max_length=150)
     date_of_birth: datetime | None = None
 
 

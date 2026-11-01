@@ -25,6 +25,9 @@ from app.core.security import (
     decode_password_reset_token,
     create_email_change_token,
     decode_email_change_token,
+    decode_token,
+    password_needs_rehash,
+    JWTError,
     _email_fingerprint,
 )
 from app.core.totp import diagnose_failed_code, generate_totp_secret, get_provisioning_uri, verify_totp_code
@@ -72,7 +75,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.get("/setup-status")
-def get_setup_status(db: Session = Depends(get_system_db)):
+@limiter.limit("60/minute")
+def get_setup_status(request: Request, db: Session = Depends(get_system_db)):
     """
     Public, unauthenticated — lets the frontend check whether this Ledgr
     instance has been through first-run setup yet, before even showing the
@@ -214,8 +218,26 @@ def _authenticate(db: Session, identifier: str, password: str) -> User | None:
     if not candidates:
         _burn_password_check(password)
         return None
-    matches = [u for u in candidates if u.is_active and verify_password(password, u.password_hash)]
-    return matches[0] if len(matches) == 1 else None
+    # verify_password runs for EVERY candidate, active or not, so a deactivated account takes as long to
+    # refuse as any other and can't be told apart by timing.
+    matches = [u for u in candidates if verify_password(password, u.password_hash) and u.is_active]
+    if len(matches) != 1:
+        return None
+    user = matches[0]
+    _upgrade_hash_if_outdated(db, user, password)
+    return user
+
+
+def _upgrade_hash_if_outdated(db: Session, user: User, password: str) -> None:
+    """The one moment we hold the real password is a successful sign-in, so that's when an older/weaker hash
+    (lower bcrypt cost, retired scheme) is quietly replaced. Never lets a failure here block the login."""
+    if not password_needs_rehash(user.password_hash):
+        return
+    try:
+        user.password_hash = hash_password(password)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
 
 
 def _audit_failed_login(db: Session, identifier: str, request: Request) -> None:
@@ -434,7 +456,9 @@ def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Sessio
 
 
 @router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
+@limiter.limit("10/minute")
 def setup_2fa(
+    request: Request,
     db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
@@ -464,7 +488,9 @@ def setup_2fa(
 
 
 @router.post("/2fa/enable")
+@limiter.limit("10/minute")
 def enable_2fa(
+    request: Request,
     data: TwoFactorEnableRequest,
     db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
@@ -483,7 +509,9 @@ def enable_2fa(
 
 
 @router.post("/2fa/disable")
+@limiter.limit("10/minute")
 def disable_2fa(
+    request: Request,
     data: TwoFactorDisableRequest,
     db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
@@ -562,12 +590,8 @@ def reset_password(request: Request, data: ResetPasswordRequest, db: Session = D
     # the token doesn't tell us who it's for until we decode it — and we
     # can't decode it without a hash to compare. So decode first without
     # verifying the fingerprint match, load that user, then verify.
-    from jose import jwt, JWTError
-
     try:
-        unverified = jwt.decode(
-            data.token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
-        )
+        unverified = decode_token(data.token)
     except JWTError:
         raise HTTPException(400, "Invalid or expired reset link")
 

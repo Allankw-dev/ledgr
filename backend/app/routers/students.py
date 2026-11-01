@@ -34,6 +34,9 @@ from app.models.school import User, School
 from app.models.enums import UserRole, GuardianLinkStatus, PaymentStatus, InvoiceStatus
 from app.services.statement_service import generate_fee_statement_pdf
 
+# Everyone who works at the school. Parents are deliberately not in this list.
+SCHOOL_STAFF = ("SCHOOL_ADMIN", "BURSAR", "TEACHER")
+
 router = APIRouter(prefix="/api/students", tags=["students"], dependencies=[Depends(get_current_user)])
 
 MAX_PAGE_SIZE = 100
@@ -47,7 +50,11 @@ def list_students(
     class_ids: list[str] = Query(default_factory=list),
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
+    _staff: CurrentUser = Depends(require_roles(*SCHOOL_STAFF)),
 ):
+    # Staff only. A parent reaches their own children through /api/parent/students, which is scoped to
+    # approved guardian links. Letting a parent list the roster exposed every child's name and admission
+    # number and made the rate limit on the admission-number lookup pointless.
     page = max(page, 1)
     page_size = min(max(page_size, 1), MAX_PAGE_SIZE)
 
@@ -161,6 +168,7 @@ def get_student(
     student_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
+    _staff: CurrentUser = Depends(require_roles(*SCHOOL_STAFF)),
 ):
     # school_id filter enforces tenant isolation even if the id is guessed/leaked
     student = db.execute(
@@ -384,7 +392,9 @@ def _link_or_invite_guardian(
 
 
 @router.post("", response_model=StudentResponse, status_code=201)
+@limiter.limit("120/minute")
 def create_student(
+    request: Request,
     data: CreateStudentRequest,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -429,7 +439,9 @@ def create_student(
 
 
 @router.patch("/{student_id}", response_model=StudentResponse)
+@limiter.limit("120/minute")
 def update_student(
+    request: Request,
     student_id: str,
     data: UpdateStudentRequest,
     school_id: str = Depends(get_school_scope),
@@ -468,7 +480,9 @@ def update_student(
 
 
 @router.patch("/{student_id}/class", response_model=StudentResponse)
+@limiter.limit("120/minute")
 def update_student_class(
+    request: Request,
     student_id: str,
     data: UpdateStudentClassRequest,
     school_id: str = Depends(get_school_scope),
@@ -510,7 +524,9 @@ def update_student_class(
 
 
 @router.post("/{student_id}/deactivate", response_model=StudentResponse)
+@limiter.limit("60/minute")
 def deactivate_student(
+    request: Request,
     student_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -549,7 +565,9 @@ def deactivate_student(
 
 
 @router.post("/{student_id}/guardians", response_model=GuardianResponse, status_code=201)
+@limiter.limit("60/minute")
 def link_guardian(
+    request: Request,
     student_id: str,
     data: LinkGuardianRequest,
     school_id: str = Depends(get_school_scope),
@@ -715,7 +733,9 @@ def list_pending_requests(
 
 
 @guardian_requests_router.post("/{link_id}/approve", response_model=GuardianReviewResponse)
+@limiter.limit("60/minute")
 def approve_request(
+    request: Request,
     link_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -744,7 +764,9 @@ def approve_request(
 
 
 @guardian_requests_router.post("/{link_id}/reject", response_model=GuardianReviewResponse)
+@limiter.limit("60/minute")
 def reject_request(
+    request: Request,
     link_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

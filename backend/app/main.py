@@ -25,6 +25,7 @@ from app.core.database import SystemSessionLocal, engine
 from app.core.locks import try_advisory_lock
 from app.core.jobs import worker_loop
 from app.core.rate_limit import limiter
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.models.school import School
 from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth, notifications_general, attachments, direct_messages, subscription, platform
 from app.routers.students import guardian_requests_router
@@ -152,7 +153,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001 — required by FastAPI's life
 # Interactive API docs list every endpoint and its schema — handy in dev, a
 # free map of the attack surface in production.
 _docs_kwargs = (
-    {"docs_url": None, "redoc_url": None, "openapi_url": None} if settings.environment == "production" else {}
+    {"docs_url": None, "redoc_url": None, "openapi_url": None} if settings.is_production_like else {}
 )
 app = FastAPI(title="Ledgr API", version="0.1.0", lifespan=lifespan, **_docs_kwargs)
 
@@ -176,12 +177,18 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.forwarded_allo
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Inside CORS (so a 413 still carries CORS headers and the browser can show the real error), outside the app.
+app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origin_list,
+    # No cookies are used anywhere: the app authenticates with an Authorization header. Leaving credentials
+    # off means a malicious site can never ride a browser's stored cookies into this API.
+    allow_credentials=False,
+    # Only what the frontend actually sends (see frontend/src/api). Anything else is refused at preflight.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+    max_age=600,
 )
 # Added last = outermost: sees every request, including CORS preflights.
 app.add_middleware(RequestLogMiddleware)
@@ -256,7 +263,8 @@ def health():
 
 
 @app.get("/health/ready")
-def health_ready():
+@limiter.limit("120/minute")  # per IP: far above any monitor's pace, but stops it being a free way to hammer the database
+def health_ready(request: Request):
     """Readiness — can this instance actually serve requests? Point your
     load balancer / uptime monitor here so a worker that has lost its
     database is taken out of rotation instead of returning errors."""

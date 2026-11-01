@@ -130,7 +130,9 @@ def create_invoice(
 
 
 @router.patch("/{invoice_id}", response_model=InvoiceResponse)
+@limiter.limit("120/minute")
 def update_invoice(
+    request: Request,
     invoice_id: str,
     data: UpdateInvoiceRequest,
     school_id: str = Depends(get_school_scope),
@@ -165,7 +167,9 @@ def update_invoice(
 
 
 @router.post("/{invoice_id}/void", response_model=InvoiceResponse)
+@limiter.limit("60/minute")
 def void_invoice(
+    request: Request,
     invoice_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),
@@ -293,7 +297,9 @@ def get_invoice_payments(
 
 
 @router.post("/{invoice_id}/send-reminder", response_model=SendReminderResponse)
+@limiter.limit("20/minute")
 def send_invoice_reminder(
+    request: Request,
     invoice_id: str,
     school_id: str = Depends(get_school_scope),
     db: Session = Depends(get_db),

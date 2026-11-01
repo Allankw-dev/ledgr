@@ -8,12 +8,13 @@ because every route here is locked to SUPER_ADMIN and none of them returns anyth
 import logging
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.database import get_system_db
 from app.core.deps import CurrentUser, require_roles
 from app.core.emails import email_equals, normalize_email
@@ -60,7 +61,9 @@ def list_schools(db: Session = Depends(get_system_db), _user: CurrentUser = Depe
 
 
 @router.patch("/schools/{school_id}/subscription", response_model=PlatformSchool)
+@limiter.limit("60/minute")
 def update_subscription(
+    request: Request,
     school_id: str,
     data: SubscriptionUpdate,
     db: Session = Depends(get_system_db),
@@ -112,7 +115,9 @@ def _send_admin_invite(admin: User, school: School) -> bool:
 
 
 @router.post("/schools", response_model=CreateSchoolResponse, status_code=201)
+@limiter.limit("20/minute")
 def create_school(
+    request: Request,
     data: CreateSchoolRequest,
     db: Session = Depends(get_system_db),
     user: CurrentUser = Depends(require_roles("SUPER_ADMIN")),

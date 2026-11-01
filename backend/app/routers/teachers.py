@@ -221,7 +221,9 @@ def resend_teacher_invite(
 
 
 @router.patch("/{teacher_id}/classes", response_model=TeacherResponse)
+@limiter.limit("60/minute")
 def update_teacher_classes(
+    request: Request,
     teacher_id: str,
     data: UpdateTeacherClassesRequest,
     school_id: str = Depends(get_school_scope),

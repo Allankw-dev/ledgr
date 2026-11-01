@@ -2,12 +2,14 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.passwords import NewPassword
+
 
 class RegisterParentRequest(BaseModel):
-    full_name: str = Field(min_length=2)
+    full_name: str = Field(min_length=2, max_length=150)
     email: EmailStr
-    phone: str = Field(min_length=7, description="e.g. +254712345678")
-    password: str = Field(min_length=8)
+    phone: str = Field(min_length=7, description="e.g. +254712345678", max_length=32)
+    password: NewPassword
 
 
 class StudentLookupResult(BaseModel):
@@ -25,7 +27,7 @@ class StudentLookupResult(BaseModel):
 
 
 class RequestLinkPayload(BaseModel):
-    relationship_type: str = Field(min_length=2, examples=["mother", "father", "guardian"])
+    relationship_type: str = Field(min_length=2, examples=["mother", "father", "guardian"], max_length=40)
 
 
 class PendingGuardianRequest(BaseModel):

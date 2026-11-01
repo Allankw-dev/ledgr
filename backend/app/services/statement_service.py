@@ -16,6 +16,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+from app.services.text_safety import pdf_markup
 
 INK_900 = colors.HexColor("#16213D")
 INK_600 = colors.HexColor("#3D5280")
@@ -95,12 +96,13 @@ def generate_fee_statement_pdf(
 
     story = []
 
-    story.append(Paragraph(school_name, title_style))
-    story.append(Paragraph(f"Fee Statement — {period_label}", subtitle_style))
+    # Paragraph reads XML-like tags, so every typed value goes through pdf_markup (see text_safety.py).
+    story.append(Paragraph(pdf_markup(school_name), title_style))
+    story.append(Paragraph(f"Fee Statement — {pdf_markup(period_label)}", subtitle_style))
     story.append(Spacer(1, 3 * mm))
-    student_line = f"{student_name} ({admission_number})"
+    student_line = f"{pdf_markup(student_name)} ({pdf_markup(admission_number)})"
     if class_name:
-        student_line += f" · {class_name}"
+        student_line += f" · {pdf_markup(class_name)}"
     story.append(Paragraph(student_line, subtitle_style))
     story.append(Spacer(1, 4 * mm))
     story.append(HRFlowable(width="100%", thickness=1, color=INK_200))

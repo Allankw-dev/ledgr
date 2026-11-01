@@ -1,3 +1,6 @@
+import logging
+import os
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
@@ -196,8 +199,46 @@ class Settings(BaseSettings):
     # Healthchecks.io-style URL pinged after each daily reminder sweep, so a sweep that silently never runs alerts you.
     sweep_heartbeat_url: str | None = None
 
+    @property
+    def hosted_on_render(self) -> bool:
+        """Render sets RENDER=true on every service it runs. We use it as a second opinion on ENVIRONMENT."""
+        return bool(os.environ.get("RENDER"))
+
+    @property
+    def is_production_like(self) -> bool:
+        """True anywhere that is NOT plainly a developer's machine: ENVIRONMENT is anything but "development",
+        or the process is running on Render. Used for the SAFE defaults that cannot take the site down (API
+        docs hidden, database TLS required, CORS wildcard refused), so forgetting to set ENVIRONMENT=production
+        can't leave a live server in development mode. The hard startup checks below still key off
+        ENVIRONMENT == "production" exactly, because failing a deploy over a missing variable would be an outage."""
+        return self.environment != "development" or self.hosted_on_render
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """CORS_ORIGINS split into clean origins: spaces and a trailing slash would otherwise make a
+        correct-looking origin silently never match."""
+        return [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
+
     @model_validator(mode="after")
     def _production_sanity_checks(self):
+        log = logging.getLogger("ledgr.security")
+        # The token algorithm is only ever one of the HMAC family: the app signs with one shared secret, so an
+        # asymmetric or "none" setting could only be a mistake (or tampering) and must stop the boot.
+        if self.jwt_algorithm not in ("HS256", "HS384", "HS512"):
+            raise ValueError("JWT_ALGORITHM must be HS256, HS384 or HS512")
+        if self.is_production_like:
+            if "*" in self.cors_origin_list:
+                raise ValueError("CORS_ORIGINS must list your real site(s); '*' is not allowed outside development")
+            insecure = [o for o in self.cors_origin_list if o.startswith("http://") and "localhost" not in o and "127.0.0.1" not in o]
+            if insecure:
+                log.warning("SECURITY: CORS_ORIGINS contains non-HTTPS origins: %s", ", ".join(insecure))
+        if self.hosted_on_render and self.environment != "production":
+            log.error(
+                "SECURITY: running on Render with ENVIRONMENT=%r. Set ENVIRONMENT=production in the Render "
+                "dashboard: it switches on the startup checks for secrets, the M-Pesa webhook secret and "
+                "message encryption keys.",
+                self.environment,
+            )
         # Fail at startup, not at 2am: a weak JWT secret lets anyone forge
         # admin tokens, and open M-Pesa webhooks let anyone forge payments.
         if self.environment == "production":

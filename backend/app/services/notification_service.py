@@ -258,6 +258,12 @@ def _send_via_smtp(to_email: str, subject: str, body: str) -> None:
 
 
 def send_email(to_email: str, subject: str, body: str) -> None:
+    # Subjects are built from typed text (a student's name, a school name). A line break in one would let it
+    # smuggle extra headers (a hidden Bcc:) into a message sent over SMTP, so it is flattened to one line here,
+    # the single choke point every email passes through. A recipient with a line break is refused outright.
+    subject = " ".join(subject.split())
+    if "\r" in to_email or "\n" in to_email:
+        raise ValueError("Invalid recipient address")
     provider = active_email_provider()
     if provider is None:
         raise NotificationConfigError(

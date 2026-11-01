@@ -6,12 +6,12 @@ from app.core.phone import normalize_phone
 
 
 class CreateTeacherRequest(BaseModel):
-    full_name: str = Field(min_length=2)
+    full_name: str = Field(min_length=2, max_length=150)
     # A teacher needs at least ONE way to sign in and receive their invite:
     # an email address, a phone number, or both.
     email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=30)
-    class_ids: list[str] = Field(default_factory=list, description="Grades this teacher is assigned to")
+    class_ids: list[str] = Field(default_factory=list, description="Grades this teacher is assigned to", max_length=200)
 
     @model_validator(mode="after")
     def _need_email_or_phone(self):
@@ -23,7 +23,7 @@ class CreateTeacherRequest(BaseModel):
 
 
 class UpdateTeacherClassesRequest(BaseModel):
-    class_ids: list[str]
+    class_ids: list[str] = Field(max_length=200)
 
 
 class TeacherResponse(BaseModel):

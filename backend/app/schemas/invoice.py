@@ -5,14 +5,14 @@ from pydantic import BaseModel, Field
 
 
 class GenerateInvoiceRequest(BaseModel):
-    student_id: str
-    term_id: str
+    student_id: str = Field(max_length=64)
+    term_id: str = Field(max_length=64)
     due_date: datetime
 
 
 class BulkGenerateRequest(BaseModel):
-    term_id: str
-    class_id: str | None = None  # a single grade (kept for older clients)
+    term_id: str = Field(max_length=64)
+    class_id: str | None = Field(default=None, max_length=64)  # a single grade (kept for older clients)
     # One or more grades. Empty/omitted (and no class_id) = every active student in the school.
     class_ids: list[str] = Field(default_factory=list, max_length=100)
     due_date: datetime
