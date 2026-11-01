@@ -37,11 +37,13 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 ### For schools (admin / bursar)
 
 - **Students, classes, terms and fee structures**, with single or bulk invoice generation by class and term.
-- **Payments**, recorded manually (cash, bank, cheque) or via M-Pesa: STK Push and direct paybill (C2B), auto-reconciled.
+- **Payments**, recorded manually (cash, bank, cheque) or via M-Pesa: STK Push and direct paybill (C2B), auto-reconciled. A second prompt for an invoice that already has one pending is blocked.
+- **Overpayments are held, not lost.** Money beyond what an invoice owes is kept as credit (shown to the bursar as unallocated and to the parent as "credit held") instead of silently overpaying the invoice.
 - **Reconciliation tools:** stray paybill payments that don't auto-match go to a review queue, and money that fits no invoice sits in an "unallocated" view until a bursar applies it, and an M-Pesa payment confirmed for a different amount than was asked waits in a "mismatch" list (nothing is credited until a bursar records or dismisses it).
 - **Documents:** fee statements, itemized invoice PDFs and payment receipts.
 - **Payment plans:** a risk-aware installment recommender that parents can request and staff can offer.
 - **Automatic overdue reminders** by email and SMS, escalating at day 1, day 7 and day 14. Each tier is sent once per invoice.
+- **Fee aging report:** outstanding balances grouped as current, 1-30, 31-60, 61-90 and 90+ days overdue, filterable by group, with a CSV export of the full filtered list.
 - **Payment notifications:** guardians hear the moment a payment succeeds or fails, not just when they next open the app.
 - **Messaging:** parent-to-school messages and bulk announcements.
 - **"Ask Ledgr" assistant:** the bursar asks questions in plain language ("which Grade 4 students are overdue?"). It is read-only and answers only from live queries run that turn.
@@ -67,6 +69,8 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 - Email/password, Google Sign-In, TOTP two-factor and WebAuthn (fingerprint, Face ID, Windows Hello).
 - Installable as a PWA (web manifest and service worker), with a mobile-first layout.
 - Notification bell covering school messages, class chats, teacher chats and mentions.
+- **More than one school on one deployment.** The signup page creates the **first** school only. Every further school is added by the platform operator (a `SUPER_ADMIN`) from the *Schools and billing* page, and that school's admin gets an emailed link to set their own password. A parent who signs up is placed in the school that invited them (by phone or email), and Ledgr refuses to guess when it can't tell. See [More than one school](#5-more-than-one-school-optional).
+- **Subscriptions.** Each school has a plan, trial and paid-until dates and an optional learner limit. A school moves through `TRIAL` / `ACTIVE`, then `GRACE`, then `EXPIRED` (or `SUSPENDED` by the operator). Expired and suspended schools become **read-only for staff**; parents can always pay, and M-Pesa callbacks never go through the check. A learner limit stops staff adding students past it (the school keeps the learners it has).
 
 ---
 
@@ -76,14 +80,14 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 |---|---|
 | **Backend** | FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2, Python 3.12 |
 | **Database** | PostgreSQL (Supabase), Row-Level Security |
-| **Auth** | JWT (python-jose), bcrypt, rotating refresh tokens, pyotp, WebAuthn, Google ID tokens |
+| **Auth** | JWT (PyJWT), bcrypt (cost 12), rotating refresh tokens, pyotp, WebAuthn, Google ID tokens |
 | **Background work** | Postgres-backed job queue (`FOR UPDATE SKIP LOCKED`), APScheduler for the daily sweep |
 | **Payments** | M-Pesa Daraja API (STK Push + C2B), sandbox and production |
 | **Messaging** | Email over HTTPS (Brevo or Resend) or SMTP, Africa's Talking SMS |
 | **AI** | Gemini (free tier) or Claude via a shared provider layer, tool-calling only |
 | **ML** | scikit-learn (Isolation Forest anomaly detection) |
 | **Documents** | ReportLab (PDFs), openpyxl (exports) |
-| **Scale and ops** | slowapi rate limiting, Redis (optional), Sentry (optional), Gunicorn |
+| **Scale and ops** | slowapi rate limiting, request-size limits, Redis (optional), Sentry (optional), Gunicorn |
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, Zustand, Axios, Recharts, react-hook-form + Zod |
 | **Testing** | pytest (backend), Vitest + Testing Library (frontend), oxlint |
 
@@ -125,10 +129,13 @@ Worth knowing before you change the code:
 - **Money is `Numeric(12, 2)`, never `Float`.**
 - **Payments are append-only.** A correction is a linked reversal row, so the ledger stays fully auditable.
 - **Invoice status is derived, not hand-set.** `recalculate_invoice_status` recomputes `PAID` / `PARTIALLY_PAID` / `OVERDUE` from confirmed payments every time money moves.
-- **Payment, audit row and notification commit together.** Notifications use a transactional outbox (`core/jobs.py`), so a rolled-back payment never leaves a stray text behind, and a committed one never loses its notification.
+- **Payment, audit row and notification commit together.** Notifications use a transactional outbox (`core/jobs.py`), so a rolled-back payment never leaves a stray text behind, and a committed one never loses its notification. Urgent ones (payment results, password resets) carry a higher job `priority`, so they are not stuck behind a school-wide broadcast.
 - **M-Pesa is never trusted blindly.** A callback only resolves a `PENDING` payment that Ledgr created, and an amount mismatch leaves the payment pending and lists it for a bursar to record or dismiss. Duplicate callbacks are serialized with row locks. The pending payment row is written **before** the STK prompt is sent, so money can never arrive for a payment Ledgr has no record of.
 - **Whole-balance payments are allocated at confirmation time**, oldest invoice first, against the balances as they are then, so a cash payment recorded mid-prompt can't cause an overpayment. Leftovers become unallocated rows for the bursar.
 - **The ML features stay honest about data volume.** Risk scoring and anomaly detection are rules-based and statistical by design. Every scored invoice is logged (`invoice_risk_snapshots` + `invoice_outcomes`) so a trained model becomes possible once a school has enough resolved invoices.
+- **An email address is one identity, whatever its capitalisation.** Emails are stored and compared in lower case (`core/emails.py`), backed by a unique index on `lower(email)`.
+- **Typed text is escaped for the format it lands in** (`services/text_safety.py`): PDF markup, CSV/Excel formulas, email subjects. Use it for any new document or export.
+- **Who can call what is pinned by tests.** `tests/test_route_security.py` lists every public route and every route open to any signed-in role. Adding one fails the build until someone reviews it on purpose.
 - **Both assistants are tool-calling, not free-generation.** They answer only from data queried that turn. The bursar assistant is read-only. The parent assistant's tools are hard-scoped to that parent's approved children.
 
 ---
@@ -180,7 +187,7 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 4000
 ```
 
-The API runs on `http://localhost:4000`, with interactive docs at `/docs` (disabled when `ENVIRONMENT=production`). On Windows you can also run `python run.py`.
+The API runs on `http://localhost:4000`, with interactive docs at `/docs`. The docs are hidden anywhere that isn't a developer machine (any `ENVIRONMENT` other than `development`, or running on Render). On Windows you can also run `python run.py`.
 
 ### 2. Frontend
 
@@ -191,7 +198,7 @@ cp .env.example .env              # set VITE_API_URL if the backend isn't on loc
 npm run dev
 ```
 
-The app runs on `http://localhost:5173`. Register a school through the signup page to get a staff account, or create a parent account and link it to a student to see the parent portal.
+The app runs on `http://localhost:5173`. Register a school through the signup page to get a staff account (the first school only, see below), or create a parent account and link it to a student to see the parent portal.
 
 ### 3. Enable Row-Level Security (before any real data)
 
@@ -212,6 +219,19 @@ RUN_JOB_WORKER=false            # on the API instances
 python -m app.worker            # as its own process
 ```
 
+### 5. More than one school (optional)
+
+The public signup creates the first school and then refuses, from anyone, so a stranger can never open a school on a live system. Further schools are added by the **platform operator**, a `SUPER_ADMIN` with no school of their own. There is deliberately no way to become one through the website:
+
+```bash
+cd backend
+python scripts/create_super_admin.py you@example.com "Your Name"    # asks for the password
+```
+
+Sign in with that account, open **Schools and billing**, and use **Add school**: give the school's name, its administrator's name and email, and optionally a trial length and learner limit. The administrator is emailed a link (valid for 30 minutes) to set their own password, and can use "Forgot password" later if it expires. Nobody, including the operator, ever sees or chooses that password.
+
+A parent's school is decided by an invite the school created ("Add student" or "Link parent" with their phone or email). With one school on the deployment no invite is needed. With several and no invite, signup is refused rather than guessed.
+
 ---
 
 ## Configuration
@@ -231,11 +251,20 @@ python -m app.worker            # as its own process
 
 **Email on Render's free tier:** outbound SMTP ports (25/465/587) are blocked there, so `SMTP_*` times out. Use `BREVO_API_KEY` or `RESEND_API_KEY`, then run `python -m scripts.dev.check_email you@example.com` from a Render shell.
 
+**Set `ENVIRONMENT=production` explicitly on your live server.** It is what switches on the hard startup checks below. Anywhere that is not plainly a developer machine (any `ENVIRONMENT` other than `development`, or a process running on Render) already gets the safe defaults regardless: API docs hidden, HSTS, TLS required for the database connection, and a wildcard CORS origin refused. Running on Render without `ENVIRONMENT=production` logs an error on every boot.
+
 **Required when `ENVIRONMENT=production`** (the app refuses to start without them):
 
 - `JWT_SECRET` of at least 32 characters
 - `MPESA_CALLBACK_SECRET` of at least 24 characters
 - `MESSAGE_ENCRYPTION_KEYS`, as `version:base64(32 random bytes)` entries. **Back these up: losing the key means losing the private messages.**
+
+**Also needed in production:**
+
+- `APP_DATABASE_URL`, the restricted `ledgr_app` role. Without it the app connects as the table owner and Row-Level Security does not protect school data (logged as an error on every boot).
+- `CORS_ORIGINS` listing your real site(s), comma-separated, such as `https://your-app.vercel.app`. A `*` stops the app from starting. Methods and headers are restricted to what the frontend sends, and credentials are off because no cookies are used.
+- `JWT_ALGORITHM`, which only accepts `HS256`, `HS384` or `HS512`.
+- On the frontend host (Vercel), `VITE_API_URL` at build time. If it is missing the bundle falls back to `http://localhost:4000`.
 
 Free-tier Gemini requests may be used by Google to improve its products. Use a billing-enabled key once real families' data is involved. Run `python -m scripts.dev.check_gemini` to verify the key end to end.
 
@@ -276,6 +305,26 @@ pytest
 
 Never point this at Supabase or any real database.
 
+The tenant-isolation tests deliberately run as the table **owner**, with Row-Level Security off, to prove the application-level school checks hold on their own. The database wall is not covered by the suite, so check it by hand whenever `sql/enable_rls.sql` changes (see below).
+
+`tests/test_route_security.py` is a tripwire for accidental exposure: it pins every public route and every route open to any signed-in role, checks the sensitive routes are rate-limited, and covers CORS, request-size and configuration safeguards.
+
+#### Checking Row-Level Security by hand
+
+On a **scratch** database that has been through `alembic upgrade head`, run `sql/enable_rls.sql` as the owner (with a throwaway password on the `CREATE ROLE` line), put two schools with a student each in it, then connect as `ledgr_app` and confirm:
+
+```sql
+SELECT count(*) FROM students;                       -- 0: no school set, so nothing is visible
+BEGIN;
+SELECT set_config('app.current_school_id', 'A', true);
+SELECT full_name FROM students;                      -- only school A's students
+INSERT INTO students (id, school_id, admission_number, full_name, is_active)
+  VALUES ('x', 'B', '9', 'Evil', true);              -- ERROR: violates row-level security policy
+ROLLBACK;
+```
+
+The role should also be unable to `ALTER TABLE`, or to `DELETE` from `audit_logs`.
+
 ### Frontend
 
 ```bash
@@ -284,6 +333,17 @@ npm run lint        # oxlint
 npm test            # vitest
 npm run build       # typechecks (tsc -b) and builds
 ```
+
+### Dependency audit
+
+Run both now and then, and before a release:
+
+```bash
+cd backend && python -m pip install -U pip pip-audit && pip-audit      # audits the packages installed in your venv
+cd frontend && npm audit
+```
+
+Upgrade `pip` first, as above: an old `pip` is itself flagged and would otherwise be the only thing in the report.
 
 ### CI
 
@@ -306,7 +366,11 @@ gunicorn -c gunicorn_conf.py app.main:app      # Linux hosts (Render, Railway, a
 
 The API is stateless, so several instances can run behind a load balancer. Set `REDIS_URL` so rate limits and cache are shared, point every instance at the same Postgres, and keep `workers x (pool + overflow)` under your pooler's connection limit. The daily overdue sweep (08:00 Africa/Nairobi) is guarded by a Postgres advisory lock, so only one instance does the work.
 
-Health endpoints: `/health` (liveness), `/health/ready` (database reachable) and `/health/status?token=...` (queue backlog, dead jobs, scheduler state, hidden unless `MONITOR_TOKEN` is set).
+**Migrate first, then deploy.** New code reads the columns new migrations add, so a deploy that gets ahead of its migration fails with `column ... does not exist` on the first request. Run `alembic upgrade head` against production before the new code goes live. If your Render plan has a **Pre-Deploy Command**, set it to `alembic upgrade head` so it can't be forgotten.
+
+The frontend deploys to Vercel. `frontend/vercel.json` sets the security headers and rewrites every path to the app. See [Security](#security) for the Content-Security-Policy.
+
+Health endpoints: `/health` (liveness), `/health/ready` (database reachable, rate-limited per IP) and `/health/status?token=...` (queue backlog, dead jobs, scheduler state, hidden unless `MONITOR_TOKEN` is set).
 
 See [`backend/SCALING.md`](backend/SCALING.md), [`backend/BACKUPS.md`](backend/BACKUPS.md) and [`backend/MONITORING.md`](backend/MONITORING.md) for details.
 
@@ -314,13 +378,38 @@ See [`backend/SCALING.md`](backend/SCALING.md), [`backend/BACKUPS.md`](backend/B
 
 ## Security
 
+A full review of the code, configuration and dependencies is in [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md), including a checklist of the settings only you can verify in your hosting dashboards.
+
+**Tenants and access**
 - Row-Level Security as a second tenant wall, plus per-request school scoping in the app.
-- 15-minute access tokens, rotating single-use refresh tokens with reuse detection, and server-side revocation on deactivation or credential change.
-- Per-account login lockout with a generous per-IP limit, rate limits on every auth endpoint, TOTP 2FA and WebAuthn.
-- Guardian links must be approved before a parent sees any child data.
-- Webhook secret token and optional IP allowlist on M-Pesa callbacks.
-- Private teacher-to-parent chats encrypted at rest with a versioned key ring. Attachments are served through short-lived signed URLs.
-- Security headers, API docs disabled in production, and no stack traces leaked to clients.
+- Every staff route requires a role. The routes open to any signed-in role scope the data inside the handler (an approved guardian link, class membership, your own records), and a test pins the exact list.
+- Guardian links must be approved before a parent sees any child data. Parents cannot list or open student records.
+
+**Sign-in and sessions**
+- 15-minute access tokens, rotating single-use refresh tokens (stored only as hashes) with reuse detection, and server-side revocation on deactivation or credential change.
+- Tokens are verified with one pinned algorithm and must carry an expiry. Reset, 2FA and email-change tokens can never be used as login tokens.
+- Passwords: bcrypt (cost 12), 8 to 72 bytes (bcrypt ignores anything longer), common passwords refused, old hashes upgraded at next sign-in.
+- Per-account login lockout with a generous per-IP limit, TOTP 2FA and WebAuthn.
+
+**Abuse limits**
+- Rate limits on every auth endpoint and on everything that costs money or sends a message: M-Pesa prompts, SMS and email reminders, 2FA and passkey changes.
+- Request bodies are capped (1 MiB for JSON, the upload limit plus 1 MiB for uploads) and every free-text field has a maximum length.
+
+**Data going out**
+- Typed text is escaped before it reaches a PDF, and spreadsheet cells that would run as formulas (`= + - @`) are defused in CSV and Excel exports. Email subjects cannot carry line breaks.
+- The frontend has no raw-HTML sinks, and links built from data only allow http, https and blob URLs.
+- Uploads are checked by extension and by content, SVG is refused, and files are served through short-lived signed links with `nosniff` and a sandboxing policy.
+
+**Transport and configuration**
+- CORS allows only your site, only the methods and headers the app uses, and no credentials. JSON responses are `no-store`, HSTS is on outside development, and the database connection requires TLS.
+- API docs are hidden outside development, stack traces never reach clients, and the app refuses to start in production with a weak or missing secret.
+- `vercel.json` sets the frontend security headers. It **enforces** `frame-ancestors`, `base-uri` and `form-action`, and carries the full Content-Security-Policy as *Report-Only*. To enforce the full policy, open the live site with DevTools open, sign in (including with Google) and open an invoice PDF, look for CSP messages in the console, and if there are none rename the `Content-Security-Policy-Report-Only` header to `Content-Security-Policy`. (Chrome applies `object-src 'none'` to PDFs opened from `blob:` URLs, so check the PDFs first.)
+
+**Payments and messages**
+- Webhook secret token and optional IP allowlist on M-Pesa callbacks. A callback can only settle a payment Ledgr itself created.
+- Private teacher-to-parent chats encrypted at rest with a versioned key ring.
+
+**Known limits.** Login tokens are kept in the browser's `localStorage`, so the main defence against token theft is keeping script injection out (see above). `SECURITY-AUDIT.md` lists the other accepted trade-offs.
 
 Found a vulnerability? Please report it privately rather than opening a public issue.
 
@@ -330,6 +419,7 @@ Found a vulnerability? Please report it privately rather than opening a public i
 
 | Doc | What's in it |
 |---|---|
+| [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md) | Security review: what was found and fixed, what was checked, and the pre-deploy checklist |
 | [`backend/README.md`](backend/README.md) | Backend setup, AI provider config, test details |
 | [`backend/SCALING.md`](backend/SCALING.md) | Running more than one instance |
 | [`backend/BACKUPS.md`](backend/BACKUPS.md) | Database backup and restore |

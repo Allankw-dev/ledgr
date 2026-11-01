@@ -14,7 +14,7 @@ status), see the [top-level README](../README.md).
 ## Stack
 
 FastAPI + Uvicorn/Gunicorn · SQLAlchemy 2.0 · PostgreSQL (Supabase) · Alembic ·
-python-jose + passlib/bcrypt · slowapi (Redis-backed) · APScheduler · ReportLab ·
+PyJWT + passlib/bcrypt · slowapi (Redis-backed) · APScheduler · ReportLab ·
 scikit-learn · Anthropic API · M-Pesa Daraja.
 
 ## Local setup
@@ -29,8 +29,16 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 4000
 ```
 
-API on `http://localhost:4000`, interactive docs at `/docs` (disabled when
-`ENVIRONMENT=production`). Use the Supabase **Session pooler** URI (port 5432).
+API on `http://localhost:4000`, interactive docs at `/docs` (hidden anywhere that
+isn't a developer machine: any `ENVIRONMENT` other than `development`, or running
+on Render). Use the Supabase **Session pooler** URI (port 5432).
+
+**On a live server set `ENVIRONMENT=production`, `APP_DATABASE_URL` (the restricted
+`ledgr_app` role) and `CORS_ORIGINS` (your real site; `*` is refused).** See
+`.env.example` and the [Security section](../README.md#security).
+
+**Migrate before you deploy:** run `alembic upgrade head` against the database
+before the new code goes live, since new code reads the columns new migrations add.
 
 ## AI assistants
 
@@ -45,11 +53,13 @@ Two assistants (parent chatbot, bursar "Ask Ledgr") answer from live fee data us
 
 ```
 app/
-  core/       config, DB sessions + RLS context, JWT, deps, queue (jobs), idempotency, cache, locks
+  core/       config, DB sessions + RLS context, JWT, deps, queue (jobs), idempotency, cache, locks,
+              emails (case rules), body_limit (request size cap)
   models/     SQLAlchemy models
   routers/    HTTP endpoints, one file per resource
   schemas/    Pydantic request/response models
-  services/   business logic (payments, invoices, refresh tokens, M-Pesa, AI, PDFs...)
+  services/   business logic (payments, invoices, refresh tokens, M-Pesa, AI, PDFs, subscriptions,
+              text_safety for escaping typed text in PDFs / CSV / Excel...)
 alembic/      migrations
 scripts/      register_c2b_urls.py, backup_db.py, dev/ helpers
 sql/          RLS + append-only audit log setup
@@ -81,6 +91,17 @@ pytest
 
 Never point it at Supabase. The suite ignores `backend/.env` for its connection
 settings, so a real `DATABASE_URL` there is not touched.
+
+- `tests/test_route_security.py` pins every public route and every route open to any
+  signed-in role. If you add a route and this fails, that is the point: decide on
+  purpose, then add it to the list.
+- The tenant-isolation tests run as the table owner (Row-Level Security off) to prove
+  the app-level checks alone. The RLS layer itself isn't covered by the suite; see
+  [Checking Row-Level Security by hand](../README.md#checking-row-level-security-by-hand).
+- A test that calls a rate-limited route function directly needs a real request:
+  use `fake_request()` from `tests/conftest.py`.
+- Tests that go through phone matching call `install_phone_key_function(db)`, because
+  the `ledgr_phone_key()` SQL function comes from a migration, not from the models.
 
 ## Money-path rules worth knowing before you edit payments
 

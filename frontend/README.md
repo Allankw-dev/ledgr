@@ -2,8 +2,9 @@
 
 React + TypeScript + Tailwind v4, wired to the FastAPI backend.
 
-**Verified working**: type-checks clean and builds successfully (tested in
-this sandbox — `npm run build` produces a working production bundle).
+Three portals in one app: school staff (admin, bursar, teacher), parents, and the
+platform operator. For what the product does and how it fits together, see the
+[top-level README](../README.md).
 
 ## Design identity
 
@@ -27,10 +28,13 @@ The visual language is drawn from the subject itself — a financial ledger:
 - Tailwind CSS v4 (CSS-based theming — see `@theme` block in `src/index.css`,
   no `tailwind.config.js` needed)
 - React Router for navigation
-- Zustand for auth state (persisted to localStorage — just the JWT, never
-  the password)
-- Axios with an interceptor that attaches the JWT to every request and
-  auto-logs-out on a 401
+- Zustand for auth state, persisted to `localStorage` (the access token, the
+  refresh token and the user's profile — never the password)
+- Axios with an interceptor that attaches the access token to every request,
+  silently swaps it using the refresh token when it expires, and signs the user
+  out if that fails
+- react-hook-form + Zod for forms, Recharts for charts, Sentry (optional)
+- Vitest + Testing Library for tests, oxlint for linting
 
 ## Setup
 
@@ -41,37 +45,66 @@ cp .env.example .env     # set VITE_API_URL if your backend isn't on localhost:4
 npm run dev
 ```
 
-Runs on `http://localhost:5173`. Make sure the backend (`backend-py`) is
-running on port 4000 with a school registered, since login needs a real
-account to authenticate against.
+Runs on `http://localhost:5173`. Make sure the backend (`backend/`) is running
+on port 4000, since login needs a real account to authenticate against.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | dev server |
+| `npm run lint` | oxlint |
+| `npm test` | Vitest, once |
+| `npm run build` | type-checks (`tsc -b`) and builds |
+| `npm audit` | known-vulnerability check on the dependencies |
 
 ## Structure
 
 ```
 src/
 ├── api/            # one file per backend resource — thin wrappers over axios
-├── components/
-│   ├── ui/          # design-system primitives: Button, TextField, StatusBadge, StatCard
-│   └── AppShell.tsx # sidebar layout used by every authenticated page
-├── hooks/          # data-fetching hooks (useDashboardData, more to come)
+├── components/     # shells (staff, parent), chat, notification bell, payment UI
+│   └── ui/         # design-system primitives: Button, TextField, StatusBadge, StatCard
+├── hooks/          # data-fetching hooks
+├── lib/            # small pure helpers (names, receipt grouping, safeUrl, WebAuthn)
 ├── pages/          # one file per route
 ├── store/          # Zustand auth store
-└── types/          # shared TS types, mirrors the backend's Pydantic schemas
+├── types/          # shared TS types, mirrors the backend's Pydantic schemas
+└── __tests__/      # Vitest tests
+public/             # PWA manifest, icons, service worker (sw.js)
+vercel.json         # security headers + SPA rewrite for Vercel
 ```
 
-## What's built so far
+## What's in the app
 
-- Login page
-- Protected routing (redirects to `/login` if not authenticated)
-- Bursar dashboard: collection KPIs, outstanding balance, overdue count,
-  recent invoices table
+- **Staff** (admin, bursar, teacher): dashboard, students, classes, invoices,
+  fee aging report, announcements and messages, guardian link requests, audit log,
+  "Ask Ledgr" assistant, teachers, class group chats and chat reports, security
+  settings (2FA, passkeys).
+- **Parents**: dashboard with a balance per child, invoices and receipts,
+  M-Pesa payment, assistant, direct chats and the class group, profile.
+- **Platform operator** (`/platform`): every school's subscription, renew, suspend
+  and **Add school**.
+- **Everyone**: email/password and Google sign-in, forgot/reset password, email
+  change confirmation, installable as a PWA with a mobile-first layout.
 
-## Next
+## Deploying (Vercel)
 
-- Registration page (new school sign-up) — API call already exists in
-  `api/auth.ts`, just needs the form
-- Students page (list, add, view individual student ledger)
-- Invoices page (bulk-generate, filter by status)
-- Payment recording form
-- Parent portal view (separate, simpler layout — balance + pay button)
-- PWA manifest so it's installable on a parent's phone
+- **`VITE_API_URL`** (and `VITE_GOOGLE_CLIENT_ID` if you use Google sign-in) must
+  be set in the Vercel project settings. Vite bakes them in at build time, and a
+  missing `VITE_API_URL` makes the bundle fall back to `http://localhost:4000`.
+  Everything in a `VITE_*` variable is public, so never put a secret there.
+- **`vercel.json`** sets the security headers and rewrites every path to
+  `index.html`. It enforces `frame-ancestors`, `base-uri` and `form-action` and
+  ships the full Content-Security-Policy as *Report-Only*; the steps for
+  enforcing it are in the [Security section](../README.md#security) of the main README.
+- The service worker never caches `/api/` responses, so no financial data is
+  left on a shared device.
+- The production build publishes no source maps.
+
+## Frontend security rules
+
+- Don't use `dangerouslySetInnerHTML`, `innerHTML` or `eval`. There are none today.
+- A URL that comes from data goes through `safeUrl()` (`src/lib/safeUrl.ts`) before it
+  becomes an `href` or `src`. It only allows http, https and blob.
+- Keep secrets out of the frontend. `VITE_*` values are public.
+- Don't give a component a prop called `children` for something that isn't its JSX
+  children (the linter flags it, and it hides real children).
