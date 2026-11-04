@@ -5,6 +5,7 @@ import { TextField } from './ui/TextField';
 import { Modal } from './ui/Modal';
 import { requestMpesaPayment } from '../api/parent';
 import { getErrorMessage } from '../api/client';
+import { useMpesaAvailable } from '../hooks/useMpesaAvailable';
 
 // Mirrors the server's rule: part-payments below this aren't sent to M-Pesa
 // (paying off whatever is left is always allowed).
@@ -35,6 +36,7 @@ interface PayWithMpesaProps {
 }
 
 export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance, defaultPhone, onInitiated, variant = 'primary', className, label = 'Pay now' }: PayWithMpesaProps) {
+  const available = useMpesaAvailable();
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(defaultPhone || '');
   const wholeBalance = balance !== undefined ? Math.floor(balance) : undefined;
@@ -85,6 +87,15 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
     setSent(false);
     setSentAmount(null);
     setError(null);
+  }
+
+  // This school has no online M-Pesa (not set up, or switched off): say so instead of offering a button that can only fail.
+  if (available === false) {
+    return (
+      <p className={`text-xs text-ink-400 ${className ?? ''}`}>
+        Online M-Pesa isn&apos;t available for this school yet. Please pay at the school&apos;s paybill, or ask the school office.
+      </p>
+    );
   }
 
   return (

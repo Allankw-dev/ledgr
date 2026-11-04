@@ -9,12 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, get_system_db
-from app.core.webhook_auth import verify_mpesa_webhook
+from app.core.webhook_auth import WebhookAuth, verify_mpesa_webhook
 from app.core.deps import get_current_user, get_school_scope, require_roles, CurrentUser
-from app.core.config import settings
 from app.core.idempotency import reserve_key, release_key, store_result
 from app.core.rate_limit import limiter
 from app.schemas.mpesa import (
+    MpesaStatusResponse,
     StkPushRequest,
     StkPushResponse,
     MpesaCallbackPayload,
@@ -22,7 +22,9 @@ from app.schemas.mpesa import (
     MatchTransactionRequest,
 )
 from app.services.mpesa_service import initiate_stk_push, normalize_phone_number, MpesaConfigError, MpesaOutcomeUnknown
+from app.services.mpesa_accounts import MpesaNotAvailable, channel_for_school, mpesa_enabled_for_school
 from app.services.payment_service import (
+    CallbackSchoolMismatch,
     UNSENT_PREFIX,
     attach_checkout_request_id,
     create_pending_mpesa_payment,
@@ -133,6 +135,13 @@ def _prepare_stk_push(db: Session, data: StkPushRequest, user: CurrentUser, scho
     return invoice, pay_amount, student
 
 
+@router.get("/status", response_model=MpesaStatusResponse)
+async def mpesa_status(school_id: str = Depends(get_school_scope)):
+    """Tells the frontend whether to offer "Pay with M-Pesa" at all. A school with no M-Pesa set up (or switched
+    off) should not show a button that can only fail."""
+    return MpesaStatusResponse(enabled=await run_in_threadpool(mpesa_enabled_for_school, school_id))
+
+
 @router.post("/stk-push", response_model=StkPushResponse, status_code=201)
 @limiter.limit("10/minute")
 async def request_stk_push(
@@ -174,7 +183,19 @@ async def request_stk_push(
     account_reference = student.admission_number or "Ledgr"
     target_invoice_id = invoice.id if invoice else None
 
-    if not settings.mpesa_callback_url:
+    # Which paybill pays for THIS school? Decided before anything is written or sent, so a school with no M-Pesa
+    # set up is told so, instead of being quietly routed to someone else's paybill.
+    try:
+        channel = await run_in_threadpool(channel_for_school, school_id)
+    except MpesaNotAvailable as exc:
+        raise HTTPException(409, exc.user_message)
+    except MpesaConfigError as exc:
+        logger.error("STK push refused: %s", exc)
+        raise HTTPException(503, "M-Pesa isn't available right now. Please contact the school office.")
+    except Exception:  # noqa: BLE001 - e.g. a stored secret that no longer decrypts (key ring changed)
+        logger.exception("Could not resolve M-Pesa credentials for school %s", school_id)
+        raise HTTPException(503, "M-Pesa isn't available right now. Please contact the school office.")
+    if not channel.callback_url:
         raise HTTPException(503, "M-Pesa is not fully configured yet — missing callback URL")
 
     request_body = data.model_dump(mode="json")
@@ -219,11 +240,12 @@ async def request_stk_push(
     try:
         phone = normalize_phone_number(data.phone_number)
         result = await initiate_stk_push(
+            creds=channel.credentials,
             phone_number=phone,
             amount=int(pay_amount),
             account_reference=account_reference,
             transaction_desc="School fees",
-            callback_url=settings.mpesa_callback_url,
+            callback_url=channel.callback_url,
         )
     except MpesaConfigError as exc:
         logger.error("STK push refused: %s", exc)
@@ -290,8 +312,12 @@ async def request_stk_push(
         )
     return response
 
-@router.post("/callback", dependencies=[Depends(verify_mpesa_webhook)])
-async def mpesa_callback(request: Request, db: Session = Depends(get_system_db)):
+@router.post("/callback")
+async def mpesa_callback(
+    request: Request,
+    db: Session = Depends(get_system_db),
+    auth: WebhookAuth = Depends(verify_mpesa_webhook),
+):
     """
     PUBLIC endpoint — Safaricom's servers call this directly, with no auth
     header we control, so it never runs get_school_scope and therefore never
@@ -329,15 +355,21 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_system_db))
             elif item.get("Name") == "Amount":
                 paid_amount = item.get("Value")
 
-    # Deliberately NOT wrapped in try/except — see docstring above.
-    await run_in_threadpool(
-        resolve_mpesa_callback,
-        db,
-        checkout_request_id=callback.CheckoutRequestID,
-        paid_amount=paid_amount,
-        result_code=callback.ResultCode,
-        mpesa_receipt_number=str(mpesa_receipt) if mpesa_receipt else None,
-    )
+    # Deliberately NOT wrapped in a blanket try/except — see docstring above. The one exception we do handle is a
+    # school's own token naming another school's payment, which is refused outright.
+    try:
+        await run_in_threadpool(
+            resolve_mpesa_callback,
+            db,
+            checkout_request_id=callback.CheckoutRequestID,
+            paid_amount=paid_amount,
+            result_code=callback.ResultCode,
+            mpesa_receipt_number=str(mpesa_receipt) if mpesa_receipt else None,
+            expected_school_id=auth.school_id,
+        )
+    except CallbackSchoolMismatch:
+        logger.warning("Rejected an M-Pesa callback: school %s's token named another school's payment", auth.school_id)
+        raise HTTPException(403, "Forbidden")
 
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
@@ -349,6 +381,7 @@ def lookup_c2b_transaction(
     trans_id: str,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+    school_id: str = Depends(get_school_scope),
 ):
     """
     A bursar enters the M-Pesa code a parent read out to them over the
@@ -358,7 +391,7 @@ def lookup_c2b_transaction(
     to make brute-forcing the (already hard-to-guess) receipt code
     impractical.
     """
-    txn = find_unmatched_transaction(db, trans_id)
+    txn = find_unmatched_transaction(db, trans_id, school_id)
     return MpesaTransactionLookup(
         id=txn.id,
         trans_id=txn.trans_id,

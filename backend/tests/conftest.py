@@ -152,3 +152,18 @@ def fake_request():
 
     limiter.reset()
     return Request({"type": "http", "method": "POST", "path": "/", "headers": [], "query_string": b"", "client": ("203.0.113.9", 4321)})
+
+
+def use_global_mpesa(db, school, monkeypatch, callback_url: str = "https://api.example/api/payments/mpesa/callback?token=s"):
+    """Puts a school on the server-wide M-Pesa settings (mode GLOBAL), which is how a single-school install, and the
+    first school after the upgrade migration, works. New schools start OFF, so tests that exercise the original
+    STK / paybill flow call this first."""
+    from app.core.config import settings
+
+    school.mpesa_mode = "GLOBAL"
+    db.commit()
+    for name, value in (
+        ("mpesa_consumer_key", "global-key"), ("mpesa_consumer_secret", "global-secret"),
+        ("mpesa_shortcode", "174379"), ("mpesa_passkey", "global-passkey"), ("mpesa_callback_url", callback_url),
+    ):
+        monkeypatch.setattr(settings, name, value)

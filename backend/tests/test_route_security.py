@@ -58,6 +58,7 @@ ANY_ROLE = {
     "GET /api/invoices/{invoice_id}/payment-plan/active", "POST /api/invoices/{invoice_id}/payment-plan/accept",
     "POST /api/invoices/{invoice_id}/payment-plan/cancel",
     "POST /api/payments/mpesa/stk-push",  # linked parent for their child, or admin/bursar
+    "GET /api/payments/mpesa/status",  # one boolean about the caller's OWN school: is online M-Pesa switched on?
 }
 
 
@@ -113,6 +114,9 @@ SENSITIVE_MUST_BE_LIMITED = [
     "POST /api/auth/2fa/setup", "POST /api/auth/2fa/enable", "POST /api/auth/2fa/disable",
     "DELETE /api/auth/webauthn/credentials/{credential_id}", "PATCH /api/users/me",
     "POST /api/platform/schools", "PATCH /api/platform/schools/{school_id}/subscription",
+    "PUT /api/platform/schools/{school_id}/mpesa", "DELETE /api/platform/schools/{school_id}/mpesa",
+    "POST /api/platform/schools/{school_id}/mpesa/test", "POST /api/platform/schools/{school_id}/mpesa/register-urls",
+    "POST /api/platform/schools/{school_id}/mpesa/mode",
     "POST /api/auth/login", "POST /api/auth/register-parent", "POST /api/auth/forgot-password", "POST /api/auth/reset-password",
     "POST /api/students", "POST /api/invoices/{invoice_id}/void",
 ]
@@ -282,3 +286,21 @@ def test_the_teacher_class_assignment_lists_are_bounded():
 
     for model in (CreateTeacherRequest, UpdateTeacherClassesRequest):
         assert any(getattr(m, "max_length", None) == 200 for m in model.model_fields["class_ids"].metadata), model.__name__
+
+
+def test_a_configured_shortcode_on_the_sandbox_address_logs_a_loud_warning_outside_development(monkeypatch, caplog):
+    """Unset MPESA_BASE_URL means Safaricom's SANDBOX: STK prompts reach no real phone. The old comment said to
+    unset it for production, so the mistake is easy to make and silent without this warning."""
+    import logging
+
+    monkeypatch.delenv("RENDER", raising=False)
+    with caplog.at_level(logging.WARNING, logger="ledgr.security"):
+        Settings(**BASE, environment="staging", mpesa_shortcode="174379")
+    assert "SANDBOX" in caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="ledgr.security"):
+        Settings(**BASE, environment="staging", mpesa_shortcode="174379", mpesa_base_url="https://api.safaricom.co.ke")  # live: quiet
+        Settings(**BASE, environment="staging")  # no M-Pesa configured: quiet
+        Settings(**BASE, mpesa_shortcode="174379")  # a developer's machine: quiet
+    assert "SANDBOX" not in caplog.text

@@ -441,3 +441,17 @@ DROP TRIGGER IF EXISTS audit_logs_no_truncate ON audit_logs;
 CREATE TRIGGER audit_logs_no_truncate
   BEFORE TRUNCATE ON audit_logs
   FOR EACH STATEMENT EXECUTE FUNCTION ledgr_audit_log_immutable();
+
+-- ----------------------------------------------------------------------------
+-- M-Pesa credentials are OWNER-ONLY
+-- ----------------------------------------------------------------------------
+-- school_mpesa_accounts holds each school's encrypted Daraja key, secret and passkey. The table-wide GRANT and the
+-- default privileges above would hand it to ledgr_app, so take it back. RLS is on with no policy as well, so there
+-- are two locks. The app reads this table only through services/mpesa_accounts.py, on the system (owner) connection.
+DO $$
+BEGIN
+  IF to_regclass('public.school_mpesa_accounts') IS NOT NULL THEN
+    ALTER TABLE school_mpesa_accounts ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON TABLE school_mpesa_accounts FROM ledgr_app;
+  END IF;
+END $$;

@@ -23,6 +23,12 @@ class StkPushRequest(BaseModel):
         return self
 
 
+class MpesaStatusResponse(BaseModel):
+    """Is online M-Pesa available for the caller's school? The frontend hides the pay button when it isn't."""
+
+    enabled: bool
+
+
 class StkPushResponse(BaseModel):
     checkout_request_id: str
     message: str

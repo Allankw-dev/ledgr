@@ -27,3 +27,9 @@ export async function matchMpesaTransaction(
   });
   return data;
 }
+
+/** Is online M-Pesa switched on for the signed-in user's school? (The pay button is hidden when it isn't.) */
+export async function getMpesaStatus(): Promise<{ enabled: boolean }> {
+  const { data } = await apiClient.get<{ enabled: boolean }>('/api/payments/mpesa/status');
+  return data;
+}

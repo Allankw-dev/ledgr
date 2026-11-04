@@ -11,22 +11,22 @@ RegisterURL call actually points at.
 import logging
 
 from starlette.concurrency import run_in_threadpool
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.database import get_system_db
-from app.core.webhook_auth import verify_mpesa_webhook
+from app.core.webhook_auth import WebhookAuth, verify_mpesa_webhook
 from app.schemas.mpesa import C2BPayload
+from app.services.mpesa_accounts import TokenScopeMismatch, route_c2b
 from app.services.mpesa_reconciliation_service import record_c2b_transaction
 
 logger = logging.getLogger("ledgr.mpesa")
 
-router = APIRouter(prefix="/api/payments/c2b", tags=["mpesa"], dependencies=[Depends(verify_mpesa_webhook)])
+router = APIRouter(prefix="/api/payments/c2b", tags=["mpesa"])
 
 
 @router.post("/validation")
-async def c2b_validation(request: Request):
+async def c2b_validation(request: Request, auth: WebhookAuth = Depends(verify_mpesa_webhook)):
     """
     PUBLIC — Safaricom calls this BEFORE the transaction completes, giving
     us a chance to reject it (e.g. unknown account). We deliberately always
@@ -39,7 +39,11 @@ async def c2b_validation(request: Request):
 
 
 @router.post("/confirmation")
-async def c2b_confirmation(request: Request, db: Session = Depends(get_system_db)):
+async def c2b_confirmation(
+    request: Request,
+    db: Session = Depends(get_system_db),
+    auth: WebhookAuth = Depends(verify_mpesa_webhook),
+):
     """
     PUBLIC — Safaricom's confirmation that a C2B (direct paybill) payment
     completed. Unlike /stk-push + /callback, this transaction was never
@@ -47,6 +51,9 @@ async def c2b_confirmation(request: Request, db: Session = Depends(get_system_db
     PENDING payment to resolve — the raw transaction is recorded and
     matched (or queued for manual review) from scratch. See
     mpesa_reconciliation_service.record_c2b_transaction.
+
+    The shortcode the money was paid TO decides which school(s) it can belong to (mpesa_accounts.route_c2b), so a
+    payment to one school's paybill is never credited to another school's student.
     """
     raw_body = await request.json()
 
@@ -56,12 +63,18 @@ async def c2b_confirmation(request: Request, db: Session = Depends(get_system_db
         logger.warning("Received malformed M-Pesa C2B confirmation: %s", raw_body)
         return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
-    # A confirmation addressed to a different paybill/till than ours is not
-    # ours to record — ignore it rather than credit a student for it.
-    if settings.mpesa_shortcode and payload.BusinessShortCode and str(payload.BusinessShortCode) != str(settings.mpesa_shortcode):
+    try:
+        route = await run_in_threadpool(route_c2b, db, payload.BusinessShortCode, auth.school_id)
+    except TokenScopeMismatch:
+        logger.warning("Rejected a C2B confirmation: school %s's token was used for shortcode %s", auth.school_id, payload.BusinessShortCode)
+        raise HTTPException(403, "Forbidden")
+
+    # A confirmation addressed to a paybill that isn't any school's (or ours) is not ours to record: ignore it
+    # rather than credit a student for it.
+    if route is None:
         logger.warning("Ignoring C2B confirmation for foreign shortcode %s", payload.BusinessShortCode)
         return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
-    await run_in_threadpool(record_c2b_transaction, db, payload)
+    await run_in_threadpool(record_c2b_transaction, db, payload, route)
 
     return {"ResultCode": 0, "ResultDesc": "Accepted"}

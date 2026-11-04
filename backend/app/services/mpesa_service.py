@@ -1,16 +1,20 @@
 import base64
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import httpx
 
 from app.core.config import settings
 
-# Daraja base URL — defaults to the real sandbox, but overridable via
-# MPESA_BASE_URL. This is what lets you point the whole M-Pesa integration
-# at a local emulator (e.g. Pesa Playground) for testing, without touching
-# any code — just set MPESA_BASE_URL=http://localhost:8001 in .env, then
-# unset it (or set it to https://api.safaricom.co.ke) for production.
-DARAJA_BASE_URL = settings.mpesa_base_url or "https://sandbox.safaricom.co.ke"
+# Daraja base URLs. For the SERVER-WIDE settings, UNSET MEANS SAFARICOM'S SANDBOX (the test system: no real phone is
+# ever prompted and no real money moves). For REAL payments you MUST set MPESA_BASE_URL=https://api.safaricom.co.ke
+# explicitly. (An earlier version of this comment said to "unset it for production", which does the opposite.)
+# MPESA_BASE_URL can also point the whole integration at a local emulator (e.g. Pesa Playground) for testing, without
+# touching any code: MPESA_BASE_URL=http://localhost:8001 in .env.
+# A school's OWN account does not depend on that guesswork: it states SANDBOX or PRODUCTION explicitly.
+SANDBOX_URL = "https://sandbox.safaricom.co.ke"
+PRODUCTION_URL = "https://api.safaricom.co.ke"
+DARAJA_BASE_URL = settings.mpesa_base_url or SANDBOX_URL
 
 
 class MpesaOutcomeUnknown(Exception):
@@ -24,7 +28,23 @@ class MpesaConfigError(Exception):
     a clear message instead of a confusing downstream HTTP failure."""
 
 
-def _require_config() -> None:
+@dataclass(frozen=True)
+class MpesaCredentials:
+    """Everything needed to talk to Daraja AS ONE PAYBILL. Passed explicitly into every call, so there is no
+    ambient "the" paybill that one school's request could pick up by accident.
+
+    The secrets are excluded from repr(), so they can never leak through a log line or a traceback."""
+
+    shortcode: str
+    base_url: str
+    consumer_key: str = field(repr=False)
+    consumer_secret: str = field(repr=False)
+    passkey: str = field(repr=False)
+    source: str = "global"  # "global" (server settings) or "school": for logs only
+
+
+def global_credentials() -> MpesaCredentials:
+    """The server-wide MPESA_* settings (the original single-paybill setup)."""
     missing = [
         name
         for name, value in [
@@ -37,21 +57,33 @@ def _require_config() -> None:
     ]
     if missing:
         raise MpesaConfigError(f"M-Pesa is not configured — missing: {', '.join(missing)}")
+    return MpesaCredentials(
+        shortcode=str(settings.mpesa_shortcode),
+        base_url=DARAJA_BASE_URL,
+        consumer_key=settings.mpesa_consumer_key,
+        consumer_secret=settings.mpesa_consumer_secret,
+        passkey=settings.mpesa_passkey,
+        source="global",
+    )
 
 
-async def get_access_token() -> str:
+def base_url_for_environment(environment: str) -> str:
+    if environment == "PRODUCTION":
+        return PRODUCTION_URL
+    return settings.mpesa_base_url or SANDBOX_URL
+
+
+async def get_access_token(creds: MpesaCredentials) -> str:
     """OAuth token from Daraja, required on every subsequent API call.
     Valid for 1 hour — callers should fetch a fresh one per request rather
     than caching across a long-running process, since the cost of one extra
-    HTTP call is negligible compared to the bugs a stale-token cache invites."""
-    _require_config()
-
-    credentials = f"{settings.mpesa_consumer_key}:{settings.mpesa_consumer_secret}"
-    encoded = base64.b64encode(credentials.encode()).decode()
+    HTTP call is negligible compared to the bugs a stale-token cache invites
+    (and with several paybills, a cache is one more place to mix them up)."""
+    encoded = base64.b64encode(f"{creds.consumer_key}:{creds.consumer_secret}".encode()).decode()
 
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{DARAJA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials",
+            f"{creds.base_url}/oauth/v1/generate?grant_type=client_credentials",
             headers={"Authorization": f"Basic {encoded}"},
             timeout=15,
         )
@@ -59,16 +91,17 @@ async def get_access_token() -> str:
         return resp.json()["access_token"]
 
 
-def _generate_password_and_timestamp() -> tuple[str, str]:
+def _generate_password_and_timestamp(creds: MpesaCredentials) -> tuple[str, str]:
     """Daraja requires shortcode+passkey+timestamp, base64-encoded, as the
     STK push 'Password' field — this is the exact recipe from Safaricom's docs."""
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    raw = f"{settings.mpesa_shortcode}{settings.mpesa_passkey}{timestamp}"
+    raw = f"{creds.shortcode}{creds.passkey}{timestamp}"
     password = base64.b64encode(raw.encode()).decode()
     return password, timestamp
 
 
 async def initiate_stk_push(
+    creds: MpesaCredentials,
     phone_number: str,
     amount: int,
     account_reference: str,
@@ -84,19 +117,17 @@ async def initiate_stk_push(
     phone_number must be in the format 2547XXXXXXXX (no leading +, no
     leading 0) — Daraja rejects other formats.
     """
-    _require_config()
-
-    token = await get_access_token()
-    password, timestamp = _generate_password_and_timestamp()
+    token = await get_access_token(creds)
+    password, timestamp = _generate_password_and_timestamp(creds)
 
     payload = {
-        "BusinessShortCode": settings.mpesa_shortcode,
+        "BusinessShortCode": creds.shortcode,
         "Password": password,
         "Timestamp": timestamp,
         "TransactionType": "CustomerPayBillOnline",
         "Amount": amount,
         "PartyA": phone_number,
-        "PartyB": settings.mpesa_shortcode,
+        "PartyB": creds.shortcode,
         "PhoneNumber": phone_number,
         "CallBackURL": callback_url,
         "AccountReference": account_reference[:12],  # Daraja truncates/rejects longer values
@@ -106,7 +137,7 @@ async def initiate_stk_push(
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.post(
-                f"{DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest",
+                f"{creds.base_url}/mpesa/stkpush/v1/processrequest",
                 json=payload,
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=15,
@@ -123,6 +154,29 @@ async def initiate_stk_push(
             # which makes real failures here nearly undiagnosable. Surface it.
             raise RuntimeError(f"Daraja STK push failed ({resp.status_code}): {resp.text}")
         return resp.json()
+
+
+async def register_c2b_urls(creds: MpesaCredentials, validation_url: str, confirmation_url: str) -> dict:
+    """Tells Safaricom which URLs to call when someone pays this paybill directly (C2B). Re-running is harmless:
+    Safaricom just overwrites the previous registration. Shared by scripts/register_c2b_urls.py and the
+    platform screen, so there is one implementation."""
+    token = await get_access_token(creds)
+    payload = {
+        "ShortCode": creds.shortcode,
+        "ResponseType": "Completed",  # what Safaricom does if OUR server times out on /validation
+        "ConfirmationURL": confirmation_url,
+        "ValidationURL": validation_url,
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{creds.base_url}/mpesa/c2b/v2/registerurl",
+            json=payload,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Daraja C2B registration failed ({resp.status_code}): {resp.text}")
+    return resp.json()
 
 
 def normalize_phone_number(phone: str) -> str:

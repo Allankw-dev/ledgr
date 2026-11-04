@@ -4,6 +4,7 @@ import { BookOpen, LogOut, Plus } from 'lucide-react';
 import { DxCard } from '../components/dx/DxCard';
 import { createSchool, listPlatformSchools, updateSchoolSubscription, type CreatedSchool, type PlatformSchool, type SubscriptionStatus, type SubscriptionUpdate } from '../api/subscription';
 import { getErrorMessage } from '../api/client';
+import { MpesaSetupPanel } from '../components/MpesaSetupPanel';
 import { useAuthStore } from '../store/authStore';
 
 const PILL: Record<SubscriptionStatus, string> = {
@@ -30,6 +31,7 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [paidUntil, setPaidUntil] = useState(toInputDate(school.paid_until));
   const [limit, setLimit] = useState(school.learner_limit?.toString() ?? '');
 
@@ -84,6 +86,7 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
         <button className={btn} disabled={busy} onClick={() => apply({ extend_months: 12 })}>+12 months</button>
         <button className={btn} disabled={busy} onClick={() => apply({ trial_days: 30 })}>30-day trial</button>
         <button className={btn} disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? 'Cancel' : 'Edit'}</button>
+        <button className={btn} aria-expanded={paymentsOpen} onClick={() => setPaymentsOpen((o) => !o)}>{paymentsOpen ? 'Hide payments' : 'Payments'}</button>
         {suspended ? (
           <button className={`${btn} !border-lime/50 text-lime`} disabled={busy} onClick={() => apply({ status: 'ACTIVE' })}>Reactivate</button>
         ) : (
@@ -119,6 +122,7 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
           <button disabled={busy} className="rounded-full bg-lime text-[#0B1203] font-semibold text-sm px-5 py-2 disabled:opacity-50">Save</button>
         </form>
       )}
+      {paymentsOpen && <MpesaSetupPanel schoolId={school.id} schoolName={school.name} />}
       {error && <p role="alert" className="mt-3 text-xs text-coral">{error}</p>}
     </DxCard>
   );

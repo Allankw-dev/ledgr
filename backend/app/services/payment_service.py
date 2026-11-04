@@ -363,12 +363,17 @@ def _allocate_to_open_invoices(db: Session, payment: Payment) -> tuple[Decimal, 
     return total, slices
 
 
+class CallbackSchoolMismatch(Exception):
+    """A callback authenticated with one school's own token named a payment that belongs to another school."""
+
+
 def resolve_mpesa_callback(
     db: Session,
     checkout_request_id: str,
     result_code: int,
     mpesa_receipt_number: str | None,
     paid_amount: Decimal | int | float | str | None = None,
+    expected_school_id: str | None = None,
 ) -> Payment | None:
     """
     Called from the (public, unauthenticated) Daraja callback endpoint.
@@ -393,6 +398,11 @@ def resolve_mpesa_callback(
 
     if not payment:
         return None
+
+    # A callback sent to a SCHOOL's own address (its token names the school) may only settle that school's
+    # payments. Without this, one school's token could be replayed against another school's pending payment.
+    if expected_school_id is not None and payment.school_id != expected_school_id:
+        raise CallbackSchoolMismatch()
 
     # Never confirm money we can't account for: if Safaricom reports a
     # different amount than we asked for, leave the payment PENDING and flag

@@ -232,6 +232,13 @@ class Settings(BaseSettings):
             insecure = [o for o in self.cors_origin_list if o.startswith("http://") and "localhost" not in o and "127.0.0.1" not in o]
             if insecure:
                 log.warning("SECURITY: CORS_ORIGINS contains non-HTTPS origins: %s", ", ".join(insecure))
+        if self.is_production_like and self.mpesa_shortcode and "api.safaricom.co.ke" not in (self.mpesa_base_url or ""):
+            log.warning(
+                "M-PESA: a shortcode is configured but MPESA_BASE_URL is %r, so every STK push goes to Safaricom's "
+                "SANDBOX (no real phone is prompted, no real money moves). For real payments set "
+                "MPESA_BASE_URL=https://api.safaricom.co.ke",
+                self.mpesa_base_url,
+            )
         if self.hosted_on_render and self.environment != "production":
             log.error(
                 "SECURITY: running on Render with ENVIRONMENT=%r. Set ENVIRONMENT=production in the Render "

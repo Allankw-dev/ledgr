@@ -8,12 +8,14 @@ import type { CreatedSchool, PlatformSchool } from '../api/subscription';
 vi.mock('../components/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock('../api/aging', () => ({ getAgingReport: vi.fn(), downloadAgingCsv: vi.fn() }));
 vi.mock('../api/subscription', () => ({ listPlatformSchools: vi.fn(), updateSchoolSubscription: vi.fn(), getMySubscription: vi.fn(), createSchool: vi.fn() }));
+vi.mock('../api/platformMpesa', () => ({ getSchoolMpesa: vi.fn(), saveSchoolMpesa: vi.fn(), testSchoolMpesa: vi.fn(), registerSchoolMpesaUrls: vi.fn(), setSchoolMpesaMode: vi.fn(), removeSchoolMpesa: vi.fn() }));
 vi.mock('../store/authStore', () => ({
   useAuthStore: (sel: (s: unknown) => unknown) => sel({ logout: vi.fn(), user: { full_name: 'Allan', email: 'a@x.test' } }),
 }));
 
 import { downloadAgingCsv, getAgingReport } from '../api/aging';
 import { createSchool, listPlatformSchools, updateSchoolSubscription } from '../api/subscription';
+import { getSchoolMpesa } from '../api/platformMpesa';
 import { AgingPage } from '../pages/AgingPage';
 import { PlatformPage } from '../pages/PlatformPage';
 
@@ -198,6 +200,21 @@ describe('PlatformPage', () => {
     fireEvent.click(screen.getByText('Create school'));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/already exists/));
     expect(screen.getByText('Create school')).toBeTruthy();
+  });
+
+  it("opens a school's M-Pesa payment settings from its card, for that school only", async () => {
+    vi.mocked(listPlatformSchools).mockResolvedValue([school(), school({ id: 'sc2', name: 'Hillside' })]);
+    vi.mocked(getSchoolMpesa).mockResolvedValue({
+      school_id: 'sc2', mode: 'OFF', has_account: false, environment: null, shortcode: null, tested_at: null, c2b_registered_at: null,
+      last_error: null, global_configured: true, addresses_ready: true, other_schools_on_global: 0,
+    });
+    render(<MemoryRouter><PlatformPage /></MemoryRouter>);
+    await waitFor(() => screen.getByText('Hillside'));
+    expect(getSchoolMpesa).not.toHaveBeenCalled(); // nothing is fetched until someone asks
+    fireEvent.click(screen.getAllByText('Payments')[1]); // the second card: Hillside
+    await waitFor(() => expect(screen.getByText(/Online M-Pesa for Hillside/)).toBeTruthy());
+    expect(getSchoolMpesa).toHaveBeenCalledWith('sc2');
+    expect(screen.queryByText(/Online M-Pesa for Greenfield Academy/)).toBeNull();
   });
 
   it('shows a retry when the list will not load', async () => {

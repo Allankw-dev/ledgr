@@ -149,9 +149,9 @@ def test_http_list_accept_and_dismiss(db, world, client):
 
 @pytest.fixture()
 def stk(db, world, client, monkeypatch):
-    from app.core.config import settings
+    from tests.conftest import use_global_mpesa
 
-    monkeypatch.setattr(settings, "mpesa_callback_url", "https://api.example/cb?token=s")
+    use_global_mpesa(db, world.school, monkeypatch)
     state = {"rows_when_called": None}
 
     async def fake_push(**kwargs):

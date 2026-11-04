@@ -64,6 +64,24 @@ It was not switched on blindly because Chrome applies `object-src 'none'` to PDF
 `tests/test_route_security.py` pins the exact list of the 21 public routes and the 48 routes open to any
 signed-in role. Adding a new route of either kind fails the test until someone reviews it on purpose.
 
+## Per-school M-Pesa credentials (added later)
+
+- **Storage:** each school's consumer key, secret and passkey are encrypted with AES-256-GCM under the same key ring as
+  private messages (`MESSAGE_ENCRYPTION_KEYS`), with a separate derivation per field and school. A row copied to another
+  school fails to decrypt. They are write-only: no endpoint returns them, and tests search every response, log line and
+  audit entry for them.
+- **Access:** `school_mpesa_accounts` is owner-only. Row-Level Security is on with no policy and every privilege is
+  revoked from `ledgr_app`, `anon` and `authenticated`. Verified by hand against a database built from the migrations,
+  after `sql/enable_rls.sql` ran: the restricted role gets "permission denied" for select, insert, update and delete, even
+  for its own school's row. Only the platform operator (`SUPER_ADMIN`) can enter or change them.
+- **Isolation:** each school's webhook address carries an HMAC token for that school; a school's token cannot confirm
+  another school's payment, and a paybill payment is matched only against the schools that own the paybill.
+- **Safe default:** a new school's M-Pesa mode is OFF. The migration sets only the oldest existing school to the
+  server-wide paybill.
+- **Limits:** "Test connection" proves the key and secret, not the paybill number or passkey (only a real payment does).
+  Losing `MESSAGE_ENCRYPTION_KEYS` means the saved paybill details must be entered again, so back them up. Only paybills
+  are supported, not Tills.
+
 ## Accepted or open
 
 - **Tokens live in `localStorage`.** A script-injection bug would expose them. Mitigations: no HTML sinks anywhere

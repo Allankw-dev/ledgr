@@ -21,17 +21,14 @@ Requires in your .env (see .env.example):
 import asyncio
 import sys
 
-import httpx
-
 from app.core.config import settings
-from app.services.mpesa_service import get_access_token, DARAJA_BASE_URL, MpesaConfigError
+from app.services.mpesa_service import MpesaConfigError, global_credentials, register_c2b_urls
 
 
 async def register() -> None:
     missing = [
         name
         for name, value in [
-            ("MPESA_SHORTCODE", settings.mpesa_shortcode),
             ("MPESA_C2B_VALIDATION_URL", settings.mpesa_c2b_validation_url),
             ("MPESA_C2B_CONFIRMATION_URL", settings.mpesa_c2b_confirmation_url),
         ]
@@ -47,42 +44,31 @@ async def register() -> None:
         sys.exit(1)
 
     try:
-        token = await get_access_token()
+        creds = global_credentials()
     except MpesaConfigError as exc:
         print(f"M-Pesa is not fully configured: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    payload = {
-        "ShortCode": settings.mpesa_shortcode,
-        "ResponseType": "Completed",  # what Safaricom does if OUR server times out on /validation — see note below
-        "ConfirmationURL": settings.mpesa_c2b_confirmation_url,
-        "ValidationURL": settings.mpesa_c2b_validation_url,
-    }
-
-    print(f"Registering C2B URLs against {DARAJA_BASE_URL} for shortcode {settings.mpesa_shortcode}:")
+    print(f"Registering C2B URLs against {creds.base_url} for shortcode {creds.shortcode}:")
     print(f"  ConfirmationURL = {settings.mpesa_c2b_confirmation_url}")
     print(f"  ValidationURL   = {settings.mpesa_c2b_validation_url}")
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{DARAJA_BASE_URL}/mpesa/c2b/v2/registerurl",
-            json=payload,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=15,
-        )
-
-    if resp.status_code >= 400:
-        print(f"Registration failed ({resp.status_code}): {resp.text}", file=sys.stderr)
+    try:
+        result = await register_c2b_urls(creds, settings.mpesa_c2b_validation_url, settings.mpesa_c2b_confirmation_url)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
         sys.exit(1)
 
     print("Registration succeeded:")
-    print(resp.json())
+    print(result)
     print(
         "\nNote: ResponseType=Completed means if Safaricom can't reach your "
         "/c2b/validation endpoint (server down, slow), it auto-accepts the "
         "payment rather than bouncing it — matches the app's own validation "
         "handler, which always accepts too (see the docstring on "
-        "mpesa_c2b_validation in app/routers/mpesa.py)."
+        "c2b_validation in app/routers/c2b.py).\n"
+        "A school with its OWN paybill is registered from the platform screen (Schools and billing > Payments), "
+        "not with this script."
     )
 
 

@@ -33,6 +33,7 @@ class MpesaTransaction(Base):
     trans_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     amount: Mapped[Decimal] = mapped_column(MONEY, nullable=False)
     bill_ref_number: Mapped[str | None] = mapped_column(String, nullable=True)  # what the payer typed — expected to be an admission number
+    business_shortcode: Mapped[str | None] = mapped_column(String, nullable=True)  # the paybill it was paid TO (how we route it to a school)
     msisdn: Mapped[str | None] = mapped_column(String, nullable=True)  # payer's phone
     payer_name: Mapped[str | None] = mapped_column(String, nullable=True)
 

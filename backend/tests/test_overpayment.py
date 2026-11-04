@@ -139,7 +139,9 @@ def test_http_second_stk_push_gets_a_clear_409_not_a_second_prompt(db, world, pa
     if db.execute(select(StudentGuardian).where(StudentGuardian.user_id == world.parent.id)).scalar_one_or_none() is None:
         db.add(StudentGuardian(student_id=world.student.id, user_id=world.parent.id, relationship_type="mother", status=GuardianLinkStatus.APPROVED))
         db.commit()
-    monkeypatch.setattr(settings, "mpesa_callback_url", "https://example.test/cb")
+    from tests.conftest import use_global_mpesa
+
+    use_global_mpesa(db, world.school, monkeypatch, callback_url="https://example.test/cb")
     sent = []
 
     async def fake_push(**kw):

@@ -322,6 +322,9 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
         country=data.country.upper(),
         currency=data.currency.upper(),
         contact_email=normalize_email(data.admin_email),
+        # The first school on a deployment uses the server-wide M-Pesa settings, as a single-school install always has.
+        # Schools the platform operator adds later start with online M-Pesa OFF until their own paybill is set up.
+        mpesa_mode="GLOBAL",
     )
     db.add(school)
     db.flush()

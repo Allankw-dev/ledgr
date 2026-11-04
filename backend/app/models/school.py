@@ -33,6 +33,11 @@ class School(Base):
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     learner_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Where this school's M-Pesa payments go (services/mpesa_accounts.py):
+    #   OFF    online M-Pesa is not available (the default: a new school can never pay into someone else's paybill)
+    #   GLOBAL the server-wide MPESA_* settings (the original single-paybill setup)
+    #   OWN    the school's own paybill, saved in school_mpesa_accounts
+    mpesa_mode: Mapped[str] = mapped_column(String, default="OFF", server_default="OFF", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

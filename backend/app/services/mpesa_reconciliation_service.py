@@ -10,6 +10,7 @@ from app.models.mpesa_transaction import MpesaTransaction
 from app.models.student import Student
 from app.models.invoice import Invoice
 from app.models.enums import MpesaTransactionStatus, PaymentMethod
+from app.services.mpesa_accounts import C2BRoute
 from app.services.payment_service import record_confirmed_payment
 from app.services.audit_service import log_audit
 from app.schemas.mpesa import C2BPayload
@@ -27,7 +28,7 @@ def _parse_trans_time(raw: str | None) -> datetime | None:
         return None
 
 
-def record_c2b_transaction(db: Session, payload: C2BPayload) -> MpesaTransaction:
+def record_c2b_transaction(db: Session, payload: C2BPayload, route: C2BRoute | None = None) -> MpesaTransaction:
     """
     Called from the public C2B confirmation endpoint. Idempotent on
     trans_id — Safaricom can and does retry confirmations, and re-processing
@@ -38,6 +39,12 @@ def record_c2b_transaction(db: Session, payload: C2BPayload) -> MpesaTransaction
     one match auto-confirms the payment; zero or multiple matches are left
     UNMATCHED for a bursar to resolve manually via /reconciliation/match —
     guessing wrong here is worse than asking a human.
+
+    `route` (see mpesa_accounts.route_c2b) says WHICH schools the paybill it was paid to belongs to. Only those
+    schools' students are ever candidates, so a payment to school B's paybill can never be credited to a student
+    at school A, and two schools can both have an admission number "1001". When a single school owns the
+    paybill the transaction is also stamped with that school even if it stays unmatched, so only that school's
+    bursar can pick it up.
     """
     existing = db.execute(
         select(MpesaTransaction).where(MpesaTransaction.trans_id == payload.TransID)
@@ -61,6 +68,8 @@ def record_c2b_transaction(db: Session, payload: C2BPayload) -> MpesaTransaction
         bill_ref_number=(payload.BillRefNumber or "").strip() or None,
         msisdn=payload.MSISDN,
         payer_name=payer_name,
+        business_shortcode=(route.shortcode if route and route.shortcode else None),
+        school_id=(route.single_school_id if route else None),
     )
     db.add(txn)
     try:
@@ -80,9 +89,13 @@ def record_c2b_transaction(db: Session, payload: C2BPayload) -> MpesaTransaction
         raise
 
     if txn.bill_ref_number and amount > 0:
-        candidates = db.execute(
-            select(Student).where(Student.admission_number == txn.bill_ref_number, Student.is_active.is_(True))
-        ).scalars().all()
+        student_query = select(Student).where(Student.admission_number == txn.bill_ref_number, Student.is_active.is_(True))
+        if route is not None:
+            if not route.school_ids:
+                student_query = student_query.where(False)  # a paybill nobody is using: record it, match nobody
+            else:
+                student_query = student_query.where(Student.school_id.in_(route.school_ids))
+        candidates = db.execute(student_query).scalars().all()
 
         if len(candidates) == 1:
             student = candidates[0]
@@ -126,7 +139,7 @@ def record_c2b_transaction(db: Session, payload: C2BPayload) -> MpesaTransaction
     return txn
 
 
-def find_unmatched_transaction(db: Session, trans_id: str) -> MpesaTransaction:
+def find_unmatched_transaction(db: Session, trans_id: str, school_id: str | None = None) -> MpesaTransaction:
     """
     A bursar looks this up using the M-Pesa code the parent read out to
     them — a targeted lookup by an ID they already possess, not a listing,
@@ -138,6 +151,10 @@ def find_unmatched_transaction(db: Session, trans_id: str) -> MpesaTransaction:
         select(MpesaTransaction).where(MpesaTransaction.trans_id == trans_id.strip())
     ).scalar_one_or_none()
     if not txn or txn.status != MpesaTransactionStatus.UNMATCHED:
+        raise HTTPException(404, "No unmatched transaction found with that M-Pesa code")
+    # A payment already known to belong to another school is invisible to this one. (Older rows, and payments to a
+    # server-wide paybill shared by several schools, have no school yet and stay claimable by code.)
+    if school_id is not None and txn.school_id is not None and txn.school_id != school_id:
         raise HTTPException(404, "No unmatched transaction found with that M-Pesa code")
     return txn
 
@@ -158,6 +175,8 @@ def match_transaction_to_invoice(
     """
     txn = db.get(MpesaTransaction, transaction_id)
     if not txn or txn.status != MpesaTransactionStatus.UNMATCHED:
+        raise HTTPException(404, "No unmatched transaction found")
+    if txn.school_id is not None and txn.school_id != school_id:
         raise HTTPException(404, "No unmatched transaction found")
 
     invoice = db.execute(

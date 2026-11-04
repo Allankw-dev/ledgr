@@ -70,6 +70,7 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 - Installable as a PWA (web manifest and service worker), with a mobile-first layout.
 - Notification bell covering school messages, class chats, teacher chats and mentions.
 - **More than one school on one deployment.** The signup page creates the **first** school only. Every further school is added by the platform operator (a `SUPER_ADMIN`) from the *Schools and billing* page, and that school's admin gets an emailed link to set their own password. A parent who signs up is placed in the school that invited them (by phone or email), and Ledgr refuses to guess when it can't tell. See [More than one school](#5-more-than-one-school-optional).
+- **Each school can have its own M-Pesa paybill.** Online M-Pesa is **off** for a new school until the operator sets it up, so its parents can never pay into another school's paybill. The operator enters the school's Daraja details in *Schools and billing > Payments*, tests them, registers the school's paybill addresses with Safaricom and switches it on. The details are stored encrypted. Direct paybill payments are routed by the paybill they were paid to, so two schools can both have a student `1001`. See [Giving a school its own paybill](#giving-a-school-its-own-paybill).
 - **Subscriptions.** Each school has a plan, trial and paid-until dates and an optional learner limit. A school moves through `TRIAL` / `ACTIVE`, then `GRACE`, then `EXPIRED` (or `SUSPENDED` by the operator). Expired and suspended schools become **read-only for staff**; parents can always pay, and M-Pesa callbacks never go through the check. A learner limit stops staff adding students past it (the school keeps the learners it has).
 
 ---
@@ -272,13 +273,41 @@ Free-tier Gemini requests may be used by Google to improve its products. Use a b
 
 ## M-Pesa setup
 
-1. Get Daraja credentials from the [Safaricom developer portal](https://developer.safaricom.co.ke/) and set the `MPESA_*` variables.
-2. Generate a long random `MPESA_CALLBACK_SECRET`. Safaricom doesn't sign callbacks, so the URL itself is the secret. Put it on every URL you give Safaricom:
+1. Get Daraja credentials from the [Safaricom developer portal](https://developer.safaricom.co.ke/) and set the `MPESA_*` variables. Start in the **sandbox**.
+2. **Sandbox vs real money.** Ledgr talks to Safaricom's *sandbox* unless you set `MPESA_BASE_URL=https://api.safaricom.co.ke`. Unset means sandbox: no real phone is prompted and no real money moves. Set it only once Safaricom has approved your paybill and you are using your **production** key, secret, shortcode and passkey. In production, Ledgr logs a warning at startup if a shortcode is set but `MPESA_BASE_URL` isn't the live address.
+3. Generate a long random `MPESA_CALLBACK_SECRET`. Safaricom doesn't sign callbacks, so the URL itself is the secret. Put it on every URL you give Safaricom:
    ```
    MPESA_CALLBACK_URL=https://api.example.com/api/payments/mpesa/callback?token=SECRET
    ```
-3. Register the C2B URLs once with `python -m scripts.register_c2b_urls` (also with `?token=SECRET`). Note Daraja rejects URLs containing the word "mpesa", which is why the C2B endpoints live under `/api/payments/c2b`.
-4. For local testing, use a tunnel such as ngrok for the public callback, or set `MPESA_BASE_URL` to point at a local simulator.
+4. Register the C2B URLs once with `python -m scripts.register_c2b_urls` (also with `?token=SECRET`), once for the sandbox and again for production. Note Daraja rejects URLs containing the word "mpesa", which is why the C2B endpoints live under `/api/payments/c2b`.
+5. For local testing, use a tunnel such as ngrok for the public callback, or set `MPESA_BASE_URL` to point at a local simulator.
+
+**Where each school's money goes.** Every school has an M-Pesa mode, shown and changed under *Schools and billing > Payments*:
+
+| Mode | What parents get |
+| --- | --- |
+| **Off** | No "Pay with M-Pesa" button, just a note to pay at the school's paybill. This is the default for every school the operator adds, so an unconfigured school can never pay into someone else's paybill. |
+| **Server-wide paybill** | Pay into the one paybill set in the `MPESA_*` variables above (the original single-paybill setup). The first school on a deployment, and any school that already used it before this existed, starts here. |
+| **This school's own paybill** | Pay into the school's own paybill, using the details saved in Ledgr. |
+
+### Giving a school its own paybill
+
+1. The school gets its own Daraja access from Safaricom for its paybill: a consumer key and secret, the paybill number and the passkey. Start with the sandbox. Paybills only: a Till (Buy Goods) is not supported.
+2. Make sure the server is ready: `MPESA_CALLBACK_URL` is set (its host is used to build every school's addresses, and it must be `https://`), and `MESSAGE_ENCRYPTION_KEYS` is set and **backed up**, because the same keys protect the saved paybill details.
+3. Sign in as the platform operator, open **Schools and billing**, then the school's **Payments** panel:
+   1. Choose *Sandbox* or *Live*, enter the paybill number, key, secret and passkey, and **Save details**.
+   2. **Test connection.** This checks the key and secret with Safaricom. It cannot check the paybill number or passkey; only a real payment does.
+   3. **Register paybill addresses with Safaricom.** This gives Safaricom the school's own addresses for direct paybill payments. (STK pushes need no registration.)
+   4. **Use this school's own paybill.** This is only possible after a successful test.
+4. Make a small real payment (a few shillings) both ways: an STK push, and a direct paybill payment with the student's admission number as the account number. Confirm the money reached the school's account and that the invoice and the bursar both show it.
+
+Good to know:
+
+- The secrets can be replaced but never viewed again, not even by the operator.
+- Editing a school's saved details switches it **off** until you test again, so payments are never left on details nobody has tried.
+- Each school's addresses carry a token that only works for that school, so one school's address can never settle another school's payment. A live paybill can belong to only one school. Sandbox schools may share Safaricom's public test shortcode and are told apart by their address.
+- A payment arriving for a paybill that no school owns is ignored, not credited to anyone.
+- Every change is in the audit trail, without any secret.
 
 Parents pay through STK Push. Payments made straight to the paybill auto-match on the student's admission number. Anything ambiguous lands in the bursar's reconciliation queue instead of being guessed at.
 
@@ -407,6 +436,7 @@ A full review of the code, configuration and dependencies is in [`SECURITY-AUDIT
 
 **Payments and messages**
 - Webhook secret token and optional IP allowlist on M-Pesa callbacks. A callback can only settle a payment Ledgr itself created.
+- Each school's own M-Pesa key, secret and passkey are encrypted at rest (AES-256-GCM, bound to the school), write-only through the API, kept out of every log and the audit trail, and stored in a table the restricted database role cannot read at all, even for its own school. A school's webhook address carries a token that can only affect that school.
 - Private teacher-to-parent chats encrypted at rest with a versioned key ring.
 
 **Known limits.** Login tokens are kept in the browser's `localStorage`, so the main defence against token theft is keeping script injection out (see above). `SECURITY-AUDIT.md` lists the other accepted trade-offs.

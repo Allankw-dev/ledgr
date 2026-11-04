@@ -2,7 +2,8 @@
 
 These endpoints deliberately use the system (table-owner) session: a platform operator has no school of their
 own, and row-level security is set up per school, so a normal session would see nothing. That is only safe
-because every route here is locked to SUPER_ADMIN and none of them returns anything but subscription facts.
+because every route here is locked to SUPER_ADMIN and none of them returns anything but subscription facts. (The M-Pesa
+set-up routes live in routers/platform_mpesa.py. They hold secrets, so they never return them.)
 """
 
 import logging
