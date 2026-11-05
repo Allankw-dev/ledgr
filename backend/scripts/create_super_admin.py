@@ -8,6 +8,10 @@ Run it once, from the backend folder, with the production DATABASE_URL in your .
     python scripts/create_super_admin.py you@example.com "Your Name"
 
 It asks for the password; it is never taken from the command line or printed.
+
+The platform screens stay locked until two-factor sign-in is on for this account. Sign in once and the Platform page
+walks you through it (scan the QR code with an authenticator app, type the 6-digit code). If you ever lose the
+authenticator: python -m scripts.dev.reset_2fa you@example.com, then sign in and set it up again.
 """
 
 import getpass
@@ -49,6 +53,7 @@ def main() -> None:
             db.add(User(school_id=None, email=email, password_hash=hash_password(password), role=UserRole.SUPER_ADMIN, full_name=name))
             print(f"Created the platform admin {email}.")
         db.commit()
+        print("Next: sign in and turn on two-factor sign-in. The platform screens stay locked until you do.")
 
 
 if __name__ == "__main__":

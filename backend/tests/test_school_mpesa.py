@@ -119,7 +119,7 @@ def http(db, world, monkeypatch):
 
 @pytest.fixture()
 def operator(db):
-    op = User(school_id=None, email=f"op-{uuid.uuid4().hex[:6]}@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True)
+    op = User(school_id=None, email=f"op-{uuid.uuid4().hex[:6]}@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True, totp_enabled=True)
     db.add(op)
     db.commit()
     return SimpleNamespace(user=op, headers={"Authorization": "Bearer " + create_access_token(op.id, None, "SUPER_ADMIN")})

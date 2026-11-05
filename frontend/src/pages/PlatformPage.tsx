@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, LogOut, Plus } from 'lucide-react';
 import { DxCard } from '../components/dx/DxCard';
 import { createSchool, listPlatformSchools, updateSchoolSubscription, type CreatedSchool, type PlatformSchool, type SubscriptionStatus, type SubscriptionUpdate } from '../api/subscription';
 import { getErrorMessage } from '../api/client';
 import { MpesaSetupPanel } from '../components/MpesaSetupPanel';
+import { OperatorTwoFactor } from '../components/OperatorTwoFactor';
 import { useAuthStore } from '../store/authStore';
 
 const PILL: Record<SubscriptionStatus, string> = {
@@ -207,12 +209,20 @@ export function PlatformPage() {
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState('');
+  // The server answers 403 until the operator has two-factor sign-in on; then only the set-up card is shown.
+  const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
 
   const load = useCallback(() => {
     setError('');
     listPlatformSchools()
-      .then(setSchools)
-      .catch(() => setError("Couldn't load the schools."));
+      .then((rows) => {
+        setNeedsTwoFactor(false);
+        setSchools(rows);
+      })
+      .catch((err) => {
+        if (axios.isAxiosError(err) && err.response?.status === 403) setNeedsTwoFactor(true);
+        else setError("Couldn't load the schools.");
+      });
   }, []);
   useEffect(load, [load]);
 
@@ -242,6 +252,10 @@ export function PlatformPage() {
       </header>
 
       <main className="px-4 sm:px-8 py-6 max-w-[1000px] mx-auto flex flex-col gap-5">
+        {needsTwoFactor ? (
+          <OperatorTwoFactor onEnabled={load} />
+        ) : (
+        <>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-display text-3xl text-ink-900">Schools and billing</h1>
@@ -304,6 +318,8 @@ export function PlatformPage() {
         {schools?.map((s) => (
           <SchoolCard key={s.id} school={s} onChange={(updated) => setSchools((cur) => cur?.map((x) => (x.id === updated.id ? updated : x)) ?? null)} />
         ))}
+        </>
+        )}
       </main>
     </div>
   );

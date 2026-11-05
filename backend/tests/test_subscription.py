@@ -178,7 +178,7 @@ def test_my_subscription_reports_the_standing_and_learner_usage(db, world, http)
 
 @needs_db
 def test_only_the_platform_operator_can_use_the_platform_endpoints(db, world, http):
-    op = User(school_id=None, email="operator@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator")
+    op = User(school_id=None, email="operator@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", totp_enabled=True)
     db.add(op)
     db.commit()
     operator = _as(op.id, None, "SUPER_ADMIN")

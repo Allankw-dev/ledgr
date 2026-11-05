@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.core.database import get_system_db
-from app.core.deps import CurrentUser, require_roles
+from app.core.deps import CurrentUser, require_operator
 from app.core.message_crypto import DecryptionError
 from app.core.rate_limit import limiter
 from app.models.mpesa_account import SchoolMpesaAccount
@@ -35,7 +35,7 @@ logger = logging.getLogger("ledgr.mpesa")
 
 router = APIRouter(prefix="/api/platform/schools/{school_id}/mpesa", tags=["platform"])
 
-SUPER = require_roles("SUPER_ADMIN")
+SUPER = require_operator  # SUPER_ADMIN with two-factor on
 
 _SECRET_FIELDS = (("consumer_key", "consumer_key_enc"), ("consumer_secret", "consumer_secret_enc"), ("passkey", "passkey_enc"))
 

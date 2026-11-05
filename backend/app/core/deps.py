@@ -91,6 +91,30 @@ def require_roles(*roles: str):
     return checker
 
 
+OPERATOR_2FA_MESSAGE = "Turn on two-factor sign-in before using the platform tools."
+
+
+def _operator_has_2fa(user_id: str) -> bool:
+    # Read fresh on every call (no cache): turning 2FA off must take effect straight away, and the platform
+    # routes are used by one person, so one tiny query is nothing.
+    with system_engine.connect() as conn:
+        row = conn.execute(text("SELECT totp_enabled FROM users WHERE id = :id"), {"id": user_id}).one_or_none()
+    return bool(row and row[0])
+
+
+_operator_role = require_roles("SUPER_ADMIN")
+
+
+def require_operator(user: CurrentUser = Depends(_operator_role)) -> CurrentUser:
+    """The platform operator, signed in with two-factor on. Every /api/platform route uses this instead of a bare
+    require_roles("SUPER_ADMIN"): those routes use the unrestricted database connection and can change where a
+    school's M-Pesa money goes, so a stolen password alone must not be enough to reach them. If 2FA is on, the
+    sign-in already demanded the authenticator code (see /api/auth/login), so checking the flag is enough."""
+    if settings.platform_require_2fa and not _operator_has_2fa(user.user_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, OPERATOR_2FA_MESSAGE)
+    return user
+
+
 # Roles that run a school. Parents are deliberately NOT here: a school's subscription must never stop a
 # parent paying fees.
 _STAFF_ROLES = ("SCHOOL_ADMIN", "BURSAR", "TEACHER")

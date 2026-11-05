@@ -30,8 +30,12 @@ def export_bursar_report(
     """Per-student billed/paid/balance ledger for a term, as a downloadable
     file. Excel version has live SUM formulas; CSV has plain totals since
     CSV has no formula support."""
+    if not school_id:
+        # SUPER_ADMIN has no school. Without this guard the check below was skipped for them and they could
+        # export any school's ledger, which the platform routes are deliberately not meant to expose.
+        raise HTTPException(400, "SUPER_ADMIN must act within a specific school for the bursar export")
     term = db.get(Term, term_id)
-    if not term or (school_id and term.school_id != school_id):
+    if not term or term.school_id != school_id:
         raise HTTPException(404, "Term not found")
 
     school = db.get(School, term.school_id)

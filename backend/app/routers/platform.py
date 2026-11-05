@@ -2,7 +2,7 @@
 
 These endpoints deliberately use the system (table-owner) session: a platform operator has no school of their
 own, and row-level security is set up per school, so a normal session would see nothing. That is only safe
-because every route here is locked to SUPER_ADMIN and none of them returns anything but subscription facts. (The M-Pesa
+because every route here is locked to a SUPER_ADMIN with two-factor on and none of them returns anything but subscription facts. (The M-Pesa
 set-up routes live in routers/platform_mpesa.py. They hold secrets, so they never return them.)
 """
 
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.database import get_system_db
-from app.core.deps import CurrentUser, require_roles
+from app.core.deps import CurrentUser, require_operator
 from app.core.emails import email_equals, normalize_email
 from app.core.security import create_password_reset_token, hash_password
 from app.models.enums import UserRole
@@ -53,7 +53,7 @@ def _row(school: School, learners: int) -> PlatformSchool:
 
 
 @router.get("/schools", response_model=list[PlatformSchool])
-def list_schools(db: Session = Depends(get_system_db), _user: CurrentUser = Depends(require_roles("SUPER_ADMIN"))):
+def list_schools(db: Session = Depends(get_system_db), _user: CurrentUser = Depends(require_operator)):
     counts = dict(
         db.execute(select(Student.school_id, func.count()).where(Student.is_active.is_(True)).group_by(Student.school_id)).all()
     )
@@ -68,7 +68,7 @@ def update_subscription(
     school_id: str,
     data: SubscriptionUpdate,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SUPER_ADMIN")),
+    user: CurrentUser = Depends(require_operator),
 ):
     school = db.get(School, school_id)
     if not school:
@@ -121,7 +121,7 @@ def create_school(
     request: Request,
     data: CreateSchoolRequest,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SUPER_ADMIN")),
+    user: CurrentUser = Depends(require_operator),
 ):
     """Onboards a new school and its first SCHOOL_ADMIN. This is the only way to add a school after the
     first one (the public register-school endpoint refuses once any school exists). The admin is created

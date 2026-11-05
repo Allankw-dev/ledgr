@@ -170,7 +170,7 @@ def test_google_matches_an_existing_account_whatever_the_capitalisation(db, worl
 
 @pytest.fixture()
 def operator(db):
-    op = User(school_id=None, email="operator@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True)
+    op = User(school_id=None, email="operator@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True, totp_enabled=True)
     db.add(op)
     db.commit()
     return op, _token(op.id, None, "SUPER_ADMIN")
