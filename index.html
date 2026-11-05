@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Allan Kamau — Full-Stack &amp; Systems Developer</title>
+<meta name="description" content="Allan Kamau — full-stack developer building and deploying AI-powered platforms and database systems.">
+<meta property="og:title" content="Allan Kamau — Full-Stack & Systems Developer">
+<meta property="og:description" content="I design, build, and deploy production systems end to end — from API and database architecture to cloud infrastructure.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2305060d'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%234dd8ff'/%3E%3Cellipse cx='16' cy='16' rx='13' ry='5.5' fill='none' stroke='%23a56bff' stroke-width='1.6' transform='rotate(-25 16 16)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #05060d;
+    --bg-panel: #0b0e1a;
+    --bg-panel-2: #0f1326;
+    --line: #1c2140;
+    --cyan: #4dd8ff;
+    --cyan-dim: #2a8fb0;
+    --purple: #a56bff;
+    --purple-dim: #6b3fb0;
+    --green: #4dffa0;
+    --text: #d7dcf2;
+    --text-dim: #7f88ac;
+    --text-faint: #4d5479;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Exo 2', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    line-height:1.6;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* ambient starfield + grid */
+  body::before{
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.5), transparent),
+      radial-gradient(1px 1px at 70% 60%, rgba(255,255,255,.35), transparent),
+      radial-gradient(1.5px 1.5px at 40% 80%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1px 1px at 90% 20%, rgba(255,255,255,.3), transparent),
+      radial-gradient(1px 1px at 55% 10%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1.5px 1.5px at 10% 90%, rgba(255,255,255,.3), transparent);
+    background-size: 600px 600px;
+    pointer-events:none;
+    z-index:0;
+    opacity:.6;
+  }
+  body::after{
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(77,216,255,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,216,255,.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 70%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  a{color:inherit; text-decoration:none;}
+  section{position:relative; z-index:1; padding:120px 8vw;}
+  @media (max-width:720px){ section{padding:80px 6vw;} }
+
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:.75rem;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    color:var(--cyan);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:18px;
+  }
+  .eyebrow::before{
+    content:'';
+    width:7px; height:7px; border-radius:50%;
+    background:var(--cyan);
+    box-shadow:0 0 8px var(--cyan), 0 0 16px var(--cyan);
+  }
+
+  h1,h2,h3{font-family:var(--font-display); font-weight:600; letter-spacing:-.01em;}
+
+  /* NAV */
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 8vw;
+    backdrop-filter: blur(10px);
+    background:rgba(5,6,13,.55);
+    border-bottom:1px solid rgba(77,216,255,.08);
+  }
+  .logo{
+    font-family:var(--font-mono);
+    font-size:.95rem; color:var(--text);
+    display:flex; align-items:center; gap:8px;
+  }
+  .logo span{color:var(--cyan);}
+  .nav-links{display:flex; gap:34px; font-size:.85rem; font-family:var(--font-mono);}
+  .nav-links a{color:var(--text-dim); transition:color .2s; position:relative; padding-bottom:4px;}
+  .nav-links a:hover{color:var(--cyan);}
+  .nav-links a.active{color:var(--cyan);}
+  .nav-links a.active::after{
+    content:''; position:absolute; left:0; right:0; bottom:-6px; height:1px;
+    background:var(--cyan); box-shadow:0 0 6px var(--cyan);
+  }
+  .nav-toggle{
+    display:none; background:none; border:1px solid var(--line); border-radius:6px;
+    width:38px; height:38px; cursor:pointer; position:relative; z-index:60;
+  }
+  .nav-toggle span{
+    position:absolute; left:9px; right:9px; height:1.5px; background:var(--cyan);
+    transition:transform .25s, opacity .25s;
+  }
+  .nav-toggle span:nth-child(1){top:13px;}
+  .nav-toggle span:nth-child(2){top:19px;}
+  .nav-toggle span:nth-child(3){top:25px;}
+  .nav-toggle.open span:nth-child(1){transform:translateY(6px) rotate(45deg);}
+  .nav-toggle.open span:nth-child(2){opacity:0;}
+  .nav-toggle.open span:nth-child(3){transform:translateY(-6px) rotate(-45deg);}
+
+  @media (max-width:720px){
+    .nav-toggle{display:block;}
+    .nav-links{
+      position:fixed; top:0; right:0; height:100vh; width:min(72vw,300px);
+      flex-direction:column; justify-content:center; gap:28px;
+      background:rgba(8,10,20,.97); backdrop-filter:blur(14px);
+      border-left:1px solid var(--line);
+      transform:translateX(100%); transition:transform .3s ease;
+      padding-left:40px; z-index:55; font-size:1rem;
+    }
+    .nav-links.open{transform:translateX(0);}
+  }
+
+  /* HERO */
+  .hero{
+    min-height:100vh;
+    display:flex; flex-direction:column; justify-content:center;
+    padding-top:100px;
+  }
+  .hero-kicker{
+    font-family:var(--font-mono);
+    color:var(--text-faint);
+    font-size:.8rem;
+    letter-spacing:.1em;
+    margin-bottom:22px;
+    min-height:1.2em;
+  }
+  .hero-kicker .cursor{
+    display:inline-block; width:8px; height:1em; background:var(--cyan);
+    margin-left:2px; vertical-align:-2px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink{ 50%{opacity:0;} }
+
+  .hero h1{
+    font-size:clamp(2.6rem, 8vw, 6rem);
+    line-height:.98;
+    background:linear-gradient(120deg, #f2f5ff 0%, #d7dcf2 40%, var(--cyan) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .hero .role{
+    font-family:var(--font-mono);
+    font-size:clamp(1rem,2.4vw,1.35rem);
+    color:var(--purple);
+    margin-top:22px;
+    letter-spacing:.02em;
+  }
+  .hero p.tagline{
+    max-width:560px;
+    color:var(--text-dim);
+    margin-top:22px;
+    font-size:1.05rem;
+  }
+  .hero-cta{display:flex; gap:16px; margin-top:42px; flex-wrap:wrap;}
+  .btn{
+    font-family:var(--font-mono);
+    font-size:.85rem;
+    padding:14px 26px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    transition:all .25s;
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .btn-primary{
+    background:linear-gradient(135deg, rgba(77,216,255,.12), rgba(165,107,255,.12));
+    border-color:rgba(77,216,255,.4);
+    color:var(--cyan);
+  }
+  .btn-primary:hover{ box-shadow:0 0 24px rgba(77,216,255,.25); transform:translateY(-2px); border-color:var(--cyan);}
+  .btn-ghost{color:var(--text-dim); border-color:var(--line);}
+  .btn-ghost:hover{color:var(--text); border-color:var(--text-dim); transform:translateY(-2px);}
+
+  .scroll-hint{
+    position:absolute; bottom:38px; left:8vw;
+    font-family:var(--font-mono); font-size:.7rem; color:var(--text-faint);
+    display:flex; align-items:center; gap:10px;
+  }
+  .scroll-hint .line{width:32px; height:1px; background:var(--text-faint);}
+
+  /* SECTION HEADS */
+  .section-head{margin-bottom:56px; max-width:640px;}
+  .section-head h2{font-size:clamp(1.8rem,4vw,2.6rem);}
+  .section-head p{color:var(--text-dim); margin-top:14px;}
+
+  /* ABOUT */
+  .about-grid{
+    display:grid; grid-template-columns:1.1fr .9fr; gap:60px; align-items:start;
+  }
+  @media (max-width:860px){ .about-grid{grid-template-columns:1fr;} }
+  .about-text p{color:var(--text-dim); margin-bottom:18px; font-size:1.02rem;}
+  .about-text strong{color:var(--text); font-weight:500;}
+
+  .stack-panel{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .stack-panel-head{
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    font-family:var(--font-mono);
+    font-size:.75rem;
+    color:var(--text-faint);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .dot-row{display:flex; gap:6px;}
+  .dot-row span{width:9px; height:9px; border-radius:50%; background:var(--line);}
+  .stack-panel-body{padding:20px;}
+  .stack-row{
+    display:flex; justify-content:space-between;
+    font-family:var(--font-mono); font-size:.82rem;
+    padding:10px 0;
+    border-bottom:1px dashed rgba(255,255,255,.06);
+    color:var(--text-dim);
+  }
+  .stack-row:last-child{border-bottom:none;}
+  .stack-row span:last-child{color:var(--cyan);}
+
+  /* EDUCATION */
+  .edu-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:24px;}
+  .edu-card{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:12px;
+    padding:28px; transition:border-color .25s, transform .25s;
+  }
+  .edu-card:hover{border-color:rgba(165,107,255,.35); transform:translateY(-3px);}
+  .edu-tag{
+    font-family:var(--font-mono); font-size:.7rem; color:var(--purple);
+    letter-spacing:.1em; text-transform:uppercase; margin-bottom:12px;
+  }
+  .edu-card h3{font-size:1.2rem; margin-bottom:10px;}
+  .edu-card p{color:var(--text-dim); font-size:.92rem;}
+
+  /* PROJECTS — "deployed systems" console cards */
+  .projects{display:flex; flex-direction:column; gap:28px;}
+  .proj-card{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:32px;
+    position:relative;
+    transition:border-color .25s, transform .25s;
+  }
+  .proj-card:hover{border-color:rgba(77,216,255,.35); transform:translateY(-3px);}
+  .proj-top{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    flex-wrap:wrap; gap:16px;
+    margin-bottom:18px;
+  }
+  .proj-status{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--font-mono); font-size:.72rem;
+    color:var(--green); text-transform:uppercase; letter-spacing:.08em;
+  }
+  .proj-status .pulse{
+    width:7px; height:7px; border-radius:50%; background:var(--green);
+    box-shadow:0 0 6px var(--green);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+  .proj-card h3{font-size:1.5rem; margin-bottom:6px;}
+  .proj-role{font-family:var(--font-mono); font-size:.78rem; color:var(--text-faint);}
+  .proj-desc{color:var(--text-dim); margin:18px 0 22px; max-width:680px;}
+
+  .proj-meta{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:16px; margin-bottom:22px;
+    font-family:var(--font-mono); font-size:.78rem;
+  }
+  .proj-meta div{color:var(--text-faint);}
+  .proj-meta div span{display:block; color:var(--text); margin-top:4px; font-size:.85rem;}
+
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px;}
+  .badge{
+    font-family:var(--font-mono); font-size:.72rem;
+    padding:5px 12px; border-radius:20px;
+    border:1px solid var(--line); color:var(--text-dim);
+  }
+  .proj-links{display:flex; gap:14px; font-family:var(--font-mono); font-size:.8rem;}
+  .proj-links a{color:var(--purple); border-bottom:1px solid transparent; transition:border-color .2s;}
+  .proj-links a:hover{border-color:var(--purple);}
+
+  /* SKILLS */
+  .skills-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:1px; background:var(--line);
+    border:1px solid var(--line); border-radius:12px; overflow:hidden;
+  }
+  .skill-cat{background:var(--bg-panel); padding:26px;}
+  .skill-cat .cat-label{
+    font-family:var(--font-mono); font-size:.72rem;
+    color:var(--purple); letter-spacing:.1em; text-transform:uppercase;
+    margin-bottom:16px;
+  }
+  .skill-cat ul{list-style:none;}
+  .skill-cat li{
+    font-size:.92rem; color:var(--text-dim);
+    padding:6px 0; display:flex; align-items:center; gap:10px;
+  }
+  .skill-cat li::before{content:'▹'; color:var(--cyan); font-size:.8rem;}
+
+  /* CONTACT */
+  .contact-panel{
+    background:linear-gradient(135deg, rgba(77,216,255,.06), rgba(165,107,255,.06));
+    border:1px solid rgba(77,216,255,.2);
+    border-radius:16px;
+    padding:60px 8vw;
+    text-align:center;
+  }
+  .contact-panel h2{font-size:clamp(1.8rem,5vw,3rem); margin-bottom:18px;}
+  .contact-panel p{color:var(--text-dim); max-width:480px; margin:0 auto 34px;}
+  .contact-links{display:flex; gap:18px; justify-content:center; flex-wrap:wrap;}
+
+  footer{
+    text-align:center; padding:40px 8vw 60px;
+    font-family:var(--font-mono); font-size:.75rem; color:var(--text-faint);
+    position:relative; z-index:1;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important;}
+    html{scroll-behavior:auto;}
+  }
+
+  :focus-visible{ outline:2px solid var(--cyan); outline-offset:3px; }
+
+  .reveal{opacity:0; transform:translateY(24px); transition:opacity .7s ease, transform .7s ease;}
+  .reveal.visible{opacity:1; transform:translateY(0);}
+  @media (prefers-reduced-motion: reduce){
+    .reveal{opacity:1; transform:none; transition:none;}
+  }
+
+  /* clickable card affordance */
+  .proj-card, .edu-card{cursor:pointer;}
+  .proj-card:focus-visible, .edu-card:focus-visible{outline:2px solid var(--cyan); outline-offset:4px;}
+  .expand-hint{
+    font-family:var(--font-mono); font-size:.72rem; color:var(--text-faint);
+    margin-left:auto; opacity:0; transition:opacity .2s, color .2s;
+  }
+  .proj-card:hover .expand-hint, .proj-card:focus-visible .expand-hint,
+  .edu-card:hover .expand-hint, .edu-card:focus-visible .expand-hint{opacity:1; color:var(--cyan);}
+  .edu-card .expand-hint{display:block; margin-top:14px;}
+  .proj-links{display:flex; align-items:center; gap:14px; font-family:var(--font-mono); font-size:.8rem;}
+
+  /* MODAL */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(3,4,9,.75); backdrop-filter:blur(6px);
+    z-index:100; display:flex; align-items:flex-start; justify-content:center;
+    padding:8vh 6vw; overflow-y:auto;
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .modal-overlay.open{opacity:1; pointer-events:auto;}
+  .modal{
+    background:var(--bg-panel); border:1px solid rgba(77,216,255,.25);
+    border-radius:14px; max-width:680px; width:100%;
+    padding:44px; position:relative;
+    transform:translateY(16px); transition:transform .25s ease;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);
+  }
+  .modal-overlay.open .modal{transform:translateY(0);}
+  .modal-close{
+    position:absolute; top:20px; right:20px;
+    width:36px; height:36px; border-radius:8px; border:1px solid var(--line);
+    background:none; color:var(--text-dim); cursor:pointer; font-size:1.1rem;
+    display:flex; align-items:center; justify-content:center; transition:all .2s;
+  }
+  .modal-close:hover{color:var(--cyan); border-color:var(--cyan);}
+  .modal .eyebrow{margin-bottom:14px;}
+  .modal h3{font-size:1.7rem; margin-bottom:20px; padding-right:40px;}
+  .modal-section{margin-bottom:24px;}
+  .modal-section:last-child{margin-bottom:0;}
+  .modal-section h4{
+    font-family:var(--font-mono); font-size:.72rem; color:var(--purple);
+    letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px;
+  }
+  .modal-section p{color:var(--text-dim); font-size:.95rem;}
+  .modal-list{list-style:none;}
+  .modal-list li{
+    color:var(--text-dim); font-size:.92rem; padding:8px 0 8px 20px;
+    position:relative; border-bottom:1px dashed rgba(255,255,255,.06);
+  }
+  .modal-list li:last-child{border-bottom:none;}
+  .modal-list li::before{content:'▹'; color:var(--cyan); position:absolute; left:0;}
+  .modal-list li strong{color:var(--text); font-weight:500;}
+  @media (max-width:640px){ .modal{padding:32px 24px;} }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">&lt;<span>AK</span>/&gt;</div>
+  <div class="nav-links" id="navLinks">
+    <a href="#about" data-nav="about">about</a>
+    <a href="#education" data-nav="education">education</a>
+    <a href="#projects" data-nav="projects">projects</a>
+    <a href="#skills" data-nav="skills">skills</a>
+    <a href="#contact" data-nav="contact">contact</a>
+  </div>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<section class="hero">
+  <div class="hero-kicker" id="bootline">initializing profile<span class="cursor"></span></div>
+  <h1>Allan Kamau</h1>
+  <div class="role">Full-Stack Developer &amp; Systems Builder</div>
+  <p class="tagline">I design, build, and deploy production systems end to end — from API and database architecture to cloud infrastructure — currently studying Computer Science in Kenya.</p>
+  <div class="hero-cta">
+    <a href="#projects" class="btn btn-primary">View deployed projects →</a>
+    <a href="#contact" class="btn btn-ghost">Get in touch</a>
+  </div>
+  <div class="scroll-hint"><div class="line"></div>scroll</div>
+</section>
+
+<section id="about">
+  <div class="about-grid">
+    <div class="about-text">
+      <div class="eyebrow">about</div>
+      <h2 style="margin-bottom:24px; font-size:clamp(1.6rem,3.5vw,2.2rem);">I like taking software all the way to production.</h2>
+      <p>I'm a Computer Science student who builds full-stack products independently alongside coursework — not just prototypes, but systems that stay up. That means writing the API, designing the schema, and also configuring the VCN, the security lists, and the process manager that keeps it running.</p>
+      <p>My recent work spans an <strong>AI-powered hiring platform</strong> built on FastAPI and Supabase, and a <strong>relational database + CRUD API</strong> deployed on Oracle Cloud Infrastructure for a household energy consumption dataset. Both taught me the same lesson: the interesting bugs live at the boundary between your code and the infrastructure it runs on.</p>
+      <p>Outside of shipping projects, I'm active on <strong>GitHub</strong>, documenting builds and deployment runbooks as I go.</p>
+    </div>
+    <div class="stack-panel">
+      <div class="stack-panel-head">
+        <span>~/allan/focus.json</span>
+        <div class="dot-row"><span></span><span></span><span></span></div>
+      </div>
+      <div class="stack-panel-body">
+        <div class="stack-row"><span>backend</span><span>FastAPI · Node/Express</span></div>
+        <div class="stack-row"><span>database</span><span>PostgreSQL · Supabase</span></div>
+        <div class="stack-row"><span>frontend</span><span>Streamlit · React</span></div>
+        <div class="stack-row"><span>cloud</span><span>OCI · Render</span></div>
+        <div class="stack-row"><span>process</span><span>pm2 · systemd</span></div>
+        <div class="stack-row"><span>currently</span><span>Advanced DB Systems</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="education">
+  <div class="section-head">
+    <div class="eyebrow">education</div>
+    <h2>Computer Science, in progress</h2>
+    <p>Coursework that's directly shaped how I build — from data modeling to systems that survive contact with the cloud.</p>
+  </div>
+  <div class="edu-grid">
+    <div class="edu-card" data-edu="db" tabindex="0" role="button" aria-haspopup="dialog">
+      <div class="edu-tag">BCS 4103</div>
+      <h3>Advanced Database Systems</h3>
+      <p>Led a group project from schema design through OCI deployment — relational modeling, triggers, stored procedures, and a live CRUD API serving real energy-consumption data.</p>
+      <span class="expand-hint">click for details →</span>
+    </div>
+    <div class="edu-card" data-edu="java" tabindex="0" role="button" aria-haspopup="dialog">
+      <div class="edu-tag">BCS 3101 / 3107</div>
+      <h3>Java &amp; Software Engineering</h3>
+      <p>Collections, class design patterns, and testing fundamentals — decision trees, state diagrams, and structured test-case design for real-world systems.</p>
+      <span class="expand-hint">click for details →</span>
+    </div>
+  </div>
+</section>
+
+<section id="projects">
+  <div class="section-head">
+    <div class="eyebrow">projects</div>
+    <h2>Deployed systems</h2>
+    <p>Two production builds, end to end — architecture, API, and the cloud infrastructure underneath them.</p>
+  </div>
+
+  <div class="projects">
+
+    <div class="proj-card" data-project="hiring" tabindex="0" role="button" aria-haspopup="dialog">
+      <div class="proj-top">
+        <div>
+          <h3>AI Hiring Platform</h3>
+          <div class="proj-role">FastAPI backend · Streamlit frontend · Supabase</div>
+        </div>
+        <div class="proj-status"><span class="pulse"></span>live on render</div>
+      </div>
+      <p class="proj-desc">An AI-assisted hiring platform with authentication, rate-limited endpoints, and a Deep Space–themed UI. Hardened for production with environment-scoped secrets, restricted CORS, input sanitization, and an async email flow that switched from blocked SMTP to the Resend HTTP API when the free-tier host cut off outbound port 25.</p>
+      <div class="proj-meta">
+        <div>database<span>Supabase PostgreSQL</span></div>
+        <div>auth &amp; security<span>bcrypt · slowapi rate limiting</span></div>
+        <div>email<span>Resend API + BackgroundTasks</span></div>
+        <div>monitoring<span>UptimeRobot health checks</span></div>
+      </div>
+      <div class="badges">
+        <span class="badge">FastAPI</span>
+        <span class="badge">Streamlit</span>
+        <span class="badge">PostgreSQL</span>
+        <span class="badge">Render</span>
+        <span class="badge">bleach</span>
+      </div>
+      <div class="proj-links">
+        <a href="https://github.com/Allankw-dev" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on GitHub →</a>
+        <span class="expand-hint">click card for details →</span>
+      </div>
+    </div>
+
+    <div class="proj-card" data-project="power" tabindex="0" role="button" aria-haspopup="dialog">
+      <div class="proj-top">
+        <div>
+          <h3>Power Consumption DB &amp; API</h3>
+          <div class="proj-role">Node.js / Express · PostgreSQL · Oracle Cloud Infrastructure</div>
+        </div>
+        <div class="proj-status"><span class="pulse"></span>live on OCI</div>
+      </div>
+      <p class="proj-desc">A relational database and CRUD API built on the UCI Individual Household Electric Power Consumption dataset, for an Advanced Database Systems group project I led. Designed the schema across four related tables, wrote triggers and stored procedures, and deployed the full stack on a hand-provisioned OCI VCN — including catching a real data-quality bug in the source dataset's date formatting.</p>
+      <div class="proj-meta">
+        <div>schema<span>metering_zones · readings · daily_summary</span></div>
+        <div>logic<span>3 triggers · 4 stored procedures</span></div>
+        <div>infra<span>VCN · private-subnet PostgreSQL</span></div>
+        <div>process<span>pm2 on Oracle Linux</span></div>
+      </div>
+      <div class="badges">
+        <span class="badge">Express</span>
+        <span class="badge">PostgreSQL</span>
+        <span class="badge">OCI</span>
+        <span class="badge">Postman</span>
+        <span class="badge">pm2</span>
+      </div>
+      <div class="proj-links">
+        <a href="https://github.com/Allankw-dev/power-consumption-db-api" target="_blank" rel="noopener" onclick="event.stopPropagation()">View on GitHub →</a>
+        <span class="expand-hint">click card for details →</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section id="skills">
+  <div class="section-head">
+    <div class="eyebrow">skills</div>
+    <h2>Working stack</h2>
+  </div>
+  <div class="skills-grid">
+    <div class="skill-cat">
+      <div class="cat-label">Backend</div>
+      <ul>
+        <li>Python · FastAPI</li>
+        <li>Node.js · Express</li>
+        <li>REST API design</li>
+        <li>Java</li>
+      </ul>
+    </div>
+    <div class="skill-cat">
+      <div class="cat-label">Data</div>
+      <ul>
+        <li>PostgreSQL</li>
+        <li>MongoDB</li>
+        <li>Schema &amp; query design</li>
+        <li>Supabase</li>
+      </ul>
+    </div>
+    <div class="skill-cat">
+      <div class="cat-label">Frontend</div>
+      <ul>
+        <li>React</li>
+        <li>Streamlit</li>
+        <li>HTML / CSS / JS</li>
+      </ul>
+    </div>
+    <div class="skill-cat">
+      <div class="cat-label">Cloud &amp; DevOps</div>
+      <ul>
+        <li>Oracle Cloud Infrastructure</li>
+        <li>Render</li>
+        <li>pm2 / process management</li>
+        <li>Git &amp; GitHub workflows</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="contact-panel">
+    <div class="eyebrow" style="justify-content:center;">contact</div>
+    <h2>Let's build something.</h2>
+    <p>Open to internships, freelance work, and collaboration on interesting full-stack or AI projects.</p>
+    <div class="contact-links">
+      <a href="https://github.com/Allankw-dev" target="_blank" rel="noopener" class="btn btn-primary">GitHub ↗</a>
+      <a href="https://ko-fi.com/allankamau" target="_blank" rel="noopener" class="btn btn-ghost">Ko-fi ↗</a>
+      <a href="https://wa.me/254742996794" target="_blank" rel="noopener" class="btn btn-ghost">WhatsApp ↗</a>
+      <a href="mailto:allankamau517@gmail.com" class="btn btn-ghost">Email me</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  © 2026 Allan Kamau — built with intent, deployed with care.
+</footer>
+
+<script>
+  // simple boot-line typing effect for the hero kicker
+  (function(){
+    var el = document.getElementById('bootline');
+    var lines = ['initializing profile...', 'loading stack: FastAPI · React · PostgreSQL · OCI', 'status: ready'];
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduceMotion){ el.innerHTML = 'status: ready<span class="cursor"></span>'; return; }
+    var i = 0;
+    function showNext(){
+      if(i >= lines.length) return;
+      el.innerHTML = lines[i] + '<span class="cursor"></span>';
+      i++;
+      setTimeout(showNext, 1400);
+    }
+    showNext();
+  })();
+
+  // mobile nav toggle
+  (function(){
+    var toggle = document.getElementById('navToggle');
+    var links = document.getElementById('navLinks');
+    toggle.addEventListener('click', function(){
+      var open = links.classList.toggle('open');
+      toggle.classList.toggle('open', open);
+      toggle.setAttribute('aria-expanded', open);
+    });
+    links.querySelectorAll('a').forEach(function(a){
+      a.addEventListener('click', function(){
+        links.classList.remove('open');
+        toggle.classList.remove('open');
+        toggle.setAttribute('aria-expanded', false);
+      });
+    });
+  })();
+
+  // scroll-reveal for sections and cards
+  (function(){
+    var targets = document.querySelectorAll('.section-head, .edu-card, .proj-card, .skill-cat, .stack-panel, .contact-panel');
+    targets.forEach(function(el){ el.classList.add('reveal'); });
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          entry.target.classList.add('visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold:0.15 });
+    targets.forEach(function(el){ io.observe(el); });
+  })();
+
+  // scroll-spy for nav active state
+  (function(){
+    var sections = document.querySelectorAll('section[id]');
+    var navLinks = document.querySelectorAll('.nav-links a');
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          var id = entry.target.getAttribute('id');
+          navLinks.forEach(function(a){
+            a.classList.toggle('active', a.dataset.nav === id);
+          });
+        }
+      });
+    }, { rootMargin:'-45% 0px -50% 0px' });
+    sections.forEach(function(s){ io.observe(s); });
+  })();
+</script>
+
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <button class="modal-close" id="modalClose" aria-label="Close details">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+  var CASE_STUDIES = {
+    hiring: {
+      eyebrow: 'ai hiring platform',
+      title: 'AI Hiring Platform',
+      overview: 'A hiring platform combining a FastAPI backend, a Streamlit frontend, and Supabase PostgreSQL — rebuilt with a "Deep Space Neon Glow" visual identity and hardened for real production traffic on Render\'s free tier.',
+      challenges: [
+        '<strong>Blocked outbound SMTP:</strong> the forgot-password flow initially used SMTP, which Render\'s free tier blocks. Rebuilt the email flow around the Resend HTTP API, dispatched asynchronously through FastAPI\'s BackgroundTasks so requests stayed fast.',
+        '<strong>IPv6 connection failures:</strong> Supabase\'s direct connection string failed intermittently on Render\'s network. Switched to Supabase\'s session pooler URL to resolve it.',
+        '<strong>Health checks reporting false downtime:</strong> UptimeRobot was pinging the root route and getting 405s. Added a dedicated /health route supporting GET and HEAD.',
+        '<strong>Hardening for production:</strong> moved SECRET_KEY to environment variables, restricted CORS to the deployed Streamlit URL, added slowapi rate limiting, sanitized all user input with bleach, and pinned bcrypt to 4.0.1 to avoid a breaking version conflict.'
+      ],
+      stack: ['FastAPI', 'Streamlit', 'Supabase PostgreSQL', 'Render', 'Resend API', 'slowapi', 'bleach'],
+      link: { href: 'https://github.com/Allankw-dev', label: 'View on GitHub' }
+    },
+    power: {
+      eyebrow: 'power consumption db & api',
+      title: 'Power Consumption DB & API',
+      overview: 'A full relational database and CRUD API built for BCS 4103 (Advanced Database Systems) on the UCI Individual Household Electric Power Consumption dataset — designed, built, and deployed end to end on Oracle Cloud Infrastructure.',
+      challenges: [
+        '<strong>Out-of-memory kills on a 498MB instance:</strong> the free-tier OCI compute instance couldn\'t handle the Node.js install and build. Fixed by adding swap space and using nvm to manage the Node version.',
+        '<strong>A stray period breaking the whole schema:</strong> a single misplaced character, introduced via VS Code\'s screen reader mode, silently broke the SQL file. Traced it line by line to find it.',
+        '<strong>An "@" symbol in the DB password:</strong> broke the PostgreSQL connection string parsing until properly URL-encoded.',
+        '<strong>SSL certificate chain conflicts</strong> between the app and the managed PostgreSQL instance, resolved by aligning the CA chain configuration.',
+        '<strong>Port 3000 unreachable</strong> despite the app running — required opening the port at both the OCI security list level and the instance\'s firewalld rules.',
+        '<strong>Real data quality bug found in the wild:</strong> the UCI source file used unpadded date formats, which silently corrupted date parsing until caught and fixed in the ETL step.'
+      ],
+      stack: ['Node.js', 'Express', 'PostgreSQL', 'Oracle Cloud Infrastructure', 'pm2', 'Postman'],
+      link: { href: 'https://github.com/Allankw-dev/power-consumption-db-api', label: 'View on GitHub' }
+    }
+  };
+
+  var EDU_DETAILS = {
+    db: {
+      eyebrow: 'bcs 4103',
+      title: 'Advanced Database Systems',
+      overview: 'Group project led end to end: relational schema design, business logic inside the database, and a full cloud deployment — treated as a real system, not just a submission.',
+      challenges: [
+        '<strong>Schema:</strong> four related tables — metering_zones, readings, sub_metering_readings, daily_summary — modeling the UCI household power dataset.',
+        '<strong>Logic:</strong> three triggers and four stored procedures handling data integrity and aggregation directly in PostgreSQL.',
+        '<strong>API:</strong> a Node.js/Express CRUD layer running under pm2 on an Oracle Linux compute instance.',
+        '<strong>Deployment:</strong> a hand-provisioned OCI VCN (10.0.0.0/16) with the database in a private subnet and the API host exposed publicly.',
+        '<strong>Deliverables:</strong> a technical report, Postman collection, and a full OCI deployment runbook.'
+      ],
+      stack: ['PostgreSQL', 'Node.js', 'Express', 'OCI', 'pm2'],
+      link: { href: 'https://github.com/Allankw-dev/power-consumption-db-api', label: 'View project on GitHub' }
+    },
+    java: {
+      eyebrow: 'bcs 3101 / 3107',
+      title: 'Java & Software Engineering',
+      overview: 'Coursework spanning core Java fundamentals and software engineering practice — from language internals to structured test design.',
+      challenges: [
+        '<strong>Collections:</strong> hands-on labs across the List, Set, and Queue interfaces and their implementations.',
+        '<strong>Advanced class features:</strong> inner classes, anonymous classes, and static nested classes.',
+        '<strong>Software testing:</strong> built a decision tree for printer troubleshooting, a state diagram for a flight-reservation login flow, and 13 structured test cases for a patient registration system.'
+      ],
+      stack: ['Java', 'Graphviz', 'Test Design'],
+      link: null
+    }
+  };
+
+  function renderModal(data){
+    var linkHtml = data.link
+      ? '<div class="modal-section"><a href="' + data.link.href + '" target="_blank" rel="noopener" class="btn btn-primary" style="display:inline-flex;">' + data.link.label + ' →</a></div>'
+      : '';
+    var body = document.getElementById('modalBody');
+    body.innerHTML =
+      '<div class="eyebrow">' + data.eyebrow + '</div>' +
+      '<h3 id="modalTitle">' + data.title + '</h3>' +
+      '<div class="modal-section"><h4>Overview</h4><p>' + data.overview + '</p></div>' +
+      '<div class="modal-section"><h4>Obstacles &amp; how they were solved</h4><ul class="modal-list">' +
+        data.challenges.map(function(c){ return '<li>' + c + '</li>'; }).join('') +
+      '</ul></div>' +
+      '<div class="modal-section"><h4>Stack</h4><div class="badges">' +
+        data.stack.map(function(s){ return '<span class="badge">' + s + '</span>'; }).join('') +
+      '</div></div>' +
+      linkHtml;
+  }
+
+  (function(){
+    var overlay = document.getElementById('modalOverlay');
+    var closeBtn = document.getElementById('modalClose');
+    var lastFocused = null;
+
+    function openModal(data){
+      lastFocused = document.activeElement;
+      renderModal(data);
+      overlay.classList.add('open');
+      closeBtn.focus();
+      document.body.style.overflow = 'hidden';
+    }
+    function closeModal(){
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+      if(lastFocused) lastFocused.focus();
+    }
+
+    document.querySelectorAll('[data-project]').forEach(function(card){
+      var key = card.getAttribute('data-project');
+      function trigger(e){
+        if(e.target.closest('a')) return; // let GitHub links work normally
+        openModal(CASE_STUDIES[key]);
+      }
+      card.addEventListener('click', trigger);
+      card.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openModal(CASE_STUDIES[key]); }
+      });
+    });
+
+    document.querySelectorAll('[data-edu]').forEach(function(card){
+      var key = card.getAttribute('data-edu');
+      card.addEventListener('click', function(){ openModal(EDU_DETAILS[key]); });
+      card.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openModal(EDU_DETAILS[key]); }
+      });
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
+    });
+  })();
+</script>
+
+</body>
+</html>
