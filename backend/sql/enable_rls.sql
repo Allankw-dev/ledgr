@@ -96,6 +96,9 @@ ALTER TABLE direct_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE direct_reports ENABLE ROW LEVEL SECURITY;
+-- guardian_invites: parents' emails/phones. It was missing from this file, so it stayed open to Supabase's public
+-- Data API. Cross-school lookups at sign-up use get_system_db (owner), so a normal tenant policy fits.
+ALTER TABLE guardian_invites ENABLE ROW LEVEL SECURITY;
 -- refresh_tokens: enabled with NO policy => deny-all for ledgr_app. Only the
 -- owner connection (get_system_db, auth endpoints) ever touches it.
 ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
@@ -187,6 +190,11 @@ CREATE POLICY tenant_isolation ON payment_plans FOR ALL TO ledgr_app
 
 DROP POLICY IF EXISTS tenant_isolation ON messages;
 CREATE POLICY tenant_isolation ON messages FOR ALL TO ledgr_app
+  USING (school_id = (select current_setting('app.current_school_id', true))::text)
+  WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
+
+DROP POLICY IF EXISTS tenant_isolation ON guardian_invites;
+CREATE POLICY tenant_isolation ON guardian_invites FOR ALL TO ledgr_app
   USING (school_id = (select current_setting('app.current_school_id', true))::text)
   WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text);
 
