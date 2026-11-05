@@ -32,7 +32,7 @@
 
 ## Features
 
-Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and **parents**. A `SUPER_ADMIN` role exists for platform-level access.
+Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and **parents**. A `SUPER_ADMIN` role exists for platform-level access..
 
 ### For schools (admin / bursar)
 
