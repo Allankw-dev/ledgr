@@ -64,6 +64,25 @@ ML_INDEXES = [
     'CREATE INDEX IF NOT EXISTS ix_invoice_risk_snapshots_school_id ON invoice_risk_snapshots USING btree (school_id)',
 ]
 
+# Row-level security for the two tables, exactly as sql/enable_rls.sql sets it up. Only where the app's restricted
+# role exists (it does not on a plain development database). Safe to repeat: the policy is dropped and recreated.
+_POLICY = (
+    "FOR ALL TO ledgr_app "
+    "USING (school_id = (select current_setting('app.current_school_id', true))::text) "
+    "WITH CHECK (school_id = (select current_setting('app.current_school_id', true))::text)"
+)
+RLS_SQL = (
+    "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ledgr_app') THEN "
+    "ALTER TABLE invoice_risk_snapshots ENABLE ROW LEVEL SECURITY; "
+    "ALTER TABLE invoice_outcomes ENABLE ROW LEVEL SECURITY; "
+    "DROP POLICY IF EXISTS tenant_isolation ON invoice_risk_snapshots; "
+    f"CREATE POLICY tenant_isolation ON invoice_risk_snapshots {_POLICY}; "
+    "DROP POLICY IF EXISTS tenant_isolation ON invoice_outcomes; "
+    f"CREATE POLICY tenant_isolation ON invoice_outcomes {_POLICY}; "
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON invoice_risk_snapshots, invoice_outcomes TO ledgr_app; "
+    "END IF; END $$"
+)
+
 
 def upgrade() -> None:
     bind = op.get_bind()
@@ -121,6 +140,8 @@ def upgrade() -> None:
 
     for statement in INDEXES + ML_INDEXES:
         op.execute(statement)
+
+    op.execute(RLS_SQL)
 
 
 def downgrade() -> None:
