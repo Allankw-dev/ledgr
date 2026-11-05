@@ -1,4 +1,4 @@
-# Ledgr security audit..
+# Ledgr security audit.
 
 Scope: the whole repository (FastAPI backend, React frontend, Vercel/Render configuration, dependencies,
 git history). Method: static scanners (bandit, detect-secrets, pip-audit, npm audit), a walk of every route's
