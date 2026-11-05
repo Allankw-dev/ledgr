@@ -119,7 +119,7 @@ def http(db, world, monkeypatch):
 
 @pytest.fixture()
 def operator(db):
-    op = User(school_id=None, email=f"op-{uuid.uuid4().hex[:6]}@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True, totp_enabled=True)
+    op = User(school_id=None, email=f"op-{uuid.uuid4().hex[:6]}@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True)
     db.add(op)
     db.commit()
     return SimpleNamespace(user=op, headers={"Authorization": "Bearer " + create_access_token(op.id, None, "SUPER_ADMIN")})
@@ -434,7 +434,7 @@ def test_the_very_first_school_on_a_fresh_deployment_uses_the_server_wide_paybil
     limiter.reset()
     res = TestClient(app).post(
         "/api/auth/register-school",
-        json={"school_name": "First School", "country": "KE", "currency": "KES", "admin_email": "first@school.example", "admin_password": "Tr0ub4dor&3 horse", "admin_full_name": "First Admin"},
+        json={"school_name": "First School", "country": "KE", "currency": "KES", "admin_email": "first@school.example", "admin_password": "Tr0ub4dor&3 horse", "admin_full_name": "First Admin", "accept_terms": True},
     )
     assert res.status_code == 201, res.text
     assert db.execute(select(School.mpesa_mode)).scalar_one() == "GLOBAL"

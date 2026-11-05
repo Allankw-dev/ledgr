@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 /* Neutral-dark dashboard surfaces + lime accent used by the "dx" dashboard components
@@ -59,7 +58,7 @@
   --color-ink-700: #A8B0C8;   /* light secondary text (labels) */
   --color-ink-600: #8891B0;   /* muted/dim text */
   --color-ink-500: #8891B0;
-  --color-ink-400: #5C6480;   /* faint text / disabled state */
+  --color-ink-400: #7C86A6;   /* faint text / disabled state */
   --color-ink-200: #242A42;   /* subtle card border */
   --color-ink-100: #171B2E;   /* subtle raised surface (pills, hover) */
 

@@ -1,5 +1,6 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ModalProps {
   title: string;
@@ -8,6 +9,10 @@ interface ModalProps {
 }
 
 export function Modal({ title, onClose, children }: ModalProps) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
+
   // Close on Escape — expected keyboard behavior for any dialog
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -21,13 +26,14 @@ export function Modal({ title, onClose, children }: ModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="modal-backdrop-in absolute inset-0 bg-ink-950/40" onClick={onClose} aria-hidden="true" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className="modal-panel-in neu-surface relative bg-panel rounded-lg border border-ink-200 w-full max-w-md max-h-[90dvh] flex flex-col"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink-200 shrink-0">
-          <h2 id="modal-title" className="font-display text-lg text-ink-900 font-medium">
+          <h2 id={titleId} className="font-display text-lg text-ink-900 font-medium">
             {title}
           </h2>
           <button

@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     # (password reset, guardian invites) that need to point back at the app
     # rather than the API. Defaults to the local Vite dev server.
     frontend_url: str = "http://localhost:5173"
+    # Public HTTPS address of THIS API (e.g. https://ledgr-api.onrender.com). Optional. When set, optional emails carry
+    # a one-click List-Unsubscribe header that mail apps (Gmail, Apple Mail) show as an "Unsubscribe" button; when
+    # unset they still carry the unsubscribe link in the footer.
+    api_public_url: str | None = None
 
     # WebAuthn (fingerprint / Face ID / Windows Hello login). rp_id must be
     # exactly the domain the frontend is served from, no scheme/port — the
@@ -159,11 +163,6 @@ class Settings(BaseSettings):
     # being re-read from the DB. This is the longest a deactivation or a
     # password reset can take to cut off an already-issued token.
     user_state_cache_seconds: int = 30
-
-    # The platform operator (SUPER_ADMIN) can switch schools off and change where a school's M-Pesa money goes,
-    # so the platform routes refuse an operator whose two-factor sign-in is not switched on. Leave this ON.
-    # Setting it to false is only for local development.
-    platform_require_2fa: bool = True
 
     # --- Chat attachments (photos / files in class group chats) --------------
     # Production: set SUPABASE_URL + SUPABASE_SERVICE_KEY and create a PRIVATE

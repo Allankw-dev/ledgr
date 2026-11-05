@@ -101,7 +101,7 @@ def test_register_parent_joins_the_school_that_invited_them(db, world, http):
     _invite(db, other, other_student, phone="0799111222")
     res = http.post(
         "/api/auth/register-parent",
-        json={"full_name": "Invited Parent", "email": "invited@example.com", "phone": "0799111222", "password": PASSWORD},
+        json={"full_name": "Invited Parent", "email": "invited@example.com", "phone": "0799111222", "password": PASSWORD, "accept_terms": True, "confirm_guardian": True},
     )
     assert res.status_code == 201, res.text
     assert db.execute(select(User.school_id).where(User.email == "invited@example.com")).scalar_one() == other.id
@@ -111,7 +111,7 @@ def test_register_parent_with_two_schools_and_no_invite_is_refused(db, world, ht
     _second_school(db)
     res = http.post(
         "/api/auth/register-parent",
-        json={"full_name": "Lost Parent", "email": "lost@example.com", "phone": "0733000111", "password": PASSWORD},
+        json={"full_name": "Lost Parent", "email": "lost@example.com", "phone": "0733000111", "password": PASSWORD, "accept_terms": True, "confirm_guardian": True},
     )
     assert res.status_code == 409
     assert db.execute(select(User).where(User.email == "lost@example.com")).first() is None
@@ -137,7 +137,7 @@ def google(monkeypatch):
 
 def test_google_signup_with_two_schools_and_no_invite_is_refused(db, world, http, google):
     _second_school(db)
-    res = http.post("/api/auth/google", json={"credential": "x"})
+    res = http.post("/api/auth/google", json={"credential": "x", "accept_terms": True, "confirm_guardian": True})
     assert res.status_code == 409
     assert db.execute(select(User).where(User.email == "g.parent@example.com")).first() is None
 
@@ -145,13 +145,13 @@ def test_google_signup_with_two_schools_and_no_invite_is_refused(db, world, http
 def test_google_signup_joins_the_school_that_invited_that_email(db, world, http, google):
     other, other_student = _second_school(db)
     _invite(db, other, other_student, email="G.Parent@Example.com")
-    res = http.post("/api/auth/google", json={"credential": "x"})
+    res = http.post("/api/auth/google", json={"credential": "x", "accept_terms": True, "confirm_guardian": True})
     assert res.status_code in (200, 201), res.text
     assert db.execute(select(User.school_id).where(User.email == "g.parent@example.com")).scalar_one() == other.id
 
 
 def test_google_signup_still_works_when_there_is_only_one_school(db, world, http, google):
-    res = http.post("/api/auth/google", json={"credential": "x"})
+    res = http.post("/api/auth/google", json={"credential": "x", "accept_terms": True, "confirm_guardian": True})
     assert res.status_code in (200, 201), res.text
     assert db.execute(select(User.school_id).where(User.email == "g.parent@example.com")).scalar_one() == world.school.id
 
@@ -170,7 +170,7 @@ def test_google_matches_an_existing_account_whatever_the_capitalisation(db, worl
 
 @pytest.fixture()
 def operator(db):
-    op = User(school_id=None, email="operator@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True, totp_enabled=True)
+    op = User(school_id=None, email="operator@ledgr.test", password_hash="x", role=UserRole.SUPER_ADMIN, full_name="Operator", is_active=True)
     db.add(op)
     db.commit()
     return op, _token(op.id, None, "SUPER_ADMIN")

@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.database import SystemSessionLocal
 from app.core.jobs import enqueue_many, enqueue, job_handler
 from app.core.security import create_password_reset_token
+from app.core.unsubscribe import one_click_url, unsubscribe_page_url
 from app.models.enums import GuardianLinkStatus
 from app.models.invoice import Invoice
 from app.models.payment import Payment
@@ -28,6 +29,8 @@ from app.services.notification_service import (
     compose_payment_failed,
     send_email,
     send_sms,
+    unsubscribe_headers,
+    with_unsubscribe_footer,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,14 +47,18 @@ def guardian_message_jobs(
     sms_text: str,
     dedupe_prefix: str,
     urgent: bool = False,
+    optional: bool = True,
 ) -> list[dict]:
     """The email + SMS job rows for one guardian (contact details are looked up when the job
-    runs, so they aren't copied into the queue). Pass a list of these to jobs.enqueue_many."""
+    runs, so they aren't copied into the queue). Pass a list of these to jobs.enqueue_many.
+
+    `optional` marks fee reminders, overdue notices and announcements: the email then honours the person's
+    unsubscribe choice and carries an unsubscribe link. Payment receipts pass optional=False (always sent)."""
     return [
         {
             "school_id": school_id,
             "kind": "send_email",
-            "payload": {"user_id": guardian_id, "subject": email_subject, "body": email_body},
+            "payload": {"user_id": guardian_id, "subject": email_subject, "body": email_body, "optional": optional},
             "dedupe_key": f"{dedupe_prefix}:{guardian_id}:email",
             "urgent": urgent,
         },
@@ -74,10 +81,17 @@ def enqueue_guardian_message(db, **kwargs) -> int:
 def handle_send_email(payload: dict[str, Any]) -> None:
     with SystemSessionLocal() as db:
         user = db.get(User, payload["user_id"])
-    if not user or not user.email or user.email.lower().endswith(PLACEHOLDER_EMAIL_DOMAIN):
+    if not user or user.deleted_at or not user.email or user.email.lower().endswith(PLACEHOLDER_EMAIL_DOMAIN):
         return  # nothing to deliver to — done, not an error
+    body, headers = payload["body"], None
+    if payload.get("optional"):
+        if user.email_opt_out:
+            return  # they unsubscribed: done, not an error
+        page_url = unsubscribe_page_url(user.id)
+        body = with_unsubscribe_footer(body, page_url)
+        headers = unsubscribe_headers(page_url, one_click_url(user.id))
     try:
-        send_email(user.email, payload["subject"], payload["body"])
+        send_email(user.email, payload["subject"], body, headers=headers)
     except NotificationConfigError:
         # Email isn't set up on this deployment; retrying can't help. Say so in the logs,
         # otherwise every message silently vanishes and nobody can tell why.
@@ -199,5 +213,6 @@ def handle_notify_payment_result(payload: dict[str, Any]) -> None:
                 sms_text=sms_text,
                 dedupe_prefix=f"pay:{payment_id}:{'ok' if succeeded else 'fail'}",
                 urgent=True,  # a parent waiting for their payment confirmation must not queue behind a broadcast
+                optional=False,  # a receipt is not marketing: always sent, no unsubscribe
             )
         db.commit()

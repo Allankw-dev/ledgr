@@ -683,7 +683,7 @@ export function ClassGroupChat() {
           {pendingFile && (
             <div className="flex items-center gap-3 mb-2 rounded-lg border border-ink-200 bg-ink-100 px-3 py-2">
               {pendingPreview ? (
-                <img src={pendingPreview} alt="" className="w-12 h-12 rounded-md object-cover" />
+                <img src={pendingPreview} alt="Preview of the photo you are about to send" className="w-12 h-12 rounded-md object-cover" />
               ) : (
                 <div className="w-12 h-12 rounded-md bg-sky/20 text-sky flex items-center justify-center">
                   <FileText className="w-6 h-6" strokeWidth={1.75} />

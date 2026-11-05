@@ -207,43 +207,51 @@ def _explain_http_error(resp: httpx.Response) -> str:
     return f"{resp.status_code}: {str(detail)[:300]}"
 
 
-def _send_via_brevo(to_email: str, subject: str, body: str) -> None:
+def _send_via_brevo(to_email: str, subject: str, body: str, headers: dict[str, str] | None = None) -> None:
+    payload = {
+        "sender": {"name": _from_name(), "email": _from_email()},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "textContent": body,
+    }
+    if headers:
+        payload["headers"] = headers
     with httpx.Client(transport=_transport, timeout=15) as client:
         resp = client.post(
             BREVO_URL,
             headers={"api-key": settings.brevo_api_key or "", "accept": "application/json"},
-            json={
-                "sender": {"name": _from_name(), "email": _from_email()},
-                "to": [{"email": to_email}],
-                "subject": subject,
-                "textContent": body,
-            },
+            json=payload,
         )
     if resp.status_code >= 400:
         raise EmailDeliveryError(f"Brevo refused the email ({_explain_http_error(resp)})")
 
 
-def _send_via_resend(to_email: str, subject: str, body: str) -> None:
+def _send_via_resend(to_email: str, subject: str, body: str, headers: dict[str, str] | None = None) -> None:
+    payload = {
+        "from": f"{_from_name()} <{_from_email()}>",
+        "to": [to_email],
+        "subject": subject,
+        "text": body,
+    }
+    if headers:
+        payload["headers"] = headers
     with httpx.Client(transport=_transport, timeout=15) as client:
         resp = client.post(
             RESEND_URL,
             headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json={
-                "from": f"{_from_name()} <{_from_email()}>",
-                "to": [to_email],
-                "subject": subject,
-                "text": body,
-            },
+            json=payload,
         )
     if resp.status_code >= 400:
         raise EmailDeliveryError(f"Resend refused the email ({_explain_http_error(resp)})")
 
 
-def _send_via_smtp(to_email: str, subject: str, body: str) -> None:
+def _send_via_smtp(to_email: str, subject: str, body: str, headers: dict[str, str] | None = None) -> None:
     msg = MIMEMultipart()
     msg["From"] = f"{_from_name()} <{_from_email()}>"
     msg["To"] = to_email
     msg["Subject"] = subject
+    for name, value in (headers or {}).items():
+        msg[name] = value
     msg.attach(MIMEText(body, "plain"))
 
     if settings.smtp_port == 465:
@@ -257,7 +265,27 @@ def _send_via_smtp(to_email: str, subject: str, body: str) -> None:
         server.send_message(msg)
 
 
-def send_email(to_email: str, subject: str, body: str) -> None:
+def unsubscribe_headers(page_url: str, one_click_url: str | None) -> dict[str, str]:
+    """List-Unsubscribe headers. With a one-click URL, mail apps show their own Unsubscribe button and POST to it
+    (RFC 8058); without one, the header just points at the unsubscribe page."""
+    if one_click_url:
+        return {
+            "List-Unsubscribe": f"<{one_click_url}>, <{page_url}>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+    return {"List-Unsubscribe": f"<{page_url}>"}
+
+
+def with_unsubscribe_footer(body: str, page_url: str) -> str:
+    return (
+        f"{body}\n\n--\n"
+        f"You get this because you are a parent or guardian on Ledgr. "
+        f"To stop reminders and announcements by email, unsubscribe here: {page_url}\n"
+        f"(Payment receipts and security emails are still sent.)"
+    )
+
+
+def send_email(to_email: str, subject: str, body: str, *, headers: dict[str, str] | None = None) -> None:
     # Subjects are built from typed text (a student's name, a school name). A line break in one would let it
     # smuggle extra headers (a hidden Bcc:) into a message sent over SMTP, so it is flattened to one line here,
     # the single choke point every email passes through. A recipient with a line break is refused outright.
@@ -270,12 +298,14 @@ def send_email(to_email: str, subject: str, body: str) -> None:
             "Email is not configured (set BREVO_API_KEY or RESEND_API_KEY plus EMAIL_FROM_EMAIL, "
             "or the SMTP_* settings)"
         )
+    # Headers are passed only when there are some, so ordinary mail takes exactly the same path as before.
+    extra = (headers,) if headers else ()
     if provider == "brevo":
-        _send_via_brevo(to_email, subject, body)
+        _send_via_brevo(to_email, subject, body, *extra)
     elif provider == "resend":
-        _send_via_resend(to_email, subject, body)
+        _send_via_resend(to_email, subject, body, *extra)
     else:
-        _send_via_smtp(to_email, subject, body)
+        _send_via_smtp(to_email, subject, body, *extra)
 
 
 def send_sms(phone_number: str, message: str) -> dict:
@@ -357,16 +387,25 @@ def send_reminder_to_guardian(
     balance: Decimal,
     currency: str,
     due_date: datetime,
+    guardian_user_id: str | None = None,
+    email_opt_out: bool = False,
 ) -> ReminderResult:
     subject, body, sms_text = compose_reminder(student_name, school_name, balance, currency, due_date)
+    headers = None
+    if guardian_user_id:
+        from app.core.unsubscribe import one_click_url, unsubscribe_page_url  # local: avoids an import cycle
+
+        page_url = unsubscribe_page_url(guardian_user_id)
+        body = with_unsubscribe_footer(body, page_url)
+        headers = unsubscribe_headers(page_url, one_click_url(guardian_user_id))
 
     email_sent = False
     sms_sent = False
     errors: list[str] = []
 
-    if guardian_email:
+    if guardian_email and not email_opt_out:
         try:
-            send_email(guardian_email, subject, body)
+            send_email(guardian_email, subject, body, headers=headers)
             email_sent = True
         except NotificationConfigError:
             pass  # not configured — not an error, just skip this channel

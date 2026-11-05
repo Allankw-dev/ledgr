@@ -8,7 +8,7 @@ export function DirectChatsPage() {
         <div className="mb-6">
           <h1 className="font-display text-2xl text-ink-900 font-medium reveal">Private chats</h1>
           <p className="text-sm text-ink-600 mt-1">
-            Message a parent one-to-one. Only the two of you can see the conversation, and it's stored encrypted.
+            Message a parent one-to-one. It's private to the two of you and stored encrypted, unless a chat is reported, in which case the school administrator can review the reported messages.
           </p>
         </div>
         <DirectChat />

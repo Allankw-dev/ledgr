@@ -69,6 +69,17 @@ class User(Base):
     # valid code, so a half-finished setup never locks anyone out.
     totp_secret: Mapped[str | None] = mapped_column(String, nullable=True)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Consent record. Set when the person ticks the Terms/Privacy box at sign-up (see core/legal.py for the version
+    # string). Accounts that pre-date the consent box have NULL here.
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    terms_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Opt-out from optional email (fee reminders, overdue notices, school announcements). Payment receipts and
+    # security emails are always sent. Set by the unsubscribe link in each optional email.
+    email_opt_out: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    email_opt_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when the person erased their own account (services/account_deletion.py). The row stays, stripped of
+    # personal details, because payments and audit entries point at it.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     school: Mapped["School | None"] = relationship(back_populates="users")

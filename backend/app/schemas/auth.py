@@ -10,6 +10,7 @@ class RegisterSchoolRequest(BaseModel):
     admin_email: EmailStr
     admin_password: NewPassword
     admin_full_name: str = Field(min_length=2, max_length=150)
+    accept_terms: bool = False  # must be true: the admin accepts the Terms and Privacy Policy for the school
 
 
 class LoginRequest(BaseModel):
@@ -21,6 +22,9 @@ class LoginRequest(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     credential: str = Field(max_length=4000)  # the ID token JWT string Google's Sign In button returns
+    # Only needed when this Google sign-in would CREATE a new parent account (the sign-up form sends both).
+    accept_terms: bool = False
+    confirm_guardian: bool = False
 
 
 class TokenResponse(BaseModel):

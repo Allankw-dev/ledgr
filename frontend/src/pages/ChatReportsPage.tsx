@@ -1,5 +1,6 @@
 import { ListSkeleton } from '../components/ui/Skeleton';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Flag, X } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { getChatReport, listChatReports, updateChatReport } from '../api/direct';
@@ -37,6 +38,14 @@ export function ChatReportsPage() {
   const [reports, setReports] = useState<ChatReportSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<ChatReportDetail | null>(null);
+  const reportDialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(reportDialogRef, open !== null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
   const [status, setStatus] = useState<ReportStatus>('REVIEWING');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -133,7 +142,7 @@ export function ChatReportsPage() {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink-950/60" onClick={() => setOpen(null)}>
-          <div className="w-full max-w-2xl rounded-xl border border-ink-200 bg-panel shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div ref={reportDialogRef} role="dialog" aria-modal="true" aria-label="Chat report details" className="w-full max-w-2xl rounded-xl border border-ink-200 bg-panel shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-ink-200">
               <div>
                 <p className="text-sm font-medium text-ink-900">

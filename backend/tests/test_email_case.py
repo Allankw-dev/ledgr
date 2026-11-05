@@ -31,7 +31,7 @@ def http(db, world):
 def _signup(http, email, phone="0712345678"):
     return http.post(
         "/api/auth/register-parent",
-        json={"full_name": "Pat Parent", "email": email, "phone": phone, "password": PASSWORD},
+        json={"full_name": "Pat Parent", "email": email, "phone": phone, "password": PASSWORD, "accept_terms": True, "confirm_guardian": True},
     )
 
 

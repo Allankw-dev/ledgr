@@ -1,6 +1,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+// Fonts are bundled with the app (SIL Open Font License 1.1: free to embed and redistribute), so opening Ledgr
+// sends nothing to Google Fonts. Latin subset only.
+import '@fontsource/space-grotesk/latin-400.css'
+import '@fontsource/space-grotesk/latin-500.css'
+import '@fontsource/space-grotesk/latin-600.css'
+import '@fontsource/space-grotesk/latin-700.css'
+import '@fontsource/ibm-plex-sans/latin-400.css'
+import '@fontsource/ibm-plex-sans/latin-500.css'
+import '@fontsource/ibm-plex-sans/latin-600.css'
+import '@fontsource/ibm-plex-sans/latin-700.css'
+import '@fontsource/ibm-plex-mono/latin-400.css'
+import '@fontsource/ibm-plex-mono/latin-500.css'
+import '@fontsource/ibm-plex-mono/latin-600.css'
 import App from './App.tsx'
 import './index.css'
 

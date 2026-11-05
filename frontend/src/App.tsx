@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LiveBackground } from './components/LiveBackground';
+import { CookieNotice } from './components/CookieNotice';
 
 // Every page loads lazily, split into its own chunk — without this the
 // whole app (every admin page, every parent page, all ~25 routes) shipped
@@ -36,6 +37,11 @@ const ChatReportsPage = lazy(() => import('./pages/ChatReportsPage').then((m) =>
 const DirectChatsPage = lazy(() => import('./pages/DirectChatsPage').then((m) => ({ default: m.DirectChatsPage })));
 const ParentDirectChatsPage = lazy(() => import('./pages/ParentDirectChatsPage').then((m) => ({ default: m.ParentDirectChatsPage })));
 const ParentClassGroupPage = lazy(() => import('./pages/ParentClassGroupPage').then((m) => ({ default: m.ParentClassGroupPage })));
+const PrivacyPage = lazy(() => import('./pages/legal/PrivacyPage').then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import('./pages/legal/TermsPage').then((m) => ({ default: m.TermsPage })));
+const RefundPage = lazy(() => import('./pages/legal/RefundPage').then((m) => ({ default: m.RefundPage })));
+const CookiePage = lazy(() => import('./pages/legal/CookiePage').then((m) => ({ default: m.CookiePage })));
+const UnsubscribePage = lazy(() => import('./pages/UnsubscribePage').then((m) => ({ default: m.UnsubscribePage })));
 const TeachersPage = lazy(() => import('./pages/TeachersPage').then((m) => ({ default: m.TeachersPage })));
 
 const STAFF_ROLES = ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'BURSAR'] as const;
@@ -58,6 +64,12 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+        {/* Public: readable without an account. */}
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/refunds" element={<RefundPage />} />
+        <Route path="/cookies" element={<CookiePage />} />
+        <Route path="/unsubscribe" element={<UnsubscribePage />} />
         <Route path="/signup" element={<AuthPage initialMode="signup" />} />
         <Route
           path="/verify-child"
@@ -254,6 +266,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       </Suspense>
+      <CookieNotice />
     </BrowserRouter>
   );
 }

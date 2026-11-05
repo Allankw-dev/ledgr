@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/authStore';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { AuthArches, OverlayArches } from '../components/AuthArches';
 import { useFitToViewport } from '../hooks/useFitToViewport';
+import { SiteFooter } from '../components/SiteFooter';
 
 type Mode = 'login' | 'signup';
 
@@ -115,7 +116,7 @@ function TrustNote() {
   return (
     <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-ink-400">
       <Lock className="w-3 h-3" strokeWidth={2} />
-      Encrypted connection · your details stay private
+      Encrypted connection · used only to run your school&apos;s fee account
     </p>
   );
 }
@@ -241,8 +242,13 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       } else {
         completeLogin(result.token, result.user, result.refresh_token);
       }
-    } catch {
-      setLoginError('Could not sign in with Google. Please try again.');
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setLoginError(
+        status === 400
+          ? 'No Ledgr account uses this Google email yet. Choose "Create account" to sign up. You will be asked to accept the Terms there.'
+          : 'Could not sign in with Google. Please try again.'
+      );
     } finally {
       setLoginLoading(false);
     }
@@ -302,6 +308,9 @@ export function AuthPage({ initialMode }: AuthPageProps) {
   const [suPhone, setSuPhone] = useState('');
   const [suPassword, setSuPassword] = useState('');
   const [suAdmissionNumber, setSuAdmissionNumber] = useState('');
+  // Both start unticked on purpose: consent has to be an action, never a default.
+  const [suAcceptTerms, setSuAcceptTerms] = useState(false);
+  const [suConfirmGuardian, setSuConfirmGuardian] = useState(false);
   const [suError, setSuError] = useState<string | null>(null);
   const [suLoading, setSuLoading] = useState(false);
 
@@ -310,6 +319,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     if (suPhone.trim().length < 7) return 'Enter a valid phone number.';
     if (suPassword.length < 8) return 'Password must be at least 8 characters.';
     if (suAdmissionNumber.trim().length < 1) return "Enter your child's admission number.";
+    if (!suAcceptTerms) return 'Please accept the Terms of Service and Privacy Policy to continue.';
+    if (!suConfirmGuardian) return 'Please confirm you are 18 or older and the child\'s parent or legal guardian.';
     return null;
   }
 
@@ -328,6 +339,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
         email: suEmail.trim(),
         phone: suPhone.trim(),
         password: suPassword,
+        accept_terms: suAcceptTerms,
+        confirm_guardian: suConfirmGuardian,
       });
       setSession(token, user, refresh_token);
       navigate('/verify-child', { state: { admissionNumber: suAdmissionNumber.trim() } });
@@ -347,7 +360,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
     setSuError(null);
     setSuLoading(true);
     try {
-      const result = await googleAuth(credential);
+      const result = await googleAuth(credential, { accept_terms: suAcceptTerms, confirm_guardian: suConfirmGuardian });
       if ('requires_2fa' in result) {
         // Parent accounts can't have 2FA enabled — only staff can. Seeing
         // this here means the email belongs to a staff account.
@@ -520,8 +533,43 @@ export function AuthPage({ initialMode }: AuthPageProps) {
               <AuthSwitch mode={mode} onChange={toggle} />
               <AuthHeading eyebrow="Parent sign up" title="Create your account" subtitle="Then we'll verify your child's details with the school." />
 
+              <fieldset className="mb-4 flex flex-col gap-2.5 rounded-lg border border-ink-200 px-3.5 py-3">
+                <legend className="px-1 text-xs text-ink-700">Before you start</legend>
+                <label className="flex items-start gap-2.5 text-xs text-ink-700 leading-relaxed">
+                  <input
+                    type="checkbox"
+                    checked={suAcceptTerms}
+                    onChange={(e) => setSuAcceptTerms(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#39FF88]"
+                  />
+                  <span>
+                    I have read and accept the{' '}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline text-ink-900">Terms of Service</a>{' '}
+                    and{' '}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline text-ink-900">Privacy Policy</a>
+                    <span className="sr-only"> (open in a new tab)</span>.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 text-xs text-ink-700 leading-relaxed">
+                  <input
+                    type="checkbox"
+                    checked={suConfirmGuardian}
+                    onChange={(e) => setSuConfirmGuardian(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#39FF88]"
+                  />
+                  <span>
+                    I am 18 or older and the parent or legal guardian of the child I am signing up for. I understand Ledgr
+                    shows me their name, class and fee records, which their school provides.
+                  </span>
+                </label>
+              </fieldset>
+
               <div className="flex justify-center mb-5">
-                <GoogleSignInButton onCredential={handleSignupGoogleCredential} text="signup_with" />
+                {suAcceptTerms && suConfirmGuardian ? (
+                  <GoogleSignInButton onCredential={handleSignupGoogleCredential} text="signup_with" />
+                ) : (
+                  <p className="text-xs text-ink-600 text-center">Tick both boxes above to sign up with Google.</p>
+                )}
               </div>
 
               <div className="flex items-center gap-3 mb-5">
@@ -642,6 +690,7 @@ export function AuthPage({ initialMode }: AuthPageProps) {
             </div>
           </div>
         </div>
+        <SiteFooter className="mt-2" />
       </div>
     </div>
   );

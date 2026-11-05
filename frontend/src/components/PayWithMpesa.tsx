@@ -168,6 +168,7 @@ export function PayWithMpesa({ invoiceId, studentId, childName, detail, balance,
 
               <p className="text-sm text-ink-600">
                 We'll send a payment prompt to this phone. Enter your M-Pesa PIN there to complete it.
+                You pay exactly the amount shown, and Ledgr adds no fee of its own.
               </p>
               <TextField
                 label="M-Pesa phone number"

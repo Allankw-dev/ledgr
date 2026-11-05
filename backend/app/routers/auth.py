@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import get_system_db
 from app.core.deps import invalidate_user_state
 from app.core.emails import email_equals, normalize_email
+from app.core.legal import GUARDIAN_REQUIRED_MESSAGE, TERMS_REQUIRED_MESSAGE, TERMS_VERSION
 from app.core.phone import normalize_phone, phone_key
 from app.core.security import (
     hash_password,
@@ -72,6 +73,15 @@ from app.models.enums import UserRole
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _require_parent_consent(accept_terms: bool, confirm_guardian: bool) -> None:
+    """A parent account is only created after both boxes were ticked. Checked on the server, so skipping the
+    form (or an old client) can't create an account without the person agreeing."""
+    if not accept_terms:
+        raise HTTPException(400, TERMS_REQUIRED_MESSAGE)
+    if not confirm_guardian:
+        raise HTTPException(400, GUARDIAN_REQUIRED_MESSAGE)
 
 
 @router.get("/setup-status")
@@ -137,6 +147,7 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
     admission number. Which school they belong to is decided by
     _resolve_parent_school_id.
     """
+    _require_parent_consent(data.accept_terms, data.confirm_guardian)
     normalized_phone = normalize_phone(data.phone)
     if not normalized_phone:
         raise HTTPException(400, "Enter a valid phone number")
@@ -155,6 +166,8 @@ def register_parent(request: Request, data: RegisterParentRequest, db: Session =
         password_hash=hash_password(data.password),
         role=UserRole.PARENT,
         full_name=data.full_name,
+        terms_accepted_at=datetime.now(timezone.utc),
+        terms_version=TERMS_VERSION,
     )
     db.add(parent)
     db.commit()
@@ -313,6 +326,9 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
             "admin account, ask your school's existing administrator to create one for you.",
         )
 
+    if not data.accept_terms:
+        raise HTTPException(400, TERMS_REQUIRED_MESSAGE)
+
     existing = db.query(User).filter(email_equals(User.email, data.admin_email)).first()
     if existing:
         raise HTTPException(409, "An account with this email already exists")
@@ -335,6 +351,8 @@ def register_school(request: Request, data: RegisterSchoolRequest, db: Session =
         password_hash=hash_password(data.admin_password),
         role=UserRole.SCHOOL_ADMIN,
         full_name=data.admin_full_name,
+        terms_accepted_at=datetime.now(timezone.utc),
+        terms_version=TERMS_VERSION,
     )
     db.add(admin)
     db.commit()
@@ -402,8 +420,11 @@ def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends
             raise HTTPException(401, "This account has been deactivated. Contact your school office.")
         return _complete_login(user, db)
 
-    # No matching account: self-register as a parent, the same way register-parent does. Google gives us an
-    # email but no phone, so only an invite on that email (or a one-school deployment) can place them.
+    # No matching account: self-register as a parent, the same way register-parent does. That needs the same two
+    # confirmations as the sign-up form (the sign-up tab sends them; the sign-in tab does not).
+    _require_parent_consent(data.accept_terms, data.confirm_guardian)
+
+    # Google gives us an email but no phone, so only an invite on that email (or a one-school deployment) can place them.
     school_id = _resolve_parent_school_id(db, email)
 
     full_name = idinfo.get("name") or email.split("@")[0]
@@ -415,6 +436,8 @@ def google_auth(request: Request, data: GoogleAuthRequest, db: Session = Depends
         password_hash=hash_password(secrets.token_urlsafe(32)),
         role=UserRole.PARENT,
         full_name=full_name,
+        terms_accepted_at=datetime.now(timezone.utc),
+        terms_version=TERMS_VERSION,
     )
     db.add(new_user)
     db.commit()
@@ -463,7 +486,7 @@ def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Sessio
 def setup_2fa(
     request: Request,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     """
     Generates a new TOTP secret and returns the provisioning URI to render
@@ -496,7 +519,7 @@ def enable_2fa(
     request: Request,
     data: TwoFactorEnableRequest,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     db_user = db.get(User, user.user_id)
     if not db_user or not db_user.totp_secret:
@@ -517,7 +540,7 @@ def disable_2fa(
     request: Request,
     data: TwoFactorDisableRequest,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
 ):
     db_user = db.get(User, user.user_id)
     if not db_user:

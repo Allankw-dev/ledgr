@@ -1,7 +1,10 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /** Slide-up sheet for phone menus. Closes on backdrop tap or Escape. */
 export function BottomSheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(sheetRef, open);
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -16,6 +19,7 @@ export function BottomSheet({ open, onClose, title, children }: { open: boolean;
     <div className="md:hidden fixed inset-0 z-50 flex items-end">
       <div className="modal-backdrop-in absolute inset-0 bg-ink-950/60" onClick={onClose} aria-hidden="true" />
       <div
+        ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}

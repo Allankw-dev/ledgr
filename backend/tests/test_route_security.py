@@ -29,6 +29,8 @@ PUBLIC = {
     "POST /api/auth/forgot-password", "POST /api/auth/reset-password", "POST /api/auth/email-change/confirm",
     "POST /api/auth/2fa/verify-login", "POST /api/auth/webauthn/login/options", "POST /api/auth/webauthn/login/verify",
     "POST /api/payments/mpesa/callback", "POST /api/payments/c2b/validation", "POST /api/payments/c2b/confirmation",  # secret token
+    # unsubscribe links in emails: authorised by a signed token that can only switch optional email off or on
+    "POST /api/privacy/unsubscribe", "POST /api/privacy/unsubscribe/one-click", "POST /api/privacy/resubscribe",
 }
 
 # --- reviewed: open to any signed-in role, each scoped inside the handler -------------------------
@@ -36,6 +38,7 @@ ANY_ROLE = {
     # your own account and credentials
     "GET /api/users/me", "PATCH /api/users/me", "GET /api/auth/2fa/status", "GET /api/auth/webauthn/credentials",
     "DELETE /api/auth/webauthn/credentials/{credential_id}", "POST /api/auth/webauthn/register/options", "POST /api/auth/webauthn/register/verify",
+    "GET /api/privacy/me", "PUT /api/privacy/me/email-preferences",  # your own consent record and email choice
     "GET /api/notifications/mentions", "POST /api/notifications/mentions/seen", "GET /api/notifications/summary",
     # school-wide reference data that parents legitimately see
     "GET /api/classes", "GET /api/terms", "GET /api/fee-structures",
@@ -119,6 +122,7 @@ SENSITIVE_MUST_BE_LIMITED = [
     "POST /api/platform/schools/{school_id}/mpesa/mode",
     "POST /api/auth/login", "POST /api/auth/register-parent", "POST /api/auth/forgot-password", "POST /api/auth/reset-password",
     "POST /api/students", "POST /api/invoices/{invoice_id}/void",
+    "POST /api/privacy/me/delete-account", "POST /api/privacy/unsubscribe", "POST /api/privacy/unsubscribe/one-click",
 ]
 
 

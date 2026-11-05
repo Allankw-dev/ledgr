@@ -20,6 +20,18 @@ declare global {
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
+// Google's sign-in script is a third-party script, so it loads only when a page that shows the Google button is
+// opened (sign in / sign up), never for every visitor of every page.
+const GSI_SRC = 'https://accounts.google.com/gsi/client?hl=en';
+function loadGoogleScript() {
+  if (document.querySelector(`script[src="${GSI_SRC}"]`)) return;
+  const script = document.createElement('script');
+  script.src = GSI_SRC;
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
 // Google only accepts a button width between 200 and 400 px. We cap at 320 so it lines up
 // with the form fields on desktop, and otherwise use whatever room the card really has.
 const MIN_WIDTH = 200;
@@ -37,6 +49,7 @@ export function GoogleSignInButton({ onCredential, text = 'signin_with' }: Googl
 
   useEffect(() => {
     if (!CLIENT_ID) return;
+    loadGoogleScript();
     const host = containerRef.current;
     if (!host) return;
     // The wrapper around us is as wide as the form column, so its width is the room we have.
@@ -82,7 +95,7 @@ export function GoogleSignInButton({ onCredential, text = 'signin_with' }: Googl
     const observer = new ResizeObserver(render);
     observer.observe(measured);
 
-    // The GIS script tag (index.html) loads async — poll briefly in case
+    // The GIS script (added by loadGoogleScript above) loads async — poll briefly in case
     // this component mounts before it's finished.
     let interval: ReturnType<typeof setInterval> | undefined;
     if (window.google) {

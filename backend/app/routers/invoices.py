@@ -348,6 +348,8 @@ def send_invoice_reminder(
             balance=balance,
             currency=school.currency,
             due_date=invoice.due_date,
+            guardian_user_id=guardian.id,
+            email_opt_out=guardian.email_opt_out,
         )
         results.append(
             ReminderRecipientResult(

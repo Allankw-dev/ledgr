@@ -482,7 +482,7 @@ export function DirectChat() {
               <Lock className="w-8 h-8 text-emerald-700 mx-auto mb-3" strokeWidth={1.5} />
               <p className="text-sm font-medium text-ink-900">Private, one-to-one</p>
               <p className="text-xs text-ink-600 mt-1">
-                Choose a chat, or start a new one. Only you and the other person can see these conversations.
+                Choose a chat, or start a new one. These conversations are private to you and the other person, unless one of you reports a chat.
               </p>
             </div>
           </div>
@@ -499,7 +499,7 @@ export function DirectChat() {
               </div>
               <span
                 className="ml-auto inline-flex items-center gap-1 text-[11px] text-emerald-700 border border-emerald-700/30 bg-emerald-100 rounded-full px-2.5 py-1 shrink-0"
-                title="Messages and files are encrypted in transit and stored encrypted. Only you and this person can see this chat in Ledgr."
+                title="Messages and files are encrypted in transit and when stored. This chat is private to you and this person, unless one of you reports it: then the school administrator can review the reported messages."
               >
                 <Lock className="w-3 h-3" strokeWidth={2.5} />
                 <span className="hidden sm:inline">Encrypted</span>
@@ -535,7 +535,7 @@ export function DirectChat() {
             <div ref={listRef} onScroll={onScroll} className="chat-wallpaper flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col gap-1.5">
               <div className="self-center max-w-sm text-center text-[11px] text-ink-600 bg-panel/90 border border-ink-200 rounded-lg px-3 py-2 mb-2">
                 <Lock className="w-3 h-3 inline -mt-0.5 mr-1" strokeWidth={2.5} />
-                Messages and files are encrypted in transit and stored encrypted. Only you and {friendlyName(selected.other_name)} can see this chat in Ledgr.
+                Messages and files are encrypted in transit and when stored. This chat is private to you and {friendlyName(selected.other_name)}, unless one of you reports it: then the school administrator can review the reported messages.
               </div>
 
               {loadingThread ? (
@@ -614,7 +614,7 @@ export function DirectChat() {
                   {pendingFile && (
                     <div className="flex items-center gap-3 mb-2 rounded-lg border border-ink-200 bg-ink-100 px-3 py-2">
                       {pendingPreview ? (
-                        <img src={pendingPreview} alt="" className="w-12 h-12 rounded-md object-cover" />
+                        <img src={pendingPreview} alt="Preview of the photo you are about to send" className="w-12 h-12 rounded-md object-cover" />
                       ) : (
                         <div className="w-12 h-12 rounded-md bg-sky/20 text-sky flex items-center justify-center">
                           <FileText className="w-6 h-6" strokeWidth={1.75} />
@@ -622,7 +622,7 @@ export function DirectChat() {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-ink-900 truncate">{pendingFile.name}</p>
-                        <p className="text-[11px] text-ink-400">{formatBytes(pendingFile.size)} · sent encrypted · add a caption if you like</p>
+                        <p className="text-[11px] text-ink-400">{formatBytes(pendingFile.size)} · stored encrypted · add a caption if you like</p>
                       </div>
                       <button type="button" onClick={() => setPendingFile(null)} aria-label="Remove attachment" className="text-ink-400 hover:text-ink-900">
                         <X className="w-4 h-4" strokeWidth={2} />

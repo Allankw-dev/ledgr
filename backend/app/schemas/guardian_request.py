@@ -10,6 +10,10 @@ class RegisterParentRequest(BaseModel):
     email: EmailStr
     phone: str = Field(min_length=7, description="e.g. +254712345678", max_length=32)
     password: NewPassword
+    # Both must be true. Ledgr holds a child's name, class and fee records, so the person signing up has to confirm
+    # they are an adult and the child's parent or guardian, and that they accept the Terms and Privacy Policy.
+    accept_terms: bool = False
+    confirm_guardian: bool = False
 
 
 class StudentLookupResult(BaseModel):

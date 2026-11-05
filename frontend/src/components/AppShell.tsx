@@ -12,6 +12,8 @@ import { Modal } from './ui/Modal';
 import { EditStaffProfileForm } from './EditStaffProfileForm';
 import { NotificationsProvider } from './NotificationsContext';
 import { SubscriptionBanner } from './SubscriptionBanner';
+import { SiteFooter } from './SiteFooter';
+import { SkipLink } from './SkipLink';
 import { useSubscription } from '../hooks/useSubscription';
 import { Avatar } from './dx/Avatar';
 
@@ -327,7 +329,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {mobileNavOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="modal-backdrop-in absolute inset-0 bg-ink-950/60" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
-          <aside className="drawer-in relative w-72 max-w-[85vw] bg-paper border-r border-white/10 flex flex-col h-full shadow-[20px_0_50px_-10px_rgba(0,0,0,0.8)]">
+          <aside role="dialog" aria-modal="true" aria-label="Menu" className="drawer-in relative w-72 max-w-[85vw] bg-paper border-r border-white/10 flex flex-col h-full shadow-[20px_0_50px_-10px_rgba(0,0,0,0.8)]">
             {renderSidebar(false, () => setMobileNavOpen(false))}
           </aside>
         </div>
@@ -341,7 +343,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         {renderSidebar(collapsed)}
       </aside>
 
-      <main className="flex-1 min-w-0 relative z-10 pt-14 md:pt-0 pb-28 md:pb-0">
+      <SkipLink />
+      <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 relative z-10 pt-14 md:pt-0 pb-28 md:pb-0 focus:outline-none">
         {/* Top-right actions: go back + notifications */}
         <div className="hidden md:flex items-center justify-between gap-4 px-6 xl:px-8 pt-5">
           <div className="flex items-center gap-3 min-w-0">
@@ -370,6 +373,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SubscriptionBanner subscription={subscription} />
         {children}
         </div>
+        <SiteFooter />
       </main>
 
       <BottomNav items={bottomItems} />

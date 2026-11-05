@@ -20,9 +20,14 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return data;
 }
 
-export async function googleAuth(credential: string): Promise<LoginResponse | TwoFactorRequiredResponse> {
+export async function googleAuth(
+  credential: string,
+  // Only the sign-up form sends these; they are needed only if Google sign-in would create a NEW account.
+  consent?: { accept_terms: boolean; confirm_guardian: boolean },
+): Promise<LoginResponse | TwoFactorRequiredResponse> {
   const { data } = await apiClient.post<LoginResponse | TwoFactorRequiredResponse>('/api/auth/google', {
     credential,
+    ...(consent ?? {}),
   });
   return data;
 }
@@ -55,7 +60,14 @@ export async function disable2FA(password: string): Promise<{ enabled: boolean }
   return data;
 }
 
-export async function registerParent(payload: { full_name: string; email: string; phone: string; password: string }): Promise<LoginResponse> {
+export async function registerParent(payload: {
+  full_name: string;
+  email: string;
+  phone: string;
+  password: string;
+  accept_terms: boolean;
+  confirm_guardian: boolean;
+}): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>('/api/auth/register-parent', payload);
   return data;
 }

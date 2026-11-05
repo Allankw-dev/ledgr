@@ -183,7 +183,15 @@ export function ParentInvoicesPage() {
                               className="text-ink-900 cursor-pointer hover:bg-ink-100/60 align-top"
                             >
                               <td className="pl-5 py-2.5 text-ink-400">
-                                <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
+                                <button
+                                  type="button"
+                                  aria-expanded={isExpanded}
+                                  aria-label={`${isExpanded ? 'Hide' : 'Show'} details for the invoice due ${new Date(inv.due_date).toLocaleDateString('en-KE')}`}
+                                  onClick={(e) => { e.stopPropagation(); toggleInvoice(inv.id); }}
+                                  className="rounded p-1 -m-1"
+                                >
+                                  <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} aria-hidden="true" />
+                                </button>
                               </td>
                               <td className="px-5 py-2.5">{new Date(inv.due_date).toLocaleDateString('en-KE')}</td>
                               <td className="px-5 py-2.5 figure text-right">{formatCurrency(Number(inv.total_amount))}</td>

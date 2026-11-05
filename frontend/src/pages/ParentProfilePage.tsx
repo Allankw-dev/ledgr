@@ -5,6 +5,7 @@ import { UpdatePhoneForm } from '../components/UpdatePhoneForm';
 import { UpdateEmailForm } from '../components/UpdateEmailForm';
 import { getMyProfile, type MyProfile } from '../api/user';
 import { FingerprintSettings } from '../components/FingerprintSettings';
+import { PrivacyDataCard } from '../components/PrivacyDataCard';
 
 export function ParentProfilePage() {
   const [profile, setProfile] = useState<MyProfile | null>(null);
@@ -44,6 +45,8 @@ export function ParentProfilePage() {
           </div>
 
           <FingerprintSettings />
+
+          <PrivacyDataCard />
         </div>
       )}
     </ParentShell>

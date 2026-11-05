@@ -26,6 +26,8 @@ import { NotificationBell } from './NotificationBell';
 import { BottomNav, type BottomNavItem } from './BottomNav';
 import { BottomSheet } from './BottomSheet';
 import { NotificationsProvider } from './NotificationsContext';
+import { SiteFooter } from './SiteFooter';
+import { SkipLink } from './SkipLink';
 
 type BadgeKey = 'unreadMessages' | 'unreadClassGroups' | 'unreadDirect';
 
@@ -185,7 +187,7 @@ export function ParentShell({ children, wide = false }: { children: ReactNode; w
       {drawerOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="modal-backdrop-in absolute inset-0 bg-ink-950/60" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
-          <aside className="drawer-in relative w-72 max-w-[85vw] bg-paper border-r border-white/10 flex flex-col h-full shadow-[20px_0_50px_-10px_rgba(0,0,0,0.8)]">
+          <aside role="dialog" aria-modal="true" aria-label="Menu" className="drawer-in relative w-72 max-w-[85vw] bg-paper border-r border-white/10 flex flex-col h-full shadow-[20px_0_50px_-10px_rgba(0,0,0,0.8)]">
             {renderPanel(false, () => setDrawerOpen(false))}
           </aside>
         </div>
@@ -224,10 +226,12 @@ export function ParentShell({ children, wide = false }: { children: ReactNode; w
           </div>
         </header>
 
-        <main className={`${maxW} mx-auto px-4 sm:px-6 pt-2 md:pt-4 pb-32 md:pb-24 relative z-10`}>
+        <SkipLink />
+        <main id="main-content" tabIndex={-1} className={`${maxW} mx-auto px-4 sm:px-6 pt-2 md:pt-4 pb-32 md:pb-24 relative z-10 focus:outline-none`}>
           <div key={location.pathname} className="page-enter">
             {children}
           </div>
+          <SiteFooter />
         </main>
       </div>
 
