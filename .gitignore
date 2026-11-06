@@ -1,3 +1,4 @@
 # The portfolio site lives in its own repo (Allankw-dev/allankw-dev.github.io).
 # If you keep a local copy next to this project, don't let git treat it as part of Ledgr.
 /allankw-dev.github.io/
+/index.html
