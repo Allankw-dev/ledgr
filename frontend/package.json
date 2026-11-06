@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^5.9.0",
     "@sentry/react": "^11.1.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@vercel/speed-insights": "^2.1.0",
     "axios": "^1.19.0",
     "lucide-react": "^1.31.0",
     "qrcode.react": "^4.2.0",
