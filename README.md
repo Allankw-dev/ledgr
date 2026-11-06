@@ -32,7 +32,7 @@
 
 ## Features
 
-Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and **parents**. A `SUPER_ADMIN` role exists for platform-level access.
+Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and **parents**. A `SUPER_ADMIN` role exists for platform-level access..
 
 ### For schools (admin / bursar)
 
@@ -229,7 +229,7 @@ cd backend
 python scripts/create_super_admin.py you@example.com "Your Name"    # asks for the password
 ```
 
-Sign in with that account, open **Schools and billing**, and use **Add school**: give the school's name, its administrator's name and email, and optionally a trial length and learner limit. The administrator is emailed a link (valid for 30 minutes) to set their own password, and can use "Forgot password" later if it expires. Nobody, including the operator, ever sees or chooses that password.
+Sign in with that account and turn on two-factor sign-in when the Platform page asks (the platform screens stay locked until it is on; if you lose the authenticator, `python -m scripts.dev.reset_2fa you@example.com`). Then open **Schools and billing**, and use **Add school**: give the school's name, its administrator's name and email, and optionally a trial length and learner limit. The administrator is emailed a link (valid for 30 minutes) to set their own password, and can use "Forgot password" later if it expires. Nobody, including the operator, ever sees or chooses that password.
 
 A parent's school is decided by an invite the school created ("Add student" or "Link parent" with their phone or email). With one school on the deployment no invite is needed. With several and no invite, signup is refused rather than guessed.
 

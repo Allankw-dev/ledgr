@@ -164,6 +164,11 @@ class Settings(BaseSettings):
     # password reset can take to cut off an already-issued token.
     user_state_cache_seconds: int = 30
 
+    # The platform operator (SUPER_ADMIN) can switch schools off and change where a school's M-Pesa money goes,
+    # so the platform routes refuse an operator whose two-factor sign-in is not switched on. Leave this ON.
+    # Setting it to false is only for local development.
+    platform_require_2fa: bool = True
+
     # --- Chat attachments (photos / files in class group chats) --------------
     # Production: set SUPABASE_URL + SUPABASE_SERVICE_KEY and create a PRIVATE
     # bucket (default name below) — files then live in Supabase Storage and

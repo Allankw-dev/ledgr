@@ -486,7 +486,7 @@ def verify_login(request: Request, data: TwoFactorVerifyLoginRequest, db: Sessio
 def setup_2fa(
     request: Request,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
 ):
     """
     Generates a new TOTP secret and returns the provisioning URI to render
@@ -519,7 +519,7 @@ def enable_2fa(
     request: Request,
     data: TwoFactorEnableRequest,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
 ):
     db_user = db.get(User, user.user_id)
     if not db_user or not db_user.totp_secret:
@@ -540,7 +540,7 @@ def disable_2fa(
     request: Request,
     data: TwoFactorDisableRequest,
     db: Session = Depends(get_system_db),
-    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR")),
+    user: CurrentUser = Depends(require_roles("SCHOOL_ADMIN", "BURSAR", "SUPER_ADMIN")),
 ):
     db_user = db.get(User, user.user_id)
     if not db_user:
