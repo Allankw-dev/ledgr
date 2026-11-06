@@ -112,6 +112,17 @@ function AuthAlert({ children, center = false }: { children: React.ReactNode; ce
   );
 }
 
+/** Only a real credentials rejection says "incorrect"; a server fault or lost connection must not look like a typo. */
+function loginFailureMessage(err: unknown): string {
+  const status = (err as { response?: { status?: number } })?.response?.status;
+  if (status === 429) return 'Too many attempts. Please wait a few minutes and try again.';
+  if (status !== undefined && status >= 500) {
+    return "Ledgr couldn't sign you in just now. This is a problem on our side, not your details. Please try again shortly.";
+  }
+  if (axios.isAxiosError(err) && !err.response) return "Can't reach Ledgr. Check your internet connection and try again.";
+  return 'Incorrect email/phone or password. Check your details and try again.';
+}
+
 function TrustNote() {
   return (
     <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-ink-400">
@@ -225,8 +236,8 @@ export function AuthPage({ initialMode }: AuthPageProps) {
       } else {
         completeLogin(result.token, result.user, result.refresh_token);
       }
-    } catch {
-      setLoginError('Incorrect email/phone or password. Check your details and try again.');
+    } catch (err: unknown) {
+      setLoginError(loginFailureMessage(err));
     } finally {
       setLoginLoading(false);
     }
@@ -690,8 +701,9 @@ export function AuthPage({ initialMode }: AuthPageProps) {
             </div>
           </div>
         </div>
-        <SiteFooter className="mt-2" />
       </div>
+      {/* Outside the block that useFitToViewport shrinks, so the legal links never make the card smaller. */}
+      <SiteFooter className="relative z-10 shrink-0" />
     </div>
   );
 }

@@ -15,11 +15,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('users', sa.Column('terms_accepted_at', sa.DateTime(timezone=True), nullable=True))
-    op.add_column('users', sa.Column('terms_version', sa.String(), nullable=True))
-    op.add_column('users', sa.Column('email_opt_out', sa.Boolean(), server_default='false', nullable=False))
-    op.add_column('users', sa.Column('email_opt_out_at', sa.DateTime(timezone=True), nullable=True))
-    op.add_column('users', sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True))
+    # "IF NOT EXISTS" on purpose: these columns were first added to production by hand to bring login back after the
+    # code was deployed ahead of this migration, so running it again must not fail.
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP WITH TIME ZONE")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version VARCHAR")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_out BOOLEAN NOT NULL DEFAULT false")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_out_at TIMESTAMP WITH TIME ZONE")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE")
 
 
 def downgrade() -> None:

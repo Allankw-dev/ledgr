@@ -1,6 +1,6 @@
 import { useLayoutEffect, type RefObject } from 'react';
 
-const MIN_SCALE = 0.62; // never shrink below this — past it, scrolling beats unreadable text
+const MIN_SCALE = 0.85; // never shrink below this — past it, scrolling beats small text (was 0.62: too small)
 const BREATHING_ROOM = 16; // px kept free above/below
 
 /**
