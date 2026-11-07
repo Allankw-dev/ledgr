@@ -6,8 +6,8 @@
 const env = import.meta.env as Record<string, string | undefined>;
 
 /** Keep equal to TERMS_VERSION in backend/app/core/legal.py. Bump both when the Terms or Privacy Policy change. */
-export const LEGAL_VERSION = '2026-11-05';
-export const LEGAL_UPDATED = '5 November 2026';
+export const LEGAL_VERSION = '2026-11-06';
+export const LEGAL_UPDATED = '6 November 2026';
 
 export const OPERATOR = {
   /** Registered name of the business or person running this service. */

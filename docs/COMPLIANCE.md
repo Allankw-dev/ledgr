@@ -12,7 +12,7 @@ the Privacy Policy, Terms and Refund Policy before launch.
 | 2 | Terms of service | Done (draft) | `/terms` |
 | 3 | Refund policy | Done (draft) | `/refunds` |
 | 4 | Cookie policy | Done. Ledgr sets **no cookies** | `/cookies` |
-| 5 | Cookie consent banner | A notice, not a consent choice, because nothing non-essential is used | `components/CookieNotice.tsx` |
+| 5 | Cookie consent banner | A notice, not a consent choice: Ledgr sets no cookies, and its only analytics (Vercel Web Analytics) is cookie-free and anonymous | `components/CookieNotice.tsx` |
 | 6 | Check form consents | Terms + Privacy tick box (unticked by default), checked again on the server, time and version stored | `AuthPage.tsx`, `routers/auth.py`, `users.terms_*` |
 | 7 | No unnecessary data | Reviewed. Date of birth is optional; no national ID, card or health data is collected | see Privacy Policy section 2 |
 | 8 | Audit third-party SDKs | Done, see inventory below. Google Fonts removed; Google sign-in script now loads only on sign-in/up pages | below |
@@ -60,8 +60,10 @@ the Privacy Policy, Terms and Refund Policy before launch.
   private chat that was reported for safeguarding. This is stated in the Privacy Policy.
 - **Data export.** The Data Protection Act also gives a right to a copy of your data. There is no self-serve export
   yet; requests go to the contact email.
-- **If you add analytics or ads later**, replace the notice with a real accept/decline banner that blocks the
-  tracker until the person agrees, and update the Cookie Policy.
+- **If you add cookies, advertising, session replay or any analytics that follows a person**, replace the notice with
+  a real accept/decline banner that blocks the tracker until the person agrees, and update the Cookie Policy.
+  Vercel Web Analytics is acceptable without consent only while it stays cookie-free and the address-cleaning in
+  `PrivacyFriendlyAnalytics.tsx` stays in place.
 
 ## Third-party inventory
 
@@ -69,6 +71,7 @@ the Privacy Policy, Terms and Refund Policy before launch.
 |---------|----------|----------------------|-----------------|
 | Supabase | Database and file storage | Always (backend) | All app data (it is the database) |
 | Vercel | Hosts the web app | Always | Normal web-server logs (IP, browser) |
+| Vercel Web Analytics | Anonymous page-view counts | In the browser, unless Do Not Track / Global Privacy Control is on, and never on token pages | Page path (query string, #fragment and ids removed), country, browser type. No cookies. See `PrivacyFriendlyAnalytics.tsx` |
 | Safaricom Daraja | M-Pesa payment prompts | When a parent pays | Amount, school paybill, payer phone |
 | Africa's Talking | SMS | When SMS is configured | Phone number, message text |
 | Brevo / Resend / SMTP | Email | When email is configured | Email address, subject, body |

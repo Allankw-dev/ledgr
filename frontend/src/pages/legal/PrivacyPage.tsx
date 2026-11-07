@@ -21,6 +21,7 @@ export function PrivacyPage() {
         <li><strong>Payments:</strong> amount, date, method, the M-Pesa receipt number, and the phone number M-Pesa reports as having paid.</li>
         <li><strong>Teachers and school staff:</strong> name, email or phone, role, and an activity log of important actions (such as recording a payment) kept for accountability.</li>
         <li><strong>Messages:</strong> messages between a parent and the school, class group chat posts, private chats between a teacher and a parent, and any photos or files you attach.</li>
+        <li><strong>Anonymous page-view statistics:</strong> which pages of Ledgr are opened, roughly where from (country level) and on what kind of browser, counted by Vercel Web Analytics. It sets no cookies and stores no names or account details. The part of a web address after a "?" or "#", which can contain one-time links, is never sent, ids inside addresses are replaced by a placeholder, and pages that only handle a one-time link are not counted at all. Nothing is sent if your browser has Do Not Track or Global Privacy Control switched on.</li>
         <li><strong>Technical data:</strong> IP address, browser and device type, and sign-in times, kept in server logs and used to stop abuse and keep accounts safe. If error reporting is switched on, a report of what went wrong (without your personal details) is sent to our error-monitoring provider.</li>
       </UL>
       <P>We ask for the minimum needed. A child&apos;s date of birth is optional. We do not collect national ID numbers, bank card numbers, health data or religion.</P>
@@ -30,6 +31,7 @@ export function PrivacyPage() {
         <li>To run your school&apos;s fee accounts: send invoices, record and match payments, show balances and issue receipts. <em>Basis: performing the service the school and you rely on.</em></li>
         <li>To keep records the school must keep for accounting and audit. <em>Basis: legal obligation.</em></li>
         <li>To keep accounts secure and prevent fraud and abuse. <em>Basis: legitimate interest.</em></li>
+        <li>To count anonymous page views so we can see which parts of Ledgr are used and fix what is slow or broken. <em>Basis: legitimate interest; nothing personal is recorded and you can opt out with Do Not Track.</em></li>
         <li>To send fee reminders, overdue notices and school announcements. <em>Basis: the school&apos;s legitimate interest in collecting fees. You can switch these emails off at any time (see section 9).</em></li>
         <li>For optional features you turn on yourself, such as Google sign-in or fingerprint sign-in. <em>Basis: your consent, which you can withdraw by turning the feature off.</em></li>
       </UL>
@@ -39,7 +41,7 @@ export function PrivacyPage() {
       <UL>
         <li><strong>Your school:</strong> administrators and bursars see student and fee records. Class teachers see only what their role allows. A parent sees only their own approved children.</li>
         <li><strong>Other parents:</strong> only your name and messages in a class group chat you share. Never fee details.</li>
-        <li><strong>Service providers</strong> that run Ledgr for us. Depending on how your school&apos;s Ledgr is set up these may include: a database and file-storage host (Supabase), a web host (Vercel and an API host), Safaricom (M-Pesa payments), an SMS provider (Africa&apos;s Talking), an email provider (Brevo, Resend or the school&apos;s own mail server), Google (only if you use Google sign-in), and an error-monitoring service (Sentry). Each receives only what it needs for its job.</li>
+        <li><strong>Service providers</strong> that run Ledgr for us. Depending on how your school&apos;s Ledgr is set up these may include: a database and file-storage host (Supabase), a web host (Vercel, which also provides the anonymous page-view statistics, and an API host), Safaricom (M-Pesa payments), an SMS provider (Africa&apos;s Talking), an email provider (Brevo, Resend or the school&apos;s own mail server), Google (only if you use Google sign-in), and an error-monitoring service (Sentry). Each receives only what it needs for its job.</li>
         <li><strong>Authorities</strong> when the law requires it.</li>
       </UL>
 
@@ -81,7 +83,7 @@ export function PrivacyPage() {
       </UL>
 
       <H2>10. Cookies and similar storage</H2>
-      <P>Ledgr does not set cookies and has no advertising or analytics trackers. See the <Link className="underline" to="/cookies">Cookie Policy</Link>.</P>
+      <P>Ledgr does not set cookies and has no advertising trackers. Its only analytics are the anonymous, cookie-free page counts described in section 2. See the <Link className="underline" to="/cookies">Cookie Policy</Link>.</P>
 
       <H2>11. Changes to this policy</H2>
       <P>If we change this policy in a way that matters, we will update the date above and, for significant changes, tell you in the app or by email.</P>

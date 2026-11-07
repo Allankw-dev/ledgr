@@ -12,9 +12,10 @@ function alreadyAcknowledged(): boolean {
 }
 
 /**
- * Tells people what Ledgr keeps on their device. Ledgr sets no cookies and has no analytics or advertising, so
- * nothing here needs a consent choice: this is a notice with one button, not a fake "accept all". If tracking is
- * ever added, replace this with a real accept/decline banner that blocks the tracker until the person agrees.
+ * Tells people what Ledgr keeps on their device. Ledgr sets no cookies and has no advertising; its only analytics
+ * (Vercel Web Analytics) is cookie-free and anonymous, so nothing here needs a consent choice: this is a notice with
+ * one button, not a fake "accept all". If cookies, advertising or cross-site tracking are ever added, replace this
+ * with a real accept/decline banner that blocks them until the person agrees.
  */
 export function CookieNotice() {
   const [visible, setVisible] = useState(() => !alreadyAcknowledged());
@@ -36,7 +37,7 @@ export function CookieNotice() {
       className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl rounded-xl border border-ink-200 bg-ink-100 p-4 shadow-lg sm:bottom-4"
     >
       <p className="text-sm text-ink-700 leading-relaxed">
-        Ledgr uses no advertising or tracking cookies. It keeps your sign-in session and a few display settings on this device so the app works.{' '}
+        Ledgr uses no advertising or tracking cookies. It counts page views anonymously, and keeps your sign-in session and a few display settings on this device so the app works.{' '}
         <Link to="/cookies" className="underline text-ink-900">Cookie Policy</Link>
         {' · '}
         <Link to="/privacy" className="underline text-ink-900">Privacy Policy</Link>

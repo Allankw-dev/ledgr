@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LiveBackground } from './components/LiveBackground';
 import { CookieNotice } from './components/CookieNotice';
+import { PrivacyFriendlyAnalytics } from './components/PrivacyFriendlyAnalytics';
 
 // Every page loads lazily, split into its own chunk — without this the
 // whole app (every admin page, every parent page, all ~25 routes) shipped
@@ -267,6 +268,7 @@ export default function App() {
       </Routes>
       </Suspense>
       <CookieNotice />
+      <PrivacyFriendlyAnalytics />
     </BrowserRouter>
   );
 }

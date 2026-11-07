@@ -5,7 +5,7 @@ either document changes in a way people should re-accept, and keep it equal to L
 frontend/src/config/legal.ts.
 """
 
-TERMS_VERSION = "2026-11-05"
+TERMS_VERSION = "2026-11-06"
 
 # What a person is told, in the API's own words, when they try to create an account without agreeing.
 TERMS_REQUIRED_MESSAGE = "Please accept the Terms of Service and Privacy Policy to create an account."
