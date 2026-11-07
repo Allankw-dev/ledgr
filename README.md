@@ -25,6 +25,7 @@
 - [Testing and CI](#testing-and-ci)
 - [Deploying and scaling](#deploying-and-scaling)
 - [Security](#security)
+- [Privacy and legal](#privacy-and-legal)
 - [More docs](#more-docs)
 - [Status](#status)
 
@@ -58,6 +59,7 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 - Request and track an installment plan.
 - A parent assistant that explains why a balance exists (itemized), summarizes a term and can *preview* a payment plan. It only sees that parent's own linked children.
 - Direct messages with the school office and with teachers.
+- Privacy controls in Profile: switch reminder and announcement emails off, see when they accepted the Terms, and delete their own account.
 
 ### For teachers
 
@@ -85,6 +87,7 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 | **Background work** | Postgres-backed job queue (`FOR UPDATE SKIP LOCKED`), APScheduler for the daily sweep |
 | **Payments** | M-Pesa Daraja API (STK Push + C2B), sandbox and production |
 | **Messaging** | Email over HTTPS (Brevo or Resend) or SMTP, Africa's Talking SMS |
+| **Privacy** | Consent recorded at sign-up, signed unsubscribe links with `List-Unsubscribe` headers, self-service account erasure, self-hosted fonts, cookie-free Vercel Web Analytics |
 | **AI** | Gemini (free tier) or Claude via a shared provider layer, tool-calling only |
 | **ML** | scikit-learn (Isolation Forest anomaly detection) |
 | **Documents** | ReportLab (PDFs), openpyxl (exports) |
@@ -162,12 +165,16 @@ backend/
 frontend/
 └── src/
     ├── api/           # thin axios wrappers, one file per backend resource
-    ├── components/    # shells, chat, notification bell, payment UI; ui/ holds the primitives
+    ├── components/    # shells, chat, notification bell, payment UI; ui/ holds the primitives; legal/ the policy-page frame
+    ├── config/        # legal.ts (operator details, policy version), analyticsEvents.ts (what analytics may see)
     ├── hooks/         # data-fetching hooks
     ├── pages/         # one file per route across the admin, teacher and parent portals
     ├── store/         # Zustand auth store
     ├── types/         # shared TS types mirroring backend schemas
     └── __tests__/     # Vitest tests
+
+docs/
+└── COMPLIANCE.md      # legal and privacy checklist, third-party inventory, what the operator must still do
 ```
 
 ---
@@ -249,6 +256,9 @@ A parent's school is decided by an invite the school created ("Add student" or "
 | **Sign-in** | `GOOGLE_CLIENT_ID` (also `VITE_GOOGLE_CLIENT_ID` in the frontend), `WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME` |
 | **Chat** | `MESSAGE_ENCRYPTION_KEYS`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` for attachments |
 | **Scale and ops** | `REDIS_URL`, `SENTRY_DSN`, `MONITOR_TOKEN`, `SWEEP_HEARTBEAT_URL`, `RUN_SCHEDULER`, `RUN_JOB_WORKER` |
+| **Legal and privacy** | Backend: `API_PUBLIC_URL` (optional; lets mail apps show a one-tap Unsubscribe button). Frontend, set at build time on Vercel: `VITE_LEGAL_ENTITY`, `VITE_LEGAL_REG_NO`, `VITE_LEGAL_ADDRESS`, `VITE_LEGAL_EMAIL`, `VITE_LEGAL_PHONE`, `VITE_ODPC_REG_NO` |
+
+**Business details.** The footer and the Privacy Policy, Terms and Refund Policy show who runs the service from the `VITE_LEGAL_*` variables. Nothing is invented: a field left empty shows a visible "operator to add" marker on the page, so fill these in before going live.
 
 **Email on Render's free tier:** outbound SMTP ports (25/465/587) are blocked there, so `SMTP_*` times out. Use `BREVO_API_KEY` or `RESEND_API_KEY`, then run `python -m scripts.dev.check_email you@example.com` from a Render shell.
 
@@ -354,6 +364,10 @@ ROLLBACK;
 
 The role should also be unable to `ALTER TABLE`, or to `DELETE` from `audit_logs`.
 
+### Migrations
+
+Keep the Alembic history a single line. If two migrations are written on the same parent there are two heads, and `alembic upgrade head` refuses to run. `tests/test_migration_heads.py` fails when that happens; fix it with a merge migration (a file whose `down_revision` is a tuple of the two heads and whose `upgrade()` and `downgrade()` are empty). Check with `alembic heads`, which should list exactly one.
+
 ### Frontend
 
 ```bash
@@ -362,6 +376,8 @@ npm run lint        # oxlint
 npm test            # vitest
 npm run build       # typechecks (tsc -b) and builds
 ```
+
+Don't add two files whose names differ only in capitalisation (for example `Foo.tsx` and `foo.ts`). Linux and Vercel treat them as separate files, but Windows and macOS don't, so `tsc` fails there with errors about the "already included file name".
 
 ### Dependency audit
 
@@ -434,6 +450,8 @@ A full review of the code, configuration and dependencies is in [`SECURITY-AUDIT
 - API docs are hidden outside development, stack traces never reach clients, and the app refuses to start in production with a weak or missing secret.
 - `vercel.json` sets the frontend security headers. It **enforces** `frame-ancestors`, `base-uri` and `form-action`, and carries the full Content-Security-Policy as *Report-Only*. To enforce the full policy, open the live site with DevTools open, sign in (including with Google) and open an invoice PDF, look for CSP messages in the console, and if there are none rename the `Content-Security-Policy-Report-Only` header to `Content-Security-Policy`. (Chrome applies `object-src 'none'` to PDFs opened from `blob:` URLs, so check the PDFs first.)
 
+- No third-party fonts: they are bundled with the app. Google's sign-in script loads only on the sign-in and sign-up pages. The catch-all rewrite in `vercel.json` skips `/_vercel/` so Vercel's own endpoints (analytics) are never swallowed by the app.
+
 **Payments and messages**
 - Webhook secret token and optional IP allowlist on M-Pesa callbacks. A callback can only settle a payment Ledgr itself created.
 - Each school's own M-Pesa key, secret and passkey are encrypted at rest (AES-256-GCM, bound to the school), write-only through the API, kept out of every log and the audit trail, and stored in a table the restricted database role cannot read at all, even for its own school. A school's webhook address carries a token that can only affect that school.
@@ -445,10 +463,26 @@ Found a vulnerability? Please report it privately rather than opening a public i
 
 ---
 
+## Privacy and legal
+
+Built in, with the details in [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md):
+
+- **Public policy pages:** `/privacy`, `/terms`, `/refunds` and `/cookies`, written for Kenya's Data Protection Act, 2019, with a footer link on the sign-in page and inside the app. They are drafts: have a lawyer read them before launch.
+- **Consent at sign-up:** the Terms and Privacy box and the "I am 18 or older and the child's parent or guardian" box start unticked, are checked again on the server, and the time and version are stored on the user. Signing up with Google needs both ticked too.
+- **Unsubscribe:** fee reminders, overdue notices and announcements carry a signed unsubscribe link and one-click headers, and skip people who opted out. Payment receipts and security emails are always sent. SMS is not covered.
+- **Account erasure:** parents can delete their own account in Profile, Privacy & data. Personal details, links to children, messages and chat posts are removed; payments and the audit log stay with the person's details stripped. Staff ask their school administrator.
+- **Analytics:** Vercel Web Analytics counts page views. It sets no cookies. Query strings and `#` fragments are never sent, the one-time-link pages are not counted, ids in paths become `:id`, and nothing is sent if the browser has Do Not Track or Global Privacy Control on. Keep `config/analyticsEvents.ts` and the Privacy and Cookie policies in step. Enable it once in the Vercel dashboard, Analytics tab.
+- **Accessibility:** a skip link, dialogs that trap and restore keyboard focus, text colours that meet WCAG AA contrast, and descriptive alt text on image previews.
+
+**Before you go live:** set the `VITE_LEGAL_*` variables, run `alembic upgrade head`, deploy the backend and frontend together (the backend now rejects parent sign-up without the two consent flags), and check whether you or your schools must register with the Office of the Data Protection Commissioner.
+
+---
+
 ## More docs
 
 | Doc | What's in it |
 |---|---|
+| [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | Legal and privacy: the checklist and where each item lives, third-party inventory, licences, and what the operator still has to do |
 | [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md) | Security review: what was found and fixed, what was checked, and the pre-deploy checklist |
 | [`backend/README.md`](backend/README.md) | Backend setup, AI provider config, test details |
 | [`backend/SCALING.md`](backend/SCALING.md) | Running more than one instance |
@@ -462,7 +496,3 @@ Found a vulnerability? Please report it privately rather than opening a public i
 ## Status
 
 Ledgr is built feature by feature rather than shipped as one release. If something here doesn't match what you find in the code, the code is more likely right. Treat this file as a map, not a contract.
-
-## Privacy and legal
-
-Privacy Policy, Terms, Refund and Cookie pages are built in (`/privacy`, `/terms`, `/refunds`, `/cookies`), parents can unsubscribe from optional email and erase their own account, and sign-up records consent. What each part does, and what you still have to fill in or have reviewed, is in [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
