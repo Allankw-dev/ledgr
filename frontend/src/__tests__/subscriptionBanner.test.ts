@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Subscription } from '../api/subscription';
-import { bannerFor } from '../components/subscriptionBanner';
+import { bannerFor } from '../components/subscriptionBannerLogic';
 
 const sub = (over: Partial<Subscription> = {}): Subscription => ({
   status: 'ACTIVE', read_only: false, days_left: null, ends_at: null, plan: 'STANDARD', learner_count: 100, learner_limit: null, over_limit: false, ...over,

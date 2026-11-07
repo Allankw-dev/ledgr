@@ -1,6 +1,6 @@
 import { AlertTriangle, Lock } from 'lucide-react';
 import type { Subscription } from '../api/subscription';
-import { bannerFor } from './subscriptionBanner';
+import { bannerFor } from './subscriptionBannerLogic';
 
 export function SubscriptionBanner({ subscription }: { subscription: Subscription | null }) {
   const info = bannerFor(subscription);
