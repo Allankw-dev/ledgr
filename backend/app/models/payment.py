@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Enum as SAEnum, JSON
+from sqlalchemy import String, DateTime, ForeignKey, Index, func, Enum as SAEnum, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -18,6 +18,8 @@ class Payment(Base):
     """
 
     __tablename__ = "payments"
+    # Lets the operator's per-school payment health counts (by status, recent first) stay fast on a big table.
+    __table_args__ = (Index("ix_payments_school_status_created", "school_id", "status", "created_at"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     school_id: Mapped[str] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)

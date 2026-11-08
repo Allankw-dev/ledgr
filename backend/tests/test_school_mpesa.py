@@ -363,13 +363,17 @@ def test_switching_to_the_schools_own_paybill_needs_saved_and_tested_details(db,
     assert http.post(url, headers=operator.headers, json={"mode": "NOPE"}).status_code == 422
 
 
-def test_the_server_wide_paybill_needs_complete_server_settings_and_warns_when_shared(db, world, http, operator, monkeypatch):
+def test_the_server_wide_paybill_needs_complete_server_settings_and_sharing_needs_confirming(db, world, http, operator, monkeypatch):
     other = make_school(db, "Other School")
     url = f"/api/platform/schools/{other.school.id}/mpesa/mode"
     assert http.post(url, headers=operator.headers, json={"mode": "GLOBAL"}).status_code == 409  # MPESA_* not set
     use_global_mpesa(db, world.school, monkeypatch)
-    res = http.post(url, headers=operator.headers, json={"mode": "GLOBAL"}).json()
-    assert res["status"]["mode"] == "GLOBAL" and "also use the server-wide paybill" in res["message"]
+    # world.school is now on the server-wide paybill, so putting a SECOND school on it is a decision, not a default.
+    refused = http.post(url, headers=operator.headers, json={"mode": "GLOBAL"})
+    assert refused.status_code == 409 and "same account" in refused.json()["detail"]
+    assert http.get(f"/api/platform/schools/{other.school.id}/mpesa", headers=operator.headers).json()["mode"] == "OFF"
+    res = http.post(url, headers=operator.headers, json={"mode": "GLOBAL", "confirm_shared": True}).json()
+    assert res["status"]["mode"] == "GLOBAL" and "shares the server-wide paybill" in res["message"]
 
 
 def test_registering_with_safaricom_gives_the_school_its_own_addresses(db, world, http, operator, daraja):

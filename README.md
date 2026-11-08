@@ -72,8 +72,10 @@ Ledgr has four kinds of users: **school admins**, **bursars**, **teachers** and 
 - Installable as a PWA (web manifest and service worker), with a mobile-first layout.
 - Notification bell covering school messages, class chats, teacher chats and mentions.
 - **More than one school on one deployment.** The signup page creates the **first** school only. Every further school is added by the platform operator (a `SUPER_ADMIN`) from the *Schools and billing* page, and that school's admin gets an emailed link to set their own password. A parent who signs up is placed in the school that invited them (by phone or email), and Ledgr refuses to guess when it can't tell. See [More than one school](#5-more-than-one-school-optional).
-- **Each school can have its own M-Pesa paybill.** Online M-Pesa is **off** for a new school until the operator sets it up, so its parents can never pay into another school's paybill. The operator enters the school's Daraja details in *Schools and billing > Payments*, tests them, registers the school's paybill addresses with Safaricom and switches it on. The details are stored encrypted. Direct paybill payments are routed by the paybill they were paid to, so two schools can both have a student `1001`. See [Giving a school its own paybill](#giving-a-school-its-own-paybill).
-- **Subscriptions.** Each school has a plan, trial and paid-until dates and an optional learner limit. A school moves through `TRIAL` / `ACTIVE`, then `GRACE`, then `EXPIRED` (or `SUSPENDED` by the operator). Expired and suspended schools become **read-only for staff**; parents can always pay, and M-Pesa callbacks never go through the check. A learner limit stops staff adding students past it (the school keeps the learners it has).
+- **Each school can have its own M-Pesa paybill.** Online M-Pesa is **off** for a new school until the operator sets it up, so its parents can never pay into another school's paybill. The operator enters the school's Daraja details in *Schools and billing > M-Pesa setup*, tests them, registers the school's paybill addresses with Safaricom and switches it on. The details are stored encrypted. Direct paybill payments are routed by the paybill they were paid to, so two schools can both have a student `1001`. See [Giving a school its own paybill](#giving-a-school-its-own-paybill).
+- **Subscriptions.** Each school has a plan, trial and paid-until dates and an optional learner limit. A school moves through `TRIAL` / `ACTIVE`, then `GRACE`, then `EXPIRED` (or `SUSPENDED` by the operator). Expired and suspended schools become **read-only for staff**; parents can always pay, and M-Pesa callbacks never go through the check. A learner limit stops staff adding students past it (the school keeps the learners it has). Automatic overdue reminders also stop for read-only schools, so a school that has not paid does not spend the operator's SMS and email credits.
+- **A book of what each school pays you.** *Record payment* books the amount, method and M-Pesa or bank reference and extends the paid-until date in the same step; the same reference can't be booked twice, and a mistake is voided (kept, struck through) rather than deleted.
+- **Payments health.** One list of every school's online payments, worst first: Safaricom errors, unregistered addresses, prompts waiting too long, amount mismatches and unmatched direct payments, and schools sharing a paybill. Counts only. Search, filters and paging keep the school list usable with many schools.
 
 ---
 
@@ -174,7 +176,8 @@ frontend/
     └── __tests__/     # Vitest tests
 
 docs/
-└── COMPLIANCE.md      # legal and privacy checklist, third-party inventory, what the operator must still do
+├── COMPLIANCE.md      # legal and privacy checklist, third-party inventory, what the operator must still do
+└── PLATFORM-OPERATIONS.md  # operator guide: many schools, billing book, payments health
 ```
 
 ---
@@ -292,7 +295,7 @@ Free-tier Gemini requests may be used by Google to improve its products. Use a b
 4. Register the C2B URLs once with `python -m scripts.register_c2b_urls` (also with `?token=SECRET`), once for the sandbox and again for production. Note Daraja rejects URLs containing the word "mpesa", which is why the C2B endpoints live under `/api/payments/c2b`.
 5. For local testing, use a tunnel such as ngrok for the public callback, or set `MPESA_BASE_URL` to point at a local simulator.
 
-**Where each school's money goes.** Every school has an M-Pesa mode, shown and changed under *Schools and billing > Payments*:
+**Where each school's money goes.** Every school has an M-Pesa mode, shown and changed under *Schools and billing > M-Pesa setup*:
 
 | Mode | What parents get |
 | --- | --- |
@@ -304,7 +307,7 @@ Free-tier Gemini requests may be used by Google to improve its products. Use a b
 
 1. The school gets its own Daraja access from Safaricom for its paybill: a consumer key and secret, the paybill number and the passkey. Start with the sandbox. Paybills only: a Till (Buy Goods) is not supported.
 2. Make sure the server is ready: `MPESA_CALLBACK_URL` is set (its host is used to build every school's addresses, and it must be `https://`), and `MESSAGE_ENCRYPTION_KEYS` is set and **backed up**, because the same keys protect the saved paybill details.
-3. Sign in as the platform operator, open **Schools and billing**, then the school's **Payments** panel:
+3. Sign in as the platform operator, open **Schools and billing**, then the school's **M-Pesa setup** panel:
    1. Choose *Sandbox* or *Live*, enter the paybill number, key, secret and passkey, and **Save details**.
    2. **Test connection.** This checks the key and secret with Safaricom. It cannot check the paybill number or passkey; only a real payment does.
    3. **Register paybill addresses with Safaricom.** This gives Safaricom the school's own addresses for direct paybill payments. (STK pushes need no registration.)
@@ -317,6 +320,9 @@ Good to know:
 - Editing a school's saved details switches it **off** until you test again, so payments are never left on details nobody has tried.
 - Each school's addresses carry a token that only works for that school, so one school's address can never settle another school's payment. A live paybill can belong to only one school. Sandbox schools may share Safaricom's public test shortcode and are told apart by their address.
 - A payment arriving for a paybill that no school owns is ignored, not credited to anyone.
+- Putting a **second** school on the server-wide paybill needs an explicit confirmation, because all their money lands in one account. Give every school its own paybill.
+- **Rotate webhook address** (per school) gives one school a new private address and kills the old one, for the case where it may have leaked. It does not touch other schools, is refused while a payment prompt is in flight, and direct paybill payments need the addresses registered again afterwards.
+- Safaricom logins are remembered for a short time, per paybill (a key, secret and environment never share an entry), and dropped the moment Safaricom rejects one, so a rush of payments does not double the calls to Safaricom. *Test connection* always asks Safaricom afresh.
 - Every change is in the audit trail, without any secret.
 
 Parents pay through STK Push. Payments made straight to the paybill auto-match on the student's admission number. Anything ambiguous lands in the bursar's reconciliation queue instead of being guessed at.
@@ -482,6 +488,7 @@ Built in, with the details in [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md):
 
 | Doc | What's in it |
 |---|---|
+| [`docs/PLATFORM-OPERATIONS.md`](docs/PLATFORM-OPERATIONS.md) | Running Ledgr for many schools: onboarding, recording what schools pay you, reading Payments health, rotating addresses, what never to do, troubleshooting |
 | [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | Legal and privacy: the checklist and where each item lives, third-party inventory, licences, and what the operator still has to do |
 | [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md) | Security review: what was found and fixed, what was checked, and the pre-deploy checklist |
 | [`backend/README.md`](backend/README.md) | Backend setup, AI provider config, test details |

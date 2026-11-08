@@ -7,14 +7,14 @@ import type { CreatedSchool, PlatformSchool } from '../api/subscription';
 
 vi.mock('../components/AppShell', () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock('../api/aging', () => ({ getAgingReport: vi.fn(), downloadAgingCsv: vi.fn() }));
-vi.mock('../api/subscription', () => ({ listPlatformSchools: vi.fn(), updateSchoolSubscription: vi.fn(), getMySubscription: vi.fn(), createSchool: vi.fn() }));
+vi.mock('../api/subscription', () => ({ listPlatformSchools: vi.fn(), updateSchoolSubscription: vi.fn(), getMySubscription: vi.fn(), createSchool: vi.fn(), getPaymentsHealth: vi.fn() }));
 vi.mock('../api/platformMpesa', () => ({ getSchoolMpesa: vi.fn(), saveSchoolMpesa: vi.fn(), testSchoolMpesa: vi.fn(), registerSchoolMpesaUrls: vi.fn(), setSchoolMpesaMode: vi.fn(), removeSchoolMpesa: vi.fn() }));
 vi.mock('../store/authStore', () => ({
   useAuthStore: (sel: (s: unknown) => unknown) => sel({ logout: vi.fn(), user: { full_name: 'Allan', email: 'a@x.test' } }),
 }));
 
 import { downloadAgingCsv, getAgingReport } from '../api/aging';
-import { createSchool, listPlatformSchools, updateSchoolSubscription } from '../api/subscription';
+import { createSchool, getPaymentsHealth, listPlatformSchools, updateSchoolSubscription } from '../api/subscription';
 import { getSchoolMpesa } from '../api/platformMpesa';
 import { AgingPage } from '../pages/AgingPage';
 import { PlatformPage } from '../pages/PlatformPage';
@@ -96,6 +96,8 @@ describe('PlatformPage', () => {
     vi.mocked(listPlatformSchools).mockReset();
     vi.mocked(updateSchoolSubscription).mockReset();
     vi.mocked(createSchool).mockReset();
+    vi.mocked(getPaymentsHealth).mockReset();
+    vi.mocked(getPaymentsHealth).mockResolvedValue([]);
   });
 
   it('lists each school with its standing and learner usage', async () => {
@@ -108,11 +110,12 @@ describe('PlatformPage', () => {
     expect(screen.getByText('EXPIRED')).toBeTruthy();
   });
 
-  it('renewing sends the months and shows the result straight away', async () => {
+  it('a free extension sends the months and shows the result straight away', async () => {
     vi.mocked(listPlatformSchools).mockResolvedValue([school({ status: 'EXPIRED', days_left: 0 })]);
     vi.mocked(updateSchoolSubscription).mockResolvedValue(school({ days_left: 120 }));
     render(<MemoryRouter><PlatformPage /></MemoryRouter>);
     await waitFor(() => screen.getByText('Greenfield Academy'));
+    fireEvent.click(screen.getByText('Edit')); // a free extension (no payment) lives under Edit
     fireEvent.click(screen.getByText('+4 months'));
     await waitFor(() => expect(updateSchoolSubscription).toHaveBeenCalledWith('sc1', { extend_months: 4 }));
     await waitFor(() => expect(screen.getByText('ACTIVE')).toBeTruthy());
@@ -211,7 +214,7 @@ describe('PlatformPage', () => {
     render(<MemoryRouter><PlatformPage /></MemoryRouter>);
     await waitFor(() => screen.getByText('Hillside'));
     expect(getSchoolMpesa).not.toHaveBeenCalled(); // nothing is fetched until someone asks
-    fireEvent.click(screen.getAllByText('Payments')[1]); // the second card: Hillside
+    fireEvent.click(screen.getAllByText('M-Pesa setup')[1]); // the second card: Hillside
     await waitFor(() => expect(screen.getByText(/Online M-Pesa for Hillside/)).toBeTruthy());
     expect(getSchoolMpesa).toHaveBeenCalledWith('sc2');
     expect(screen.queryByText(/Online M-Pesa for Greenfield Academy/)).toBeNull();

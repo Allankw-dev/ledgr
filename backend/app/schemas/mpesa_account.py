@@ -19,6 +19,9 @@ class MpesaAccountUpdate(BaseModel):
 
 class MpesaModeUpdate(BaseModel):
     mode: Literal["OFF", "GLOBAL", "OWN"]
+    # Required to put a school on the server-wide paybill when other schools already use it. Money from all of
+    # them lands in ONE account, so this is a deliberate yes, not a default.
+    confirm_shared: bool = False
 
 
 class MpesaAccountStatus(BaseModel):

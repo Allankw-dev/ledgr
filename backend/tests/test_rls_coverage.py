@@ -16,7 +16,7 @@ SQL = (Path(__file__).resolve().parent.parent / "sql" / "enable_rls.sql").read_t
 ENABLED = {m.lower() for m in re.findall(r"ALTER TABLE\s+(\w+)\s+ENABLE ROW LEVEL SECURITY", SQL, re.I)}
 POLICIES = {m.lower() for m in re.findall(r"CREATE POLICY\s+\w+\s+ON\s+(\w+)", SQL, re.I)}
 # Enabled on purpose with NO policy (deny-all for the app role; only the owner connection touches them).
-DENY_ALL = {"refresh_tokens", "school_mpesa_accounts"}  # see the owner-only notes in enable_rls.sql
+DENY_ALL = {"refresh_tokens", "school_mpesa_accounts", "subscription_payments"}  # see the owner-only notes in enable_rls.sql
 
 
 def test_every_table_has_row_level_security_enabled():

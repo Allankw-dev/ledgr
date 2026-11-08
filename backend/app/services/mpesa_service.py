@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -73,14 +75,45 @@ def base_url_for_environment(environment: str) -> str:
     return settings.mpesa_base_url or SANDBOX_URL
 
 
-async def get_access_token(creds: MpesaCredentials) -> str:
-    """OAuth token from Daraja, required on every subsequent API call.
-    Valid for 1 hour — callers should fetch a fresh one per request rather
-    than caching across a long-running process, since the cost of one extra
-    HTTP call is negligible compared to the bugs a stale-token cache invites
-    (and with several paybills, a cache is one more place to mix them up)."""
-    encoded = base64.b64encode(f"{creds.consumer_key}:{creds.consumer_secret}".encode()).decode()
+# --- OAuth tokens ------------------------------------------------------------------------------------------------
+# Every Daraja call needs a token, valid for about an hour. With many schools paying at once (term start), fetching a
+# fresh one for every payment doubles the calls to Safaricom and can trip their rate limits, so tokens are kept for a
+# little under their lifetime.
+#
+# The cache can't mix paybills up: the key is a hash of the environment address AND the consumer key AND the
+# consumer secret, so two schools never share an entry, and a school whose details were changed gets a new key (the old
+# entry is simply never used again). Nothing secret is stored in the key. Entries are kept per process and are
+# thrown away the moment Safaricom rejects one.
+_TOKEN_SAFETY_MARGIN = 120  # seconds: stop using a token this long before it expires
+_DEFAULT_TOKEN_LIFETIME = 3599
+_token_cache: dict[str, tuple[str, float]] = {}
 
+
+def _token_key(creds: MpesaCredentials) -> str:
+    return hashlib.sha256(f"{creds.base_url}|{creds.consumer_key}|{creds.consumer_secret}".encode()).hexdigest()
+
+
+def clear_token_cache() -> None:
+    """Forget every cached token (tests, and nothing else needs it)."""
+    _token_cache.clear()
+
+
+def invalidate_token(creds: MpesaCredentials) -> None:
+    _token_cache.pop(_token_key(creds), None)
+
+
+async def get_access_token(creds: MpesaCredentials, *, fresh: bool = False) -> str:
+    """OAuth token from Daraja, required on every subsequent API call.
+
+    `fresh=True` skips the cache. The platform screen's "Test connection" uses it so that a key Safaricom has since
+    revoked can't look fine because an old token is still being remembered."""
+    key = _token_key(creds)
+    if not fresh:
+        cached = _token_cache.get(key)
+        if cached and cached[1] > time.monotonic():
+            return cached[0]
+
+    encoded = base64.b64encode(f"{creds.consumer_key}:{creds.consumer_secret}".encode()).decode()
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{creds.base_url}/oauth/v1/generate?grant_type=client_credentials",
@@ -88,7 +121,14 @@ async def get_access_token(creds: MpesaCredentials) -> str:
             timeout=15,
         )
         resp.raise_for_status()
-        return resp.json()["access_token"]
+        body = resp.json()
+    token = body["access_token"]
+    try:
+        lifetime = int(body.get("expires_in", _DEFAULT_TOKEN_LIFETIME))
+    except (TypeError, ValueError):
+        lifetime = _DEFAULT_TOKEN_LIFETIME
+    _token_cache[key] = (token, time.monotonic() + max(0, lifetime - _TOKEN_SAFETY_MARGIN))
+    return token
 
 
 def _generate_password_and_timestamp(creds: MpesaCredentials) -> tuple[str, str]:
@@ -117,7 +157,6 @@ async def initiate_stk_push(
     phone_number must be in the format 2547XXXXXXXX (no leading +, no
     leading 0) — Daraja rejects other formats.
     """
-    token = await get_access_token(creds)
     password, timestamp = _generate_password_and_timestamp(creds)
 
     payload = {
@@ -134,9 +173,9 @@ async def initiate_stk_push(
         "TransactionDesc": transaction_desc[:13],
     }
 
-    async with httpx.AsyncClient() as client:
+    async def _post(client: httpx.AsyncClient, token: str) -> httpx.Response:
         try:
-            resp = await client.post(
+            return await client.post(
                 f"{creds.base_url}/mpesa/stkpush/v1/processrequest",
                 json=payload,
                 headers={"Authorization": f"Bearer {token}"},
@@ -147,6 +186,15 @@ async def initiate_stk_push(
         except httpx.TransportError as exc:
             # Connected, then the answer was lost (read timeout, reset). The prompt may be out.
             raise MpesaOutcomeUnknown(str(exc) or exc.__class__.__name__) from exc
+
+    token = await get_access_token(creds)
+    async with httpx.AsyncClient() as client:
+        resp = await _post(client, token)
+        if resp.status_code == 401:
+            # The remembered token was rejected (expired early, or the key was changed on Safaricom's side). A 401 means
+            # nothing was processed, so asking again with a fresh token cannot send a second prompt.
+            invalidate_token(creds)
+            resp = await _post(client, await get_access_token(creds, fresh=True))
         if resp.status_code >= 400:
             # Safaricom's error responses contain a genuinely useful message
             # (e.g. "Invalid PhoneNumber", "Bad Request - Invalid Shortcode")

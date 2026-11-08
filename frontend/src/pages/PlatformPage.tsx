@@ -3,9 +3,21 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, LogOut, Plus } from 'lucide-react';
 import { DxCard } from '../components/dx/DxCard';
-import { createSchool, listPlatformSchools, updateSchoolSubscription, type CreatedSchool, type PlatformSchool, type SubscriptionStatus, type SubscriptionUpdate } from '../api/subscription';
+import {
+  createSchool,
+  getPaymentsHealth,
+  listPlatformSchools,
+  updateSchoolSubscription,
+  type CreatedSchool,
+  type PlatformSchool,
+  type SchoolPaymentsHealth,
+  type SubscriptionStatus,
+  type SubscriptionUpdate,
+} from '../api/subscription';
 import { getErrorMessage } from '../api/client';
 import { MpesaSetupPanel } from '../components/MpesaSetupPanel';
+import { PaymentsHealthPanel } from '../components/PaymentsHealthPanel';
+import { SchoolBillingPanel } from '../components/SchoolBillingPanel';
 import { OperatorTwoFactor } from '../components/OperatorTwoFactor';
 import { useAuthStore } from '../store/authStore';
 
@@ -29,11 +41,12 @@ function when(s: PlatformSchool): string {
 
 const toInputDate = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
 
-function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s: PlatformSchool) => void }) {
+function SchoolCard({ school, onChange, onSchoolChanged }: { school: PlatformSchool; onChange: (s: PlatformSchool) => void; onSchoolChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [billingOpen, setBillingOpen] = useState(false);
   const [paidUntil, setPaidUntil] = useState(toInputDate(school.paid_until));
   const [limit, setLimit] = useState(school.learner_limit?.toString() ?? '');
 
@@ -63,7 +76,7 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PILL[school.status]}`}>{school.status}</span>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+      <dl className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
         <div>
           <dt className="text-xs text-ink-400">Standing</dt>
           <dd className="text-ink-900 mt-0.5">{when(school)}</dd>
@@ -80,22 +93,26 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
           <dt className="text-xs text-ink-400">Plan</dt>
           <dd className="text-ink-900 mt-0.5">{school.plan}</dd>
         </div>
+        <div>
+          <dt className="text-xs text-ink-400">Last paid you</dt>
+          <dd className="text-ink-900 mt-0.5">
+            {school.last_payment_on ? new Date(school.last_payment_on).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Nothing recorded'}
+          </dd>
+        </div>
       </dl>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button className={btn} disabled={busy} onClick={() => apply({ extend_months: 1 })}>+1 month</button>
-        <button className={btn} disabled={busy} onClick={() => apply({ extend_months: 4 })}>+4 months</button>
-        <button className={btn} disabled={busy} onClick={() => apply({ extend_months: 12 })}>+12 months</button>
+        <button className={`${btn} !border-lime/40`} aria-expanded={billingOpen} onClick={() => setBillingOpen((o) => !o)}>{billingOpen ? 'Hide billing' : 'Record payment'}</button>
         <button className={btn} disabled={busy} onClick={() => apply({ trial_days: 30 })}>30-day trial</button>
         <button className={btn} disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? 'Cancel' : 'Edit'}</button>
-        <button className={btn} aria-expanded={paymentsOpen} onClick={() => setPaymentsOpen((o) => !o)}>{paymentsOpen ? 'Hide payments' : 'Payments'}</button>
+        <button className={btn} aria-expanded={paymentsOpen} onClick={() => setPaymentsOpen((o) => !o)}>{paymentsOpen ? 'Hide M-Pesa' : 'M-Pesa setup'}</button>
         {suspended ? (
           <button className={`${btn} !border-lime/50 text-lime`} disabled={busy} onClick={() => apply({ status: 'ACTIVE' })}>Reactivate</button>
         ) : (
           <button
             className={`${btn} hover:!border-coral/60 text-coral`}
             disabled={busy}
-            onClick={() => window.confirm(`Switch off ${school.name}? Their staff will be read-only straight away. Parents can still pay.`) && apply({ status: 'SUSPENDED' })}
+            onClick={() => window.confirm(`Switch off ${school.name}? Their staff become read-only (it can take up to a minute to reach every server) and automatic reminders stop. Parents can still pay.`) && apply({ status: 'SUSPENDED' })}
           >
             Suspend
           </button>
@@ -122,8 +139,15 @@ function SchoolCard({ school, onChange }: { school: PlatformSchool; onChange: (s
             <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className="mt-1 w-full rounded-lg bg-white/[0.05] border border-white/[0.08] px-3 py-2 text-sm text-ink-900" />
           </label>
           <button disabled={busy} className="rounded-full bg-lime text-[#0B1203] font-semibold text-sm px-5 py-2 disabled:opacity-50">Save</button>
+          <div className="sm:col-span-3 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+            <span className="text-xs text-ink-400">Free extension, no payment (goodwill or a correction). When they paid, use Record payment instead:</span>
+            <button type="button" className={btn} disabled={busy} onClick={() => apply({ extend_months: 1 })}>+1 month</button>
+            <button type="button" className={btn} disabled={busy} onClick={() => apply({ extend_months: 4 })}>+4 months</button>
+            <button type="button" className={btn} disabled={busy} onClick={() => apply({ extend_months: 12 })}>+12 months</button>
+          </div>
         </form>
       )}
+      {billingOpen && <SchoolBillingPanel school={school} onSchoolChanged={onSchoolChanged} />}
       {paymentsOpen && <MpesaSetupPanel schoolId={school.id} schoolName={school.name} />}
       {error && <p role="alert" className="mt-3 text-xs text-coral">{error}</p>}
     </DxCard>
@@ -201,6 +225,16 @@ function AddSchoolForm({ onCreated, onCancel }: { onCreated: (s: CreatedSchool) 
   );
 }
 
+const PAGE_SIZE = 20;
+
+type Filter = 'ALL' | 'RENEW' | 'SUSPENDED' | 'PAYMENTS';
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: 'ALL', label: 'All' },
+  { value: 'RENEW', label: 'Needs renewing' },
+  { value: 'SUSPENDED', label: 'Suspended' },
+  { value: 'PAYMENTS', label: 'Payment problems' },
+];
+
 export function PlatformPage() {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
@@ -211,6 +245,18 @@ export function PlatformPage() {
   const [notice, setNotice] = useState('');
   // The server answers 403 until the operator has two-factor sign-in on; then only the set-up card is shown.
   const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
+  const [health, setHealth] = useState<SchoolPaymentsHealth[] | null>(null);
+  const [healthError, setHealthError] = useState('');
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('ALL');
+  const [visible, setVisible] = useState(PAGE_SIZE);
+
+  const loadHealth = useCallback(() => {
+    setHealthError('');
+    getPaymentsHealth()
+      .then(setHealth)
+      .catch(() => setHealthError("Couldn't check the schools' payments."));
+  }, []);
 
   const load = useCallback(() => {
     setError('');
@@ -218,13 +264,27 @@ export function PlatformPage() {
       .then((rows) => {
         setNeedsTwoFactor(false);
         setSchools(rows);
+        loadHealth();
       })
       .catch((err) => {
         if (axios.isAxiosError(err) && err.response?.status === 403) setNeedsTwoFactor(true);
         else setError("Couldn't load the schools.");
       });
-  }, []);
+  }, [loadHealth]);
   useEffect(load, [load]);
+
+  const healthById = new Map((health ?? []).map((h) => [h.school_id, h]));
+  const q = query.trim().toLowerCase();
+  const filtered = (schools ?? []).filter((s) => {
+    if (q && !s.name.toLowerCase().includes(q) && !s.contact_email.toLowerCase().includes(q)) return false;
+    if (filter === 'RENEW') return s.status === 'GRACE' || s.status === 'EXPIRED';
+    if (filter === 'SUSPENDED') return s.status === 'SUSPENDED';
+    if (filter === 'PAYMENTS') {
+      const h = healthById.get(s.id);
+      return !!h && (h.severity === 'bad' || h.severity === 'warn');
+    }
+    return true;
+  });
 
   const counts = (schools ?? []).reduce<Record<string, number>>((acc, s) => ({ ...acc, [s.status]: (acc[s.status] ?? 0) + 1 }), {});
 
@@ -315,9 +375,62 @@ export function PlatformPage() {
         )}
         {!schools && !error && <p className="text-sm text-ink-600">Loading…</p>}
         {schools?.length === 0 && <p className="text-sm text-ink-600">No schools yet.</p>}
-        {schools?.map((s) => (
-          <SchoolCard key={s.id} school={s} onChange={(updated) => setSchools((cur) => cur?.map((x) => (x.id === updated.id ? updated : x)) ?? null)} />
+        {schools && schools.length > 0 && (
+          <PaymentsHealthPanel
+            rows={health}
+            error={healthError}
+            onRefresh={loadHealth}
+            onOpenSchool={(name) => {
+              setQuery(name);
+              setFilter('ALL');
+              setVisible(PAGE_SIZE);
+            }}
+          />
+        )}
+        {schools && schools.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              aria-label="Search schools"
+              placeholder="Search by school or admin email"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setVisible(PAGE_SIZE);
+              }}
+              className="flex-1 min-w-[14rem] rounded-full bg-white/[0.05] border border-white/[0.08] px-4 py-2 text-sm text-ink-900"
+            />
+            <div role="group" aria-label="Filter schools" className="flex flex-wrap gap-2">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  aria-pressed={filter === f.value}
+                  onClick={() => {
+                    setFilter(f.value);
+                    setVisible(PAGE_SIZE);
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${filter === f.value ? 'border-lime/60 text-lime' : 'border-white/[0.1] text-ink-900 hover:border-lime/50'}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {schools && schools.length > 0 && filtered.length === 0 && <p className="text-sm text-ink-600">No schools match.</p>}
+        {filtered.slice(0, visible).map((s) => (
+          <SchoolCard
+            key={s.id}
+            school={s}
+            onChange={(updated) => setSchools((cur) => cur?.map((x) => (x.id === updated.id ? updated : x)) ?? null)}
+            onSchoolChanged={load}
+          />
         ))}
+        {filtered.length > visible && (
+          <button onClick={() => setVisible((v) => v + PAGE_SIZE)} className="self-center rounded-full border border-white/[0.1] px-4 py-2 text-sm text-ink-900 hover:border-lime/50 transition-colors">
+            Show {Math.min(PAGE_SIZE, filtered.length - visible)} more ({filtered.length - visible} not shown)
+          </button>
+        )}
         </>
         )}
       </main>

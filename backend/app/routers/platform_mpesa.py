@@ -11,7 +11,7 @@ never with Safaricom's raw reply, because that can echo what was sent.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -24,7 +24,9 @@ from app.core.database import get_system_db
 from app.core.deps import CurrentUser, require_operator
 from app.core.message_crypto import DecryptionError
 from app.core.rate_limit import limiter
+from app.models.enums import PaymentMethod, PaymentStatus
 from app.models.mpesa_account import SchoolMpesaAccount
+from app.models.payment import Payment
 from app.models.school import School
 from app.schemas.mpesa_account import MpesaAccountStatus, MpesaAccountUpdate, MpesaActionResult, MpesaModeUpdate
 from app.services.audit_service import log_audit
@@ -186,7 +188,7 @@ async def test_mpesa_connection(
 
     ok, message = True, "Connected. Safaricom accepted the key and secret."
     try:
-        await get_access_token(creds)
+        await get_access_token(creds, fresh=True)  # never answer "connected" from a remembered token
     except httpx.HTTPStatusError as exc:
         ok = False
         message = (
@@ -278,11 +280,17 @@ def set_mpesa_mode(
         if not _global_configured():
             raise HTTPException(409, "The server-wide M-Pesa settings (MPESA_*) are not complete.")
         others = db.execute(select(func.count()).select_from(School).where(School.mpesa_mode == "GLOBAL", School.id != school_id)).scalar_one()
-        if others:
-            warning = (
-                f" Note: {others} other school(s) also use the server-wide paybill, so their parents pay into the same account "
-                "and direct payments with the same admission number can't be told apart."
+        if others and not data.confirm_shared:
+            # Not an error in the code but a decision: all these schools' money lands in ONE account, and direct payments
+            # with the same admission number can't be told apart. Make the operator say so out loud.
+            raise HTTPException(
+                409,
+                f"{others} other school(s) already use the server-wide paybill. Money from every one of them would land in the "
+                "same account, and direct paybill payments with the same admission number can't be told apart. "
+                "Give this school its own paybill instead, or confirm that you want to share.",
             )
+        if others:
+            warning = f" Note: it shares the server-wide paybill with {others} other school(s)."
 
     previous = school.mpesa_mode
     school.mpesa_mode = data.mode
@@ -291,3 +299,53 @@ def set_mpesa_mode(
     db.refresh(school)
     labels = {"OFF": "switched off", "GLOBAL": "set to the server-wide paybill", "OWN": "set to the school's own paybill"}
     return _result(db, school, True, f"M-Pesa for this school is {labels[data.mode]}.{warning}")
+
+
+# A prompt sent to a parent's phone is answered (or times out) within a couple of minutes. Rotating the address while
+# one is in flight would make Safaricom's answer arrive at an address that no longer works.
+_IN_FLIGHT_WINDOW = timedelta(minutes=5)
+
+
+@router.post("/rotate-address", response_model=MpesaActionResult)
+@limiter.limit("10/minute")
+def rotate_mpesa_address(request: Request, school_id: str, db: Session = Depends(get_system_db), user: CurrentUser = Depends(SUPER)):
+    """Gives this school a NEW private webhook address and kills the old one at once. Use it if the address might have
+    leaked. It only affects this school: no other school's address changes.
+
+    Afterwards the school's direct paybill payments stop arriving until the new addresses are registered with
+    Safaricom (the "Register URLs" step). Payment prompts sent from Ledgr keep working, because every prompt
+    carries the current address."""
+    school = _school(db, school_id)
+    account = _account(db, school_id)
+    if account is None:
+        raise HTTPException(409, "This school has no M-Pesa details of its own, so it has no address of its own to rotate.")
+
+    in_flight = db.execute(
+        select(func.count())
+        .select_from(Payment)
+        .where(
+            Payment.school_id == school_id,
+            Payment.method == PaymentMethod.MPESA,
+            Payment.status == PaymentStatus.PENDING,
+            Payment.created_at >= datetime.now(timezone.utc) - _IN_FLIGHT_WINDOW,
+        )
+    ).scalar_one()
+    if in_flight:
+        raise HTTPException(
+            409,
+            f"{in_flight} M-Pesa prompt(s) were sent in the last 5 minutes and are still waiting for an answer. "
+            "Rotating now would lose their result. Try again in a few minutes.",
+        )
+
+    previous = account.callback_token_version
+    account.callback_token_version = previous + 1
+    account.c2b_registered_at = None  # the addresses Safaricom holds are now stale
+    _audit(db, school, user, "SCHOOL_MPESA_ADDRESS_ROTATED", previous_version=previous, version=account.callback_token_version)
+    db.commit()
+    return _result(
+        db,
+        school,
+        True,
+        "This school's webhook address was changed and the old one no longer works. Click \"Register URLs\" to give "
+        "Safaricom the new addresses. Until you do, direct paybill payments won't reach Ledgr (payment prompts still work).",
+    )

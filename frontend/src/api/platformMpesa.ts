@@ -55,8 +55,14 @@ export async function registerSchoolMpesaUrls(schoolId: string): Promise<MpesaAc
   return data;
 }
 
-export async function setSchoolMpesaMode(schoolId: string, mode: MpesaMode): Promise<MpesaActionResult> {
-  const { data } = await apiClient.post<MpesaActionResult>(`${base(schoolId)}/mode`, { mode });
+export async function setSchoolMpesaMode(schoolId: string, mode: MpesaMode, confirmShared = false): Promise<MpesaActionResult> {
+  const { data } = await apiClient.post<MpesaActionResult>(`${base(schoolId)}/mode`, { mode, ...(confirmShared ? { confirm_shared: true } : {}) });
+  return data;
+}
+
+/** Gives the school a new private webhook address and kills the old one. Other schools are not touched. */
+export async function rotateSchoolMpesaAddress(schoolId: string): Promise<MpesaActionResult> {
+  const { data } = await apiClient.post<MpesaActionResult>(`${base(schoolId)}/rotate-address`);
   return data;
 }
 

@@ -3,6 +3,7 @@ import {
   getSchoolMpesa,
   registerSchoolMpesaUrls,
   removeSchoolMpesa,
+  rotateSchoolMpesaAddress,
   saveSchoolMpesa,
   setSchoolMpesaMode,
   testSchoolMpesa,
@@ -163,6 +164,28 @@ export function MpesaSetupPanel({ schoolId, schoolName }: { schoolId: string; sc
           </button>
           <span className="text-xs text-ink-400">Registered: {when(status.c2b_registered_at)}</span>
         </div>
+        {saved && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className={`${BTN} hover:!border-amber/60`}
+              disabled={busy}
+              onClick={() =>
+                window.confirm(
+                  `Change ${schoolName}'s private webhook address?\n\nThe old address stops working at once, so use this only if it may have leaked. Direct paybill payments will not reach Ledgr until you click "Register paybill addresses" again. Payment prompts sent from Ledgr keep working. No other school is affected.`,
+                ) && void run(() => rotateSchoolMpesaAddress(schoolId))
+              }
+            >
+              Rotate webhook address
+            </button>
+            <span className="text-xs text-ink-400">Only if the address may have leaked.</span>
+          </div>
+        )}
+        {status.mode === 'GLOBAL' && status.other_schools_on_global > 0 && (
+          <p className="text-xs text-amber">
+            This school shares the server-wide paybill with {status.other_schools_on_global} other school(s). Their money lands in one account.
+            A paybill of its own for each school is safer.
+          </p>
+        )}
         {!status.addresses_ready && (
           <p className="text-xs text-amber">The server does not know its own public address yet. Set MPESA_CALLBACK_URL on the server first.</p>
         )}
@@ -178,7 +201,12 @@ export function MpesaSetupPanel({ schoolId, schoolName }: { schoolId: string; sc
             className={BTN}
             disabled={busy || status.mode === 'GLOBAL' || !status.global_configured}
             title={status.global_configured ? undefined : 'The server-wide M-Pesa settings are not complete'}
-            onClick={() => void run(() => setSchoolMpesaMode(schoolId, 'GLOBAL'))}
+            onClick={() => {
+              // Money from every school on the server-wide paybill lands in ONE account: make that a deliberate yes.
+              const others = status.other_schools_on_global;
+              if (others > 0 && !window.confirm(`${others} other school(s) already use the server-wide paybill. Money from all of them would land in the same account, and direct payments with the same admission number can't be told apart.\n\nGive ${schoolName} its own paybill instead unless you really want to share. Share anyway?`)) return;
+              void run(() => setSchoolMpesaMode(schoolId, 'GLOBAL', others > 0));
+            }}
           >
             Use the server-wide paybill
           </button>

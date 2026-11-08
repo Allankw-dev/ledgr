@@ -30,6 +30,7 @@ from app.models.school import School
 from app.routers import auth, students, invoices, invoice_documents, payments, terms, fee_structures, parent, users, mpesa, c2b, receipts, reports, assistant, announcements, automation, audit_logs, parent_assistant, messages, teachers, class_groups, notifications, webauthn_auth, notifications_general, attachments, direct_messages, subscription, platform, platform_mpesa, privacy
 from app.routers.students import guardian_requests_router
 from app.services.overdue_automation_service import run_overdue_reminder_sweep
+from app.services.subscription_service import compute_state
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -82,7 +83,17 @@ def run_daily_overdue_sweep() -> None:
 
         db = SystemSessionLocal()
         try:
-            school_ids = db.execute(select(School.id).where(School.auto_reminders_enabled == True)).scalars().all()  # noqa: E712
+            candidates = db.execute(
+                select(School.id, School.subscription_status, School.trial_ends_at, School.paid_until).where(
+                    School.auto_reminders_enabled == True  # noqa: E712
+                )
+            ).all()
+            # A school that has stopped paying (read-only: expired or suspended) must not keep spending the operator's
+            # SMS and email credits on automatic reminders. Its parents can still pay; it just doesn't get nagged for it.
+            school_ids = [r.id for r in candidates if not compute_state(r.subscription_status, r.trial_ends_at, r.paid_until).read_only]
+            skipped = len(candidates) - len(school_ids)
+            if skipped:
+                logger.info("Daily overdue sweep: skipping %d read-only school(s)", skipped)
             for school_id in school_ids:
                 try:
                     result = run_overdue_reminder_sweep(db, school_id)

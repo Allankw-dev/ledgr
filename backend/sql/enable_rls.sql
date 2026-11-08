@@ -463,3 +463,16 @@ BEGIN
     REVOKE ALL ON TABLE school_mpesa_accounts FROM ledgr_app;
   END IF;
 END $$;
+
+-- ----------------------------------------------------------------------------
+-- What schools pay the PLATFORM OPERATOR is OWNER-ONLY too
+-- ----------------------------------------------------------------------------
+-- subscription_payments is the operator's own book of what each school paid for using Ledgr. A school's staff must
+-- never be able to read it (or another school's). Same two locks as above: RLS on with no policy, and no grant.
+DO $$
+BEGIN
+  IF to_regclass('public.subscription_payments') IS NOT NULL THEN
+    ALTER TABLE subscription_payments ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON TABLE subscription_payments FROM ledgr_app;
+  END IF;
+END $$;

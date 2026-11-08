@@ -23,9 +23,29 @@ from app.core.security import create_password_reset_token, hash_password
 from app.models.enums import UserRole
 from app.models.school import School, User
 from app.models.student import Student
-from app.schemas.subscription import CreateSchoolRequest, CreateSchoolResponse, PlatformSchool, SubscriptionUpdate
+from app.models.subscription_payment import SubscriptionPayment
+from app.schemas.subscription import (
+    CreateSchoolRequest,
+    CreateSchoolResponse,
+    PlatformSchool,
+    SchoolPaymentsHealth,
+    SubscriptionPaymentCreate,
+    SubscriptionPaymentList,
+    SubscriptionPaymentOut,
+    SubscriptionPaymentVoid,
+    SubscriptionUpdate,
+)
 from app.services.audit_service import log_audit
 from app.services.notification_service import NotificationConfigError, send_email
+from app.services.payments_health import build_payments_health
+from app.services.platform_billing import (
+    AlreadyVoided,
+    DuplicateReference,
+    last_payment_by_school,
+    list_subscription_payments,
+    record_subscription_payment,
+    void_subscription_payment,
+)
 from app.services.subscription_service import _UNSET, apply_update, compute_state
 
 logger = logging.getLogger(__name__)
@@ -33,7 +53,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/platform", tags=["platform"])
 
 
-def _row(school: School, learners: int) -> PlatformSchool:
+def _row(school: School, learners: int, last_payment_on=None) -> PlatformSchool:
     state = compute_state(school.subscription_status, school.trial_ends_at, school.paid_until)
     return PlatformSchool(
         id=school.id,
@@ -49,6 +69,7 @@ def _row(school: School, learners: int) -> PlatformSchool:
         paid_until=school.paid_until,
         learner_count=learners,
         learner_limit=school.learner_limit,
+        last_payment_on=last_payment_on,
     )
 
 
@@ -58,7 +79,8 @@ def list_schools(db: Session = Depends(get_system_db), _user: CurrentUser = Depe
         db.execute(select(Student.school_id, func.count()).where(Student.is_active.is_(True)).group_by(Student.school_id)).all()
     )
     schools = db.execute(select(School).order_by(School.created_at.asc())).scalars().all()
-    return [_row(s, counts.get(s.id, 0)) for s in schools]
+    last_paid = last_payment_by_school(db)
+    return [_row(s, counts.get(s.id, 0), last_paid.get(s.id)) for s in schools]
 
 
 @router.patch("/schools/{school_id}/subscription", response_model=PlatformSchool)
@@ -88,7 +110,94 @@ def update_subscription(
         trial_days=data.trial_days,
     )
     count = db.scalar(select(func.count()).select_from(Student).where(Student.school_id == school.id, Student.is_active.is_(True))) or 0
-    return _row(school, count)
+    return _row(school, count, last_payment_by_school(db).get(school.id))
+
+
+@router.get("/payments-health", response_model=list[SchoolPaymentsHealth])
+def payments_health(db: Session = Depends(get_system_db), _user: CurrentUser = Depends(require_operator)):
+    """How every school's online payments are doing, worst first. Counts only."""
+    return build_payments_health(db)
+
+
+def _payment_out(row: SubscriptionPayment) -> SubscriptionPaymentOut:
+    return SubscriptionPaymentOut(
+        id=row.id,
+        school_id=row.school_id,
+        amount=row.amount,
+        currency=row.currency,
+        method=row.method,  # type: ignore[arg-type]
+        reference=row.reference,
+        paid_on=row.paid_on,
+        months_added=row.months_added,
+        note=row.note,
+        created_at=row.created_at,
+        voided_at=row.voided_at,
+        void_reason=row.void_reason,
+    )
+
+
+@router.get("/schools/{school_id}/subscription-payments", response_model=SubscriptionPaymentList)
+def get_subscription_payments(
+    school_id: str, db: Session = Depends(get_system_db), _user: CurrentUser = Depends(require_operator)
+):
+    school = db.get(School, school_id)
+    if not school:
+        raise HTTPException(404, "School not found")
+    rows, total = list_subscription_payments(db, school_id)
+    return SubscriptionPaymentList(payments=[_payment_out(r) for r in rows], total_paid=total, currency=school.currency)
+
+
+@router.post("/schools/{school_id}/subscription-payments", response_model=SubscriptionPaymentOut, status_code=201)
+@limiter.limit("60/minute")
+def add_subscription_payment(
+    request: Request,
+    school_id: str,
+    data: SubscriptionPaymentCreate,
+    db: Session = Depends(get_system_db),
+    user: CurrentUser = Depends(require_operator),
+):
+    """Books what a school paid for using Ledgr and, if `months` is set, extends its paid-until date in the same step."""
+    school = db.get(School, school_id)
+    if not school:
+        raise HTTPException(404, "School not found")
+    if data.method in ("MPESA", "BANK_TRANSFER") and not (data.reference or "").strip():
+        raise HTTPException(422, "Enter the M-Pesa code or bank reference so this payment can be traced.")
+    try:
+        row = record_subscription_payment(
+            db,
+            school,
+            operator_id=user.user_id,
+            amount=data.amount,
+            method=data.method,
+            reference=data.reference,
+            paid_on=data.paid_on,
+            months=data.months,
+            note=data.note,
+        )
+    except DuplicateReference:
+        raise HTTPException(409, "That reference is already booked for this school.")
+    return _payment_out(row)
+
+
+@router.post("/subscription-payments/{payment_id}/void", response_model=SubscriptionPaymentOut)
+@limiter.limit("30/minute")
+def void_payment(
+    request: Request,
+    payment_id: str,
+    data: SubscriptionPaymentVoid,
+    db: Session = Depends(get_system_db),
+    user: CurrentUser = Depends(require_operator),
+):
+    """Marks a booked payment as entered by mistake. It stays in the book (struck through). It does NOT move the
+    school's paid-until date back: change that deliberately if it should change."""
+    row = db.get(SubscriptionPayment, payment_id)
+    if not row:
+        raise HTTPException(404, "Payment not found")
+    try:
+        row = void_subscription_payment(db, row, operator_id=user.user_id, reason=data.reason)
+    except AlreadyVoided:
+        raise HTTPException(409, "That payment is already voided.")
+    return _payment_out(row)
 
 
 def _send_admin_invite(admin: User, school: School) -> bool:

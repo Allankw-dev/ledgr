@@ -167,3 +167,13 @@ def use_global_mpesa(db, school, monkeypatch, callback_url: str = "https://api.e
         ("mpesa_shortcode", "174379"), ("mpesa_passkey", "global-passkey"), ("mpesa_callback_url", callback_url),
     ):
         monkeypatch.setattr(settings, name, value)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_mpesa_token_cache():
+    """Daraja tokens are remembered per process (see services/mpesa_service.py). Tests must start with none."""
+    from app.services.mpesa_service import clear_token_cache
+
+    clear_token_cache()
+    yield
+    clear_token_cache()
