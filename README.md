@@ -10,6 +10,14 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql&logoColor=white)
 
+## Screenshots and walkthrough
+
+| Desktop | Mobile |
+|---|---|
+| ![Ledgr desktop sign-in screen](screenshots/desktop.jpg) | ![Ledgr mobile sign-in screen](screenshots/mobile.jpg) |
+
+[Watch the public sign-in screen walkthrough (MP4)](media/walkthrough.mp4)
+
 ---
 
 ## Contents
