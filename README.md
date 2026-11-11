@@ -22,6 +22,7 @@
 
 ## Contents
 
+- [Product walkthrough](#product-walkthrough)
 - [Features](#features)
 - [Tech stack](#tech-stack)
 - [How it fits together](#how-it-fits-together)
@@ -38,6 +39,13 @@
 - [Status](#status)
 
 ---
+
+## Product walkthrough
+
+<video controls width="100%" src="./docs/media/ledgr-walkthrough.mp4">
+  Your browser does not support embedded video. You can
+  <a href="./docs/media/ledgr-walkthrough.mp4">watch the walkthrough here</a>.
+</video>
 
 ## Features
 
