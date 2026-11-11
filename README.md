@@ -16,7 +16,7 @@
 |---|---|
 | ![Ledgr desktop sign-in screen](screenshots/desktop.jpg) | ![Ledgr mobile sign-in screen](screenshots/mobile.jpg) |
 
-[Watch the public sign-in screen walkthrough (MP4)](media/walkthrough.mp4)
+[Watch the public sign-in screen walkthrough (MP4)](docs/media/ledgr-walkthrough.mp4)
 
 ---
 
